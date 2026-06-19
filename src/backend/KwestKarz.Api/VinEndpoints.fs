@@ -15,6 +15,40 @@ open NpgsqlTypes
 module VinEndpoints =
     let private allowedVinPattern = Regex("[A-HJ-NPR-Z0-9]{17}", RegexOptions.Compiled)
     let private vinJsonPattern = Regex(@"(?i)""vin""\s*:\s*""([^""]*)""", RegexOptions.Compiled)
+    let private vinWeights = [| 8; 7; 6; 5; 4; 3; 2; 10; 0; 9; 8; 7; 6; 5; 4; 3; 2 |]
+
+    let private vinValue value =
+        match value with
+        | 'A' | 'J' -> Some 1
+        | 'B' | 'K' | 'S' -> Some 2
+        | 'C' | 'L' | 'T' -> Some 3
+        | 'D' | 'M' | 'U' -> Some 4
+        | 'E' | 'N' | 'V' -> Some 5
+        | 'F' | 'W' -> Some 6
+        | 'G' | 'P' | 'X' -> Some 7
+        | 'H' | 'Y' -> Some 8
+        | 'R' | 'Z' -> Some 9
+        | digit when digit >= '0' && digit <= '9' -> Some(int digit - int '0')
+        | _ -> None
+
+    let private validCheckDigit (vin: string) =
+        if String.IsNullOrWhiteSpace(vin) || vin.Length <> 17 then
+            false
+        else
+            let mutable valid = true
+            let mutable total = 0
+
+            for index in 0 .. 16 do
+                match vinValue vin.[index] with
+                | Some value -> total <- total + (value * vinWeights[index])
+                | None -> valid <- false
+
+            if not valid then
+                false
+            else
+                let remainder = total % 11
+                let expected = if remainder = 10 then 'X' else char (int '0' + remainder)
+                vin.[8] = expected
 
     let private normalizeOcrVinText (text: string) =
         if String.IsNullOrWhiteSpace(text) then
@@ -28,13 +62,19 @@ module VinEndpoints =
     let private findVinCandidate (text: string) =
         let normalized = normalizeOcrVinText text
 
-        let directMatch = allowedVinPattern.Match(normalized)
-        if directMatch.Success then
-            Some directMatch.Value
-        else
-            let compact = Regex.Replace(normalized, "[^A-Z0-9]", "")
-            let compactMatch = allowedVinPattern.Match(compact)
-            if compactMatch.Success then Some compactMatch.Value else None
+        let candidates =
+            [ normalized
+              Regex.Replace(normalized, "[^A-Z0-9]", "") ]
+            |> Seq.collect (fun value ->
+                allowedVinPattern.Matches(value)
+                |> Seq.cast<Match>
+                |> Seq.map (fun matchResult -> matchResult.Value))
+            |> Seq.distinct
+            |> Seq.toArray
+
+        candidates
+        |> Array.tryFind validCheckDigit
+        |> Option.orElseWith (fun () -> candidates |> Array.tryHead)
 
     let private findVinFromJson (text: string) =
         if String.IsNullOrWhiteSpace(text) then
@@ -176,9 +216,9 @@ module VinEndpoints =
 
                         let aiRequest =
                             { SystemInstructions =
-                                Some "You read vehicle VIN plates and labels. Return JSON only. VINs are 17 characters and never contain I, O, or Q."
+                                Some "You read vehicle VIN plates and labels. Return JSON only. VINs are exactly 17 characters, use A-Z and 0-9, and never contain I, O, or Q. Do not invent missing characters."
                               UserMessage =
-                                "Read the VIN from this dashboard plate, windshield VIN plate, door jamb label, title, or paperwork. Return exactly this JSON shape: {\"vin\":\"17_CHARACTER_VIN_OR_EMPTY\",\"confidence\":\"high|medium|low\",\"notes\":\"brief note\"}. If the VIN is partly obscured, return the best candidate." }
+                                "Read the VIN from this dashboard plate, windshield VIN plate, door jamb label, title, or paperwork. Return exactly this JSON shape: {\"vin\":\"17_CHARACTER_VIN_OR_EMPTY\",\"confidence\":\"high|medium|low\",\"notes\":\"brief note\"}. Prefer the clearest full 17-character VIN. If a character is uncertain, put the best visible candidate and explain the uncertainty in notes." }
 
                         let! response = ai.CompleteWithImageAsync(aiRequest, file.ContentType, imageBase64, httpContext.RequestAborted)
                         let vin = findVinFromAiText response.Text

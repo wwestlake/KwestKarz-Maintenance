@@ -65,6 +65,25 @@ h2 {
   font-weight: 700;
 }
 
+.working-overlay {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(460px, calc(100vw - 24px));
+  transform: translateX(-50%);
+  border: 1px solid #e4c766;
+  background: #fff8df;
+  color: #4d3a08;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(23 32 38 / 18%);
+  padding: 10px 12px;
+  font-weight: 800;
+}
+
 .spinner {
   width: 18px;
   height: 18px;

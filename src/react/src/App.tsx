@@ -230,6 +230,7 @@ const tirePanelStorageKey = 'kwestkarz.showTirePressurePanel'
 const tireSpecScanPendingStorageKey = 'kwestkarz.tireSpecScanPending'
 const vinScanClientStorageKey = 'kwestkarz.vinScanClientId'
 const vinScanPendingStorageKey = 'kwestkarz.vinScanPending'
+const vinScanStartedStorageKey = 'kwestkarz.vinScanStartedAt'
 const complianceScanPendingStorageKey = 'kwestkarz.complianceScanPending'
 const complianceScanTypeStorageKey = 'kwestkarz.complianceScanType'
 const complianceScanVehicleStorageKey = 'kwestkarz.complianceScanVehicleId'
@@ -668,6 +669,40 @@ function App() {
     localStorage.removeItem(complianceScanStartedStorageKey)
   }
 
+  function markVinScanPending() {
+    getVinScanClientId()
+    localStorage.setItem(vinScanPendingStorageKey, 'true')
+    localStorage.setItem(vinScanStartedStorageKey, new Date().toISOString())
+    const scanMessage = 'Reading VIN photo...'
+    setMessage(scanMessage)
+    setWorkingMessage(scanMessage)
+  }
+
+  function clearVinScanPending() {
+    localStorage.removeItem(vinScanPendingStorageKey)
+    localStorage.removeItem(vinScanStartedStorageKey)
+  }
+
+  function openVinCamera() {
+    markVinScanPending()
+    if (vinCameraInputRef.current) {
+      vinCameraInputRef.current.value = ''
+      vinCameraInputRef.current.click()
+    }
+  }
+
+  function openComplianceCamera(recordType: string) {
+    setComplianceScanType(recordType)
+    markComplianceScanPending(recordType)
+    const scanMessage = `Waiting for ${formatComplianceType(recordType)} photo...`
+    setMessage(scanMessage)
+    setWorkingMessage(scanMessage)
+    if (complianceCameraInputRef.current) {
+      complianceCameraInputRef.current.value = ''
+      complianceCameraInputRef.current.click()
+    }
+  }
+
   async function recoverLatestComplianceScan() {
     if (complianceRecoveryActiveRef.current) return
     complianceRecoveryActiveRef.current = true
@@ -834,7 +869,8 @@ function App() {
   }
 
   async function applyScannedVin(scannedVin: string) {
-    localStorage.removeItem(vinScanPendingStorageKey)
+    clearVinScanPending()
+    setWorkingMessage('')
     setVin(scannedVin)
     setMessage(`VIN read: ${scannedVin}`)
 
@@ -849,15 +885,21 @@ function App() {
     if (vinRecoveryActiveRef.current) return
     vinRecoveryActiveRef.current = true
     const clientId = getVinScanClientId()
+    const startedAt = Date.parse(localStorage.getItem(vinScanStartedStorageKey) || '')
 
     try {
       for (let attempt = 0; attempt < 45; attempt += 1) {
         try {
-          if (attempt === 0) setMessage('Waiting for VIN scan result...')
+          if (attempt === 0) {
+            setMessage('Waiting for VIN scan result...')
+            setWorkingMessage('Waiting for VIN scan result...')
+          }
           const latest = await api.get<VinLatestScanResponse>(`/api/vin/latest-scan/${encodeURIComponent(clientId)}`)
           const scannedVin = latest.vin?.trim().toUpperCase()
+          const loggedAt = Date.parse(latest.loggedAt ?? '')
+          const isCurrentAttempt = !Number.isFinite(startedAt) || (Number.isFinite(loggedAt) && loggedAt >= startedAt)
 
-          if (scannedVin) {
+          if (scannedVin && isCurrentAttempt) {
             await applyScannedVin(scannedVin)
             return
           }
@@ -869,7 +911,8 @@ function App() {
       }
 
       if (localStorage.getItem(vinScanPendingStorageKey) === 'true') {
-        localStorage.removeItem(vinScanPendingStorageKey)
+        clearVinScanPending()
+        setWorkingMessage('')
         setMessage('VIN scan timed out. Try the door jamb label again, closer and steady.')
       }
     } finally {
@@ -912,14 +955,16 @@ function App() {
 
   async function scanVinFromPhoto(file: File) {
     setLoading(true)
-    setMessage('Reading VIN photo...')
+    const scanMessage = 'Reading VIN photo...'
+    setMessage(scanMessage)
+    setWorkingMessage(scanMessage)
 
     try {
       const form = new FormData()
       const clientId = getVinScanClientId()
       form.append('file', file)
       form.append('clientId', clientId)
-      localStorage.setItem(vinScanPendingStorageKey, 'true')
+      if (localStorage.getItem(vinScanPendingStorageKey) !== 'true') markVinScanPending()
 
       const response = await fetch('/api/vin/scan-photo', {
         method: 'POST',
@@ -935,13 +980,16 @@ function App() {
       const scannedVin = apiVin.trim().toUpperCase() || extractVin(aiText)
 
       if (!scannedVin) {
-        localStorage.removeItem(vinScanPendingStorageKey)
+        clearVinScanPending()
+        setWorkingMessage('')
         setMessage('No VIN found in photo. Try closer, flatter lighting, and fill the frame with the VIN.')
         return
       }
 
       await applyScannedVin(scannedVin)
     } catch (error) {
+      clearVinScanPending()
+      setWorkingMessage('')
       setMessage(error instanceof Error ? error.message : 'Could not read VIN photo')
     } finally {
       setLoading(false)
@@ -1310,6 +1358,12 @@ function App() {
         </div>
         <span className={loading ? 'status busy' : 'status'}>{message}</span>
       </header>
+      {workingMessage && (
+        <div className="working-overlay" role="status" aria-live="polite">
+          <span className="spinner" aria-hidden="true" />
+          <span>{workingMessage}</span>
+        </div>
+      )}
 
       <section className="lookup-band">
         <form className="lookup-form" onSubmit={lookupVehicle}>
@@ -1340,11 +1394,7 @@ function App() {
               disabled={loading}
               aria-label="Scan VIN with camera"
               title="Scan VIN with camera"
-              onClick={() => {
-                getVinScanClientId()
-                localStorage.setItem(vinScanPendingStorageKey, 'true')
-                vinCameraInputRef.current?.click()
-              }}
+              onClick={openVinCamera}
             >
               <span aria-hidden="true">📷</span>
             </button>
@@ -1680,11 +1730,7 @@ function App() {
                   className="secondary-button"
                   type="button"
                   disabled={loading}
-                  onClick={() => {
-                    setComplianceScanType(type)
-                    markComplianceScanPending(type)
-                    complianceCameraInputRef.current?.click()
-                  }}
+                  onClick={() => openComplianceCamera(type)}
                 >
                   Scan {formatComplianceType(type)}
                 </button>
