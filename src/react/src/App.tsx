@@ -40,6 +40,11 @@ type DocumentRecord = {
   createdAt: string
 }
 
+type AIResponse = {
+  text: string
+  model: string
+}
+
 type Dashboard = {
   vehicle: Vehicle
   documents: DocumentRecord[]
@@ -89,15 +94,46 @@ const emptyVehicleForm: CreateVehicleForm = {
   notes: '',
 }
 
-const maintenanceActions = [
+const maintenanceTypes = [
   'Oil Change',
+  'Car Wash',
+  'Full Detail',
+  'Interior Detail',
+  'Exterior Detail',
+  'Mechanical Repair',
+  'Damage Repair',
+  'Body Work',
+  'Paint / Touch Up',
+  'Tires',
   'Tire Rotation',
+  'Tire Repair',
+  'Wheel Alignment',
   'Brake Inspection',
+  'Brake Pads',
+  'Brake Rotors',
+  'Brake Fluid Flush',
+  'Transmission Flush',
+  'Coolant Flush',
   'Battery',
-  'Detail',
+  'Alternator',
+  'Starter',
+  'Wipers',
+  'Air Filter',
+  'Cabin Filter',
+  'Spark Plugs',
+  'Suspension',
+  'A/C Service',
+  'Check Engine Diagnostic',
+  'OBD2 Scan',
+  'Emissions',
   'Inspection',
   'Registration',
-  'Repair',
+  'Recall / Dealer Service',
+  'GPS / Bouncie Install',
+  'Lock Box',
+  'Key / Fob',
+  'Roadside',
+  'Other',
 ]
 
 const api = {
@@ -117,6 +153,16 @@ const api = {
   },
 }
 
+function tryApplyReceiptDetails(text: string) {
+  const costMatch = text.match(/(?:total|amount|paid|balance)\D{0,20}(\d{1,5}(?:\.\d{2})?)/i)
+  const dateMatch = text.match(/\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2})\b/)
+
+  return {
+    cost: costMatch?.[1],
+    date: dateMatch?.[1],
+  }
+}
+
 function App() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [vin, setVin] = useState('')
@@ -133,6 +179,10 @@ function App() {
     nextDueOdometer: '',
     notes: '',
   })
+  const [showMaintenanceTypes, setShowMaintenanceTypes] = useState(false)
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [receiptInsight, setReceiptInsight] = useState('')
+  const [showMaintenanceForm, setShowMaintenanceForm] = useState(false)
   const [message, setMessage] = useState('Ready')
   const [loading, setLoading] = useState(false)
 
@@ -167,6 +217,7 @@ function App() {
     setMessage('Loading vehicle...')
     setDecoded(null)
     setVin(vehicle.vin)
+    setShowMaintenanceForm(false)
 
     try {
       await loadDashboard(vehicle.id)
@@ -182,6 +233,7 @@ function App() {
     setDashboard(null)
     setDecoded(null)
     setVin('')
+    setShowMaintenanceForm(false)
     setMessage('Ready')
   }
 
@@ -239,6 +291,7 @@ function App() {
 
       setVin(vehicle.vin)
       setDecoded(null)
+      setShowMaintenanceForm(false)
       await loadDashboard(vehicle.id)
       await refreshVehicles()
       setMessage('Vehicle created')
@@ -267,11 +320,69 @@ function App() {
         nextDueOdometer: maintenanceForm.nextDueOdometer ? Number(maintenanceForm.nextDueOdometer) : null,
         notes: maintenanceForm.notes || null,
       })
+
+      if (receiptFile) {
+        const form = new FormData()
+        form.append('file', receiptFile)
+        form.append('kind', 'Receipt')
+        form.append('description', `${maintenanceForm.eventType} receipt`)
+
+        const response = await fetch(`/api/vehicles/${dashboard.vehicle.id}/documents`, {
+          method: 'POST',
+          body: form,
+        })
+
+        if (!response.ok) throw new Error(await response.text())
+      }
+
       await loadDashboard(dashboard.vehicle.id)
       await refreshVehicles()
+      setReceiptFile(null)
+      setReceiptInsight('')
+      setShowMaintenanceForm(false)
       setMessage('Maintenance logged')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not log maintenance')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function readReceipt() {
+    if (!dashboard || !receiptFile) return
+
+    setLoading(true)
+    setMessage('Reading receipt...')
+
+    try {
+      const form = new FormData()
+      form.append('file', receiptFile)
+      form.append('vehicleVin', dashboard.vehicle.vin)
+      form.append(
+        'prompt',
+        'Read this maintenance receipt. Extract vendor, date, total cost, odometer if visible, maintenance type, and line items. Return concise plain text.',
+      )
+
+      const response = await fetch('/api/ai/interpret-image', {
+        method: 'POST',
+        body: form,
+      })
+
+      if (!response.ok) throw new Error(await response.text())
+
+      const ai = (await response.json()) as AIResponse
+      const applied = tryApplyReceiptDetails(ai.text)
+
+      setReceiptInsight(ai.text)
+      setMaintenanceForm((current) => ({
+        ...current,
+        cost: current.cost || applied.cost || '',
+        datePerformed: current.datePerformed || applied.date || current.datePerformed,
+        notes: [current.notes, `Receipt readout:\n${ai.text}`].filter(Boolean).join('\n\n'),
+      }))
+      setMessage('Receipt read. Review fields before saving.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not read receipt')
     } finally {
       setLoading(false)
     }
@@ -383,6 +494,9 @@ function App() {
               <button className="secondary-button" type="button" onClick={showFleet}>
                 Fleet
               </button>
+              <button className="primary-action" type="button" onClick={() => setShowMaintenanceForm(true)}>
+                Add Maintenance
+              </button>
             </div>
             <div className="metrics">
               <div>
@@ -401,24 +515,58 @@ function App() {
             <p className="context">{dashboard.aiContextSummary}</p>
           </div>
 
+          {showMaintenanceForm && (
           <div className="panel">
             <div className="section-heading">
               <h2>Log Maintenance</h2>
-              <p>Record the work while you are standing by the car.</p>
+              <button className="secondary-button" type="button" onClick={() => setShowMaintenanceForm(false)}>
+                Cancel
+              </button>
             </div>
             <form className="maintenance-form" onSubmit={logMaintenance}>
               <div className="quick-actions wide">
-                {maintenanceActions.map((action) => (
-                  <button
-                    key={action}
-                    className={maintenanceForm.eventType === action ? 'action-chip selected' : 'action-chip'}
-                    type="button"
-                    onClick={() => setMaintenanceForm({ ...maintenanceForm, eventType: action })}
-                  >
-                    {action}
-                  </button>
-                ))}
+                <button className="type-picker-button" type="button" onClick={() => setShowMaintenanceTypes(!showMaintenanceTypes)}>
+                  Maintenance Type
+                </button>
+                <button
+                  className={maintenanceForm.eventType === 'Oil Change' ? 'action-chip selected' : 'action-chip'}
+                  type="button"
+                  onClick={() => setMaintenanceForm({ ...maintenanceForm, eventType: 'Oil Change' })}
+                >
+                  Oil Change
+                </button>
+                <button
+                  className={maintenanceForm.eventType === 'Car Wash' ? 'action-chip selected' : 'action-chip'}
+                  type="button"
+                  onClick={() => setMaintenanceForm({ ...maintenanceForm, eventType: 'Car Wash' })}
+                >
+                  Car Wash
+                </button>
+                <button
+                  className={maintenanceForm.eventType === 'Mechanical Repair' ? 'action-chip selected' : 'action-chip'}
+                  type="button"
+                  onClick={() => setMaintenanceForm({ ...maintenanceForm, eventType: 'Mechanical Repair' })}
+                >
+                  Repair
+                </button>
               </div>
+              {showMaintenanceTypes && (
+                <div className="type-picker wide">
+                  {maintenanceTypes.map((type) => (
+                    <button
+                      key={type}
+                      className={maintenanceForm.eventType === type ? 'type-option selected' : 'type-option'}
+                      type="button"
+                      onClick={() => {
+                        setMaintenanceForm({ ...maintenanceForm, eventType: type })
+                        setShowMaintenanceTypes(false)
+                      }}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              )}
               <label>
                 <span>Event</span>
                 <input
@@ -473,11 +621,26 @@ function App() {
                   onChange={(event) => setMaintenanceForm({ ...maintenanceForm, notes: event.target.value })}
                 />
               </label>
+              <div className="receipt-panel wide">
+                <label>
+                  <span>Receipt / Photo</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)}
+                  />
+                </label>
+                <button type="button" className="secondary-button" disabled={!receiptFile || loading} onClick={readReceipt}>
+                  Read Receipt
+                </button>
+                {receiptInsight && <pre className="receipt-insight">{receiptInsight}</pre>}
+              </div>
               <button type="submit" disabled={loading}>
                 Save Maintenance
               </button>
             </form>
           </div>
+          )}
 
           <div className="panel">
             <div className="section-heading">
