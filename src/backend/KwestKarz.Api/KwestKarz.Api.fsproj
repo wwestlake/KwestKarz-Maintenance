@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <UserSecretsId>d78c1f11-b4fa-42e0-a7ab-f6f01bac4522</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="VehicleDtos.fs" />
+    <Compile Include="VehicleEndpoints.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\KwestKarz.Domain\KwestKarz.Domain.fsproj" />
+    <ProjectReference Include="..\KwestKarz.Infrastructure\KwestKarz.Infrastructure.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+  </ItemGroup>
+
+</Project>
