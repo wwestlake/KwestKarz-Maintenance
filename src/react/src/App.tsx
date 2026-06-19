@@ -221,6 +221,7 @@ function App() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptInsight, setReceiptInsight] = useState('')
   const [showMaintenanceForm, setShowMaintenanceForm] = useState(false)
+  const [showLockBoxManager, setShowLockBoxManager] = useState(false)
   const [selectedLockBoxId, setSelectedLockBoxId] = useState('')
   const [editingLockBoxId, setEditingLockBoxId] = useState('')
   const [lockBoxForm, setLockBoxForm] = useState({
@@ -292,6 +293,8 @@ function App() {
     setDecoded(null)
     setVin('')
     setShowMaintenanceForm(false)
+    setShowLockBoxManager(false)
+    setEditingLockBoxId('')
     setMessage('Ready')
   }
 
@@ -623,7 +626,19 @@ function App() {
         <section className="panel fleet-panel">
           <div className="section-heading">
             <h2>Fleet</h2>
-            <p>{vehicles.length} vehicles</p>
+            <div className="heading-actions">
+              <p>{vehicles.length} vehicles</p>
+              <button
+                className="secondary-button"
+                type="button"
+                onClick={() => {
+                  setShowLockBoxManager(!showLockBoxManager)
+                  setEditingLockBoxId('')
+                }}
+              >
+                {showLockBoxManager ? 'Hide Lock Boxes' : 'Manage Lock Boxes'}
+              </button>
+            </div>
           </div>
           <div className="vehicle-list">
             {vehicles.length === 0 && <p className="empty">No vehicles yet. Scan or enter a VIN to add one.</p>}
@@ -643,9 +658,10 @@ function App() {
             })}
           </div>
         </section>
+        {showLockBoxManager && (
         <section className="panel fleet-panel">
           <div className="section-heading">
-            <h2>Lock Box Lookup</h2>
+            <h2>Manage Lock Boxes</h2>
             <p>{lockBoxes.length} boxes</p>
           </div>
           <div className="lockbox-list">
@@ -715,6 +731,7 @@ function App() {
             </form>
           )}
         </section>
+        )}
         </>
       )}
 

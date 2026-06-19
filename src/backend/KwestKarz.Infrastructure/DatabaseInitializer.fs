@@ -88,13 +88,21 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                     id, box_number, combo, style, status, notes, created_at, updated_at
                 )
                 select ('00000000-0000-0000-0000-' || lpad(box_number::text, 12, '0'))::uuid,
-                       box_number, '', 'Mechanical Keypad', 'Available',
+                       box_number, '',
+                       case when box_number in (14, 15, 16) then 'Dial' else 'Mechanical Keypad' end,
+                       'Available',
                        'Seeded starter inventory. Box 13 intentionally skipped.', now(), now()
                 from (values
                     (1), (2), (3), (4), (5), (6), (7), (8),
                     (9), (10), (11), (12), (14), (15), (16)
                 ) as seed(box_number)
                 on conflict (box_number) do nothing;
+
+                update kwestkarzbusinessdata.lock_boxes
+                set style = case when box_number in (14, 15, 16) then 'Dial' else 'Mechanical Keypad' end,
+                    updated_at = now()
+                where (box_number between 1 and 12 and style <> 'Mechanical Keypad')
+                   or (box_number in (14, 15, 16) and style <> 'Dial');
 
                 create table if not exists kwestkarzbusinessdata.maintenance_records (
                     id uuid primary key,

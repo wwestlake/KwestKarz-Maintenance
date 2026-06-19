@@ -337,6 +337,12 @@ button:disabled {
   margin-bottom: 16px;
 }
 
+.heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .section-heading p,
 .context,
 .empty,
@@ -453,5 +459,10 @@ button:disabled {
     align-items: flex-start;
     flex-direction: column;
     gap: 4px;
+  }
+
+  .heading-actions {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
