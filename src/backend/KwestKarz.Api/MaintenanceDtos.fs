@@ -60,6 +60,7 @@ type MaintenanceSummaryResponse =
 
 type VehicleDashboardResponse =
     { Vehicle: VehicleResponse
+      CurrentLockBox: LockBoxResponse option
       Documents: DocumentResponse array
       RecentMaintenance: MaintenanceRecordResponse array
       NextDue: MaintenanceSummaryResponse option

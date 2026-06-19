@@ -40,6 +40,20 @@ type DocumentRecord = {
   createdAt: string
 }
 
+type LockBox = {
+  id: string
+  boxNumber: number
+  serialNumber?: string
+  combo: string
+  style: string
+  status: string
+  notes?: string
+  currentVehicleId?: string
+  currentVehicleVin?: string
+  currentVehicleLabel?: string
+  assignedAt?: string
+}
+
 type AIResponse = {
   text: string
   model: string
@@ -47,6 +61,7 @@ type AIResponse = {
 
 type Dashboard = {
   vehicle: Vehicle
+  currentLockBox?: LockBox
   documents: DocumentRecord[]
   recentMaintenance: MaintenanceRecord[]
   nextDue?: {
@@ -136,6 +151,9 @@ const maintenanceTypes = [
   'Other',
 ]
 
+const lockBoxStyles = ['Mechanical Keypad', 'Dial', 'Other']
+const lockBoxStatuses = ['Available', 'Assigned', 'Lost', 'Retired']
+
 const api = {
   async get<T>(path: string): Promise<T> {
     const response = await fetch(path)
@@ -145,6 +163,15 @@ const api = {
   async post<T>(path: string, body: unknown): Promise<T> {
     const response = await fetch(path, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!response.ok) throw new Error(await response.text())
+    return response.json()
+  },
+  async put<T>(path: string, body: unknown): Promise<T> {
+    const response = await fetch(path, {
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
@@ -165,6 +192,7 @@ function tryApplyReceiptDetails(text: string) {
 
 function App() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [lockBoxes, setLockBoxes] = useState<LockBox[]>([])
   const [vin, setVin] = useState('')
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [decoded, setDecoded] = useState<VinDecode | null>(null)
@@ -183,6 +211,15 @@ function App() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptInsight, setReceiptInsight] = useState('')
   const [showMaintenanceForm, setShowMaintenanceForm] = useState(false)
+  const [selectedLockBoxId, setSelectedLockBoxId] = useState('')
+  const [editingLockBoxId, setEditingLockBoxId] = useState('')
+  const [lockBoxForm, setLockBoxForm] = useState({
+    serialNumber: '',
+    combo: '',
+    style: 'Mechanical Keypad',
+    status: 'Available',
+    notes: '',
+  })
   const [message, setMessage] = useState('Ready')
   const [loading, setLoading] = useState(false)
 
@@ -196,6 +233,7 @@ function App() {
 
   useEffect(() => {
     refreshVehicles()
+    refreshLockBoxes()
   }, [])
 
   async function refreshVehicles() {
@@ -207,9 +245,19 @@ function App() {
     }
   }
 
+  async function refreshLockBoxes() {
+    try {
+      const nextLockBoxes = await api.get<LockBox[]>('/api/lock-boxes')
+      setLockBoxes(nextLockBoxes)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not load lock boxes')
+    }
+  }
+
   async function loadDashboard(vehicleId: string) {
     const nextDashboard = await api.get<Dashboard>(`/api/vehicles/${vehicleId}/dashboard`)
     setDashboard(nextDashboard)
+    setSelectedLockBoxId('')
   }
 
   async function openVehicle(vehicle: Vehicle) {
@@ -294,6 +342,7 @@ function App() {
       setShowMaintenanceForm(false)
       await loadDashboard(vehicle.id)
       await refreshVehicles()
+      await refreshLockBoxes()
       setMessage('Vehicle created')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not create vehicle')
@@ -337,6 +386,7 @@ function App() {
 
       await loadDashboard(dashboard.vehicle.id)
       await refreshVehicles()
+      await refreshLockBoxes()
       setReceiptFile(null)
       setReceiptInsight('')
       setShowMaintenanceForm(false)
@@ -388,6 +438,84 @@ function App() {
     }
   }
 
+  function startEditingLockBox(lockBox: LockBox) {
+    setEditingLockBoxId(lockBox.id)
+    setLockBoxForm({
+      serialNumber: lockBox.serialNumber ?? '',
+      combo: lockBox.combo,
+      style: lockBox.style,
+      status: lockBox.status,
+      notes: lockBox.notes ?? '',
+    })
+  }
+
+  async function saveLockBox(event: FormEvent) {
+    event.preventDefault()
+    if (!editingLockBoxId) return
+
+    setLoading(true)
+    setMessage('Saving lock box...')
+
+    try {
+      await api.put<LockBox>(`/api/lock-boxes/${editingLockBoxId}`, {
+        serialNumber: lockBoxForm.serialNumber || null,
+        combo: lockBoxForm.combo,
+        style: lockBoxForm.style,
+        status: lockBoxForm.status,
+        notes: lockBoxForm.notes || null,
+      })
+      await refreshLockBoxes()
+      if (dashboard) await loadDashboard(dashboard.vehicle.id)
+      setEditingLockBoxId('')
+      setMessage('Lock box saved')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not save lock box')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function assignLockBox() {
+    if (!dashboard || !selectedLockBoxId) return
+
+    setLoading(true)
+    setMessage('Assigning lock box...')
+
+    try {
+      await api.post<LockBox>(`/api/lock-boxes/${selectedLockBoxId}/assign`, {
+        vehicleId: dashboard.vehicle.id,
+        notes: null,
+      })
+      await loadDashboard(dashboard.vehicle.id)
+      await refreshLockBoxes()
+      setMessage('Lock box assigned')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not assign lock box')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function unassignCurrentLockBox() {
+    if (!dashboard?.currentLockBox) return
+
+    setLoading(true)
+    setMessage('Removing lock box assignment...')
+
+    try {
+      await api.post<LockBox>(`/api/lock-boxes/${dashboard.currentLockBox.id}/unassign`, {
+        notes: null,
+      })
+      await loadDashboard(dashboard.vehicle.id)
+      await refreshLockBoxes()
+      setMessage('Lock box unassigned')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not unassign lock box')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -417,6 +545,7 @@ function App() {
       </section>
 
       {!dashboard && !decoded && (
+        <>
         <section className="panel fleet-panel">
           <div className="section-heading">
             <h2>Fleet</h2>
@@ -440,6 +569,79 @@ function App() {
             })}
           </div>
         </section>
+        <section className="panel fleet-panel">
+          <div className="section-heading">
+            <h2>Lock Box Lookup</h2>
+            <p>{lockBoxes.length} boxes</p>
+          </div>
+          <div className="lockbox-list">
+            {lockBoxes.map((lockBox) => (
+              <article key={lockBox.id} className="lockbox-card">
+                <div>
+                  <strong>Box {lockBox.boxNumber}</strong>
+                  <span>{lockBox.style} - {lockBox.status}</span>
+                  <p>Combo: {lockBox.combo || 'Not set'}</p>
+                  <p>{lockBox.currentVehicleLabel ? `Assigned to ${lockBox.currentVehicleLabel}` : 'Unassigned'}</p>
+                </div>
+                <button className="secondary-button" type="button" onClick={() => startEditingLockBox(lockBox)}>
+                  Edit
+                </button>
+              </article>
+            ))}
+          </div>
+          {editingLockBoxId && (
+            <form className="lockbox-form" onSubmit={saveLockBox}>
+              <label>
+                <span>Serial #</span>
+                <input
+                  value={lockBoxForm.serialNumber}
+                  onChange={(event) => setLockBoxForm({ ...lockBoxForm, serialNumber: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Combo</span>
+                <input
+                  value={lockBoxForm.combo}
+                  onChange={(event) => setLockBoxForm({ ...lockBoxForm, combo: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Style</span>
+                <select
+                  value={lockBoxForm.style}
+                  onChange={(event) => setLockBoxForm({ ...lockBoxForm, style: event.target.value })}
+                >
+                  {lockBoxStyles.map((style) => (
+                    <option key={style} value={style}>{style}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Status</span>
+                <select
+                  value={lockBoxForm.status}
+                  onChange={(event) => setLockBoxForm({ ...lockBoxForm, status: event.target.value })}
+                >
+                  {lockBoxStatuses.map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="wide">
+                <span>Notes</span>
+                <textarea
+                  value={lockBoxForm.notes}
+                  onChange={(event) => setLockBoxForm({ ...lockBoxForm, notes: event.target.value })}
+                />
+              </label>
+              <button type="submit" disabled={loading}>Save Lock Box</button>
+              <button className="secondary-button" type="button" onClick={() => setEditingLockBoxId('')}>
+                Cancel
+              </button>
+            </form>
+          )}
+        </section>
+        </>
       )}
 
       {decoded && (
@@ -513,6 +715,102 @@ function App() {
               </div>
             </div>
             <p className="context">{dashboard.aiContextSummary}</p>
+          </div>
+
+          <div className="panel">
+            <div className="section-heading">
+              <h2>Lock Box</h2>
+              <p>{dashboard.currentLockBox ? `Box ${dashboard.currentLockBox.boxNumber}` : 'None assigned'}</p>
+            </div>
+            {dashboard.currentLockBox ? (
+              <div className="lockbox-current">
+                <div>
+                  <span>Combo</span>
+                  <strong>{dashboard.currentLockBox.combo || 'Not set'}</strong>
+                </div>
+                <div>
+                  <span>Style</span>
+                  <strong>{dashboard.currentLockBox.style}</strong>
+                </div>
+                <div>
+                  <span>Status</span>
+                  <strong>{dashboard.currentLockBox.status}</strong>
+                </div>
+                <button className="secondary-button" type="button" onClick={() => startEditingLockBox(dashboard.currentLockBox!)}>
+                  Edit Details
+                </button>
+                <button className="secondary-button" type="button" disabled={loading} onClick={unassignCurrentLockBox}>
+                  Remove From Car
+                </button>
+              </div>
+            ) : (
+              <div className="assign-row">
+                <select value={selectedLockBoxId} onChange={(event) => setSelectedLockBoxId(event.target.value)}>
+                  <option value="">Choose an available box</option>
+                  {lockBoxes
+                    .filter((lockBox) => lockBox.status === 'Available' && !lockBox.currentVehicleId)
+                    .map((lockBox) => (
+                      <option key={lockBox.id} value={lockBox.id}>
+                        Box {lockBox.boxNumber} - {lockBox.style} - Combo {lockBox.combo || 'not set'}
+                      </option>
+                    ))}
+                </select>
+                <button type="button" disabled={!selectedLockBoxId || loading} onClick={assignLockBox}>
+                  Assign
+                </button>
+              </div>
+            )}
+            {editingLockBoxId && (
+              <form className="lockbox-form compact" onSubmit={saveLockBox}>
+                <label>
+                  <span>Serial #</span>
+                  <input
+                    value={lockBoxForm.serialNumber}
+                    onChange={(event) => setLockBoxForm({ ...lockBoxForm, serialNumber: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Combo</span>
+                  <input
+                    value={lockBoxForm.combo}
+                    onChange={(event) => setLockBoxForm({ ...lockBoxForm, combo: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Style</span>
+                  <select
+                    value={lockBoxForm.style}
+                    onChange={(event) => setLockBoxForm({ ...lockBoxForm, style: event.target.value })}
+                  >
+                    {lockBoxStyles.map((style) => (
+                      <option key={style} value={style}>{style}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  <span>Status</span>
+                  <select
+                    value={lockBoxForm.status}
+                    onChange={(event) => setLockBoxForm({ ...lockBoxForm, status: event.target.value })}
+                  >
+                    {lockBoxStatuses.map((status) => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="wide">
+                  <span>Notes</span>
+                  <textarea
+                    value={lockBoxForm.notes}
+                    onChange={(event) => setLockBoxForm({ ...lockBoxForm, notes: event.target.value })}
+                  />
+                </label>
+                <button type="submit" disabled={loading}>Save Lock Box</button>
+                <button className="secondary-button" type="button" onClick={() => setEditingLockBoxId('')}>
+                  Cancel
+                </button>
+              </form>
+            )}
           </div>
 
           {showMaintenanceForm && (

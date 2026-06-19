@@ -98,6 +98,7 @@ module Program =
         )
         |> ignore
         builder.Services.AddScoped<IVehicleRepository, PostgresVehicleRepository>() |> ignore
+        builder.Services.AddScoped<ILockBoxRepository, PostgresLockBoxRepository>() |> ignore
         builder.Services.AddScoped<IMaintenanceRepository, PostgresMaintenanceRepository>() |> ignore
         builder.Services.AddScoped<IDocumentRepository, PostgresDocumentRepository>() |> ignore
 
@@ -143,6 +144,7 @@ module Program =
         app.MapGet("/api/health", Func<string>(fun () -> "ok")) |> ignore
         VinEndpoints.mapVinEndpoints app |> ignore
         VehicleEndpoints.mapVehicleEndpoints app |> ignore
+        LockBoxEndpoints.mapLockBoxEndpoints app |> ignore
         MaintenanceEndpoints.mapMaintenanceEndpoints app |> ignore
         DashboardEndpoints.mapDashboardEndpoints app |> ignore
         DocumentEndpoints.mapDocumentEndpoints app |> ignore

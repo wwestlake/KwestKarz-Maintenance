@@ -40,6 +40,62 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                 create index if not exists ix_vehicles_status
                     on kwestkarzbusinessdata.vehicles(status);
 
+                create table if not exists kwestkarzbusinessdata.lock_boxes (
+                    id uuid primary key,
+                    box_number integer not null unique,
+                    serial_number text null,
+                    combo text not null,
+                    style text not null,
+                    status text not null,
+                    notes text null,
+                    created_at timestamptz not null,
+                    updated_at timestamptz not null,
+                    constraint lock_boxes_number_check check (
+                        box_number > 0 and box_number <> 13
+                    ),
+                    constraint lock_boxes_style_check check (
+                        style in ('Mechanical Keypad', 'Dial', 'Other')
+                    ),
+                    constraint lock_boxes_status_check check (
+                        status in ('Available', 'Assigned', 'Lost', 'Retired')
+                    )
+                );
+
+                create index if not exists ix_lock_boxes_status
+                    on kwestkarzbusinessdata.lock_boxes(status);
+
+                create table if not exists kwestkarzbusinessdata.lock_box_assignments (
+                    id uuid primary key,
+                    lock_box_id uuid not null references kwestkarzbusinessdata.lock_boxes(id) on delete cascade,
+                    vehicle_id uuid not null references kwestkarzbusinessdata.vehicles(id) on delete cascade,
+                    assigned_at timestamptz not null,
+                    unassigned_at timestamptz null,
+                    notes text null
+                );
+
+                create unique index if not exists ux_lock_box_assignments_current_box
+                    on kwestkarzbusinessdata.lock_box_assignments(lock_box_id)
+                    where unassigned_at is null;
+
+                create unique index if not exists ux_lock_box_assignments_current_vehicle
+                    on kwestkarzbusinessdata.lock_box_assignments(vehicle_id)
+                    where unassigned_at is null;
+
+                create index if not exists ix_lock_box_assignments_vehicle
+                    on kwestkarzbusinessdata.lock_box_assignments(vehicle_id, assigned_at desc);
+
+                insert into kwestkarzbusinessdata.lock_boxes (
+                    id, box_number, combo, style, status, notes, created_at, updated_at
+                )
+                select ('00000000-0000-0000-0000-' || lpad(box_number::text, 12, '0'))::uuid,
+                       box_number, '', 'Mechanical Keypad', 'Available',
+                       'Seeded starter inventory. Box 13 intentionally skipped.', now(), now()
+                from (values
+                    (1), (2), (3), (4), (5), (6), (7), (8),
+                    (9), (10), (11), (12), (14), (15), (16)
+                ) as seed(box_number)
+                on conflict (box_number) do nothing;
+
                 create table if not exists kwestkarzbusinessdata.maintenance_records (
                     id uuid primary key,
                     vehicle_id uuid not null references kwestkarzbusinessdata.vehicles(id) on delete cascade,

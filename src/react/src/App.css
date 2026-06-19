@@ -68,6 +68,12 @@ h2 {
   gap: 10px;
 }
 
+.lockbox-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .vehicle-list-item {
   display: grid;
   gap: 4px;
@@ -84,6 +90,56 @@ h2 {
 
 .vehicle-list-item small {
   color: #65736d;
+}
+
+.lockbox-card,
+.lockbox-current {
+  border: 1px solid #d9ded6;
+  border-radius: 8px;
+  background: #fbfcf8;
+  padding: 12px;
+}
+
+.lockbox-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.lockbox-card strong,
+.lockbox-card span,
+.lockbox-card p {
+  display: block;
+}
+
+.lockbox-card span,
+.lockbox-card p,
+.lockbox-current span {
+  color: #65736d;
+  font-size: 13px;
+}
+
+.lockbox-card p {
+  margin-top: 4px;
+}
+
+.lockbox-current {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.lockbox-current div {
+  display: grid;
+  gap: 4px;
+}
+
+.assign-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
 }
 
 .fleet-panel {
@@ -109,12 +165,14 @@ label span,
 
 input,
 textarea,
+select,
 button {
   font: inherit;
 }
 
 input,
-textarea {
+textarea,
+select {
   width: 100%;
   box-sizing: border-box;
   border: 1px solid #c9d2c7;
@@ -305,16 +363,24 @@ button:disabled {
 }
 
 .vehicle-form,
-.maintenance-form {
+.maintenance-form,
+.lockbox-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
 .vehicle-form label,
-.maintenance-form label {
+.maintenance-form label,
+.lockbox-form label {
   display: grid;
   gap: 6px;
+}
+
+.lockbox-form {
+  margin-top: 14px;
+  border-top: 1px solid #d9ded6;
+  padding-top: 14px;
 }
 
 .wide {
@@ -348,6 +414,10 @@ button:disabled {
   .dashboard-grid,
   .vehicle-form,
   .maintenance-form,
+  .lockbox-form,
+  .lockbox-list,
+  .lockbox-current,
+  .assign-row,
   .receipt-panel,
   .metrics {
     grid-template-columns: 1fr;

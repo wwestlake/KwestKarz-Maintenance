@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <Compile Include="VehicleDtos.fs" />
+    <Compile Include="LockBoxDtos.fs" />
     <Compile Include="VinDtos.fs" />
     <Compile Include="DocumentDtos.fs" />
     <Compile Include="MaintenanceDtos.fs" />
@@ -14,6 +15,7 @@
     <Compile Include="MaintenanceLogic.fs" />
     <Compile Include="VinEndpoints.fs" />
     <Compile Include="VehicleEndpoints.fs" />
+    <Compile Include="LockBoxEndpoints.fs" />
     <Compile Include="MaintenanceEndpoints.fs" />
     <Compile Include="DashboardEndpoints.fs" />
     <Compile Include="DocumentEndpoints.fs" />
