@@ -192,6 +192,13 @@ type WorkflowInstance = {
   steps: WorkflowStep[]
 }
 
+type Obd2ReportUploadResponse = {
+  workflow: WorkflowInstance
+  documentId: string
+  aiText: string
+  extractedText: string
+}
+
 type AppArea = 'home' | 'inventory' | 'workflows' | 'maintenance' | 'compliance' | 'lockboxes' | 'settings'
 
 const appAreas: { id: AppArea; label: string }[] = [
@@ -443,6 +450,8 @@ function App() {
   const [selectedWorkflowId, setSelectedWorkflowId] = useState('')
   const [selectedWorkflowStepKey, setSelectedWorkflowStepKey] = useState('')
   const [workflowStepNotes, setWorkflowStepNotes] = useState('')
+  const [obd2ReportFile, setObd2ReportFile] = useState<File | null>(null)
+  const [obd2ReportInsight, setObd2ReportInsight] = useState('')
   const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const complianceCameraInputRef = useRef<HTMLInputElement | null>(null)
   const complianceFormRef = useRef<HTMLFormElement | null>(null)
@@ -539,6 +548,10 @@ function App() {
     [selectedWorkflow, selectedWorkflowStepKey],
   )
   const activeWorkflows = workflows.filter((workflow) => workflow.status !== 'Complete' && workflow.status !== 'Canceled')
+  const selectedWorkflowStepDocumentId =
+    typeof selectedWorkflowStep?.data?.documentId === 'string' ? selectedWorkflowStep.data.documentId : ''
+  const selectedWorkflowStepAiText =
+    typeof selectedWorkflowStep?.data?.aiText === 'string' ? selectedWorkflowStep.data.aiText : ''
 
   const workingIndicator = workingMessage ? (
     <div className="working-inline" role="status" aria-live="polite">
@@ -1443,11 +1456,15 @@ function App() {
     const step = workflow.steps.find((item) => item.stepKey === workflow.currentStepKey)
     const notes = typeof step?.data?.notes === 'string' ? step.data.notes : ''
     setWorkflowStepNotes(notes)
+    setObd2ReportFile(null)
+    setObd2ReportInsight(typeof step?.data?.aiText === 'string' ? step.data.aiText : '')
   }
 
   function selectWorkflowStep(step: WorkflowStep) {
     setSelectedWorkflowStepKey(step.stepKey)
     setWorkflowStepNotes(typeof step.data?.notes === 'string' ? step.data.notes : '')
+    setObd2ReportFile(null)
+    setObd2ReportInsight(typeof step.data?.aiText === 'string' ? step.data.aiText : '')
   }
 
   async function startWorkflow(workflowType: string) {
@@ -1496,6 +1513,39 @@ function App() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not save workflow step')
     } finally {
+      setLoading(false)
+    }
+  }
+
+  async function uploadObd2Report() {
+    if (!selectedWorkflow || !selectedWorkflowStep || !obd2ReportFile) return
+
+    setLoading(true)
+    setMessage('Reading OBD2 report...')
+    setWorkingMessage('Reading OBD2 report...')
+
+    try {
+      const form = new FormData()
+      form.append('file', obd2ReportFile)
+
+      const response = await fetch(`/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}/obd2-report`, {
+        method: 'POST',
+        body: form,
+      })
+
+      if (!response.ok) throw new Error(await response.text())
+
+      const result = (await response.json()) as Obd2ReportUploadResponse
+      setWorkflows((current) => current.map((item) => (item.id === result.workflow.id ? result.workflow : item)))
+      setSelectedWorkflowId(result.workflow.id)
+      setSelectedWorkflowStepKey(selectedWorkflowStep.stepKey)
+      setObd2ReportFile(null)
+      setObd2ReportInsight(result.aiText)
+      setMessage('OBD2 report read. Review the findings.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not read OBD2 report')
+    } finally {
+      setWorkingMessage('')
       setLoading(false)
     }
   }
@@ -1704,6 +1754,29 @@ function App() {
                           placeholder="Save anything learned on this step. Fields and scanners will plug in here as we build each workflow."
                         />
                       </label>
+                      {selectedWorkflowStep.stepKey === 'obd2Scan' && (
+                        <div className="receipt-panel">
+                          <label>
+                            <span>RepairSolutions2 / Innova PDF</span>
+                            <input
+                              type="file"
+                              accept="application/pdf,.pdf"
+                              onChange={(event) => setObd2ReportFile(event.target.files?.[0] ?? null)}
+                            />
+                          </label>
+                          <button className="secondary-button" type="button" disabled={!obd2ReportFile || loading} onClick={uploadObd2Report}>
+                            Read OBD2 Report
+                          </button>
+                          {selectedWorkflowStepDocumentId && (
+                            <a className="secondary-button" href={`/api/documents/${selectedWorkflowStepDocumentId}/content`} target="_blank" rel="noreferrer">
+                              View PDF
+                            </a>
+                          )}
+                          {(obd2ReportInsight || selectedWorkflowStepAiText) && (
+                            <pre className="receipt-insight">{obd2ReportInsight || selectedWorkflowStepAiText}</pre>
+                          )}
+                        </div>
+                      )}
                       <div className="workflow-actions">
                         <button type="button" disabled={loading} onClick={() => saveWorkflowStep('InProgress')}>
                           Save Draft

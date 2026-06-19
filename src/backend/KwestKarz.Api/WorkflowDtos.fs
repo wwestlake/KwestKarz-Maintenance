@@ -40,3 +40,9 @@ type UpdateWorkflowStepRequest =
 type UpdateWorkflowStatusRequest =
     { Status: string
       CurrentStepKey: string option }
+
+type Obd2ReportUploadResponse =
+    { Workflow: WorkflowInstanceResponse
+      DocumentId: Guid
+      AiText: string
+      ExtractedText: string }

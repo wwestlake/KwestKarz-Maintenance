@@ -1,12 +1,17 @@
 namespace KwestKarz.Api
 
 open System
+open System.IO
+open System.Text
 open System.Text.Json
 open System.Threading.Tasks
+open KwestKarz.Domain
+open KwestKarz.Infrastructure
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Http
 open Npgsql
 open NpgsqlTypes
+open UglyToad.PdfPig
 
 module WorkflowEndpoints =
     let private workflowTypes =
@@ -88,6 +93,86 @@ module WorkflowEndpoints =
         match value with
         | Some json -> json.GetRawText()
         | None -> "{}"
+
+    let private truncate maxLength (value: string) =
+        if String.IsNullOrWhiteSpace(value) then
+            ""
+        elif value.Length <= maxLength then
+            value
+        else
+            value.Substring(0, maxLength)
+
+    let private extractPdfText (contentBytes: byte array) =
+        use stream = new MemoryStream(contentBytes)
+        use document = PdfDocument.Open(stream)
+        let builder = StringBuilder()
+
+        for page in document.GetPages() do
+            builder.AppendLine($"--- Page {page.Number} ---") |> ignore
+            builder.AppendLine(page.Text) |> ignore
+
+        builder.ToString().Trim()
+
+    let private obd2Prompt (fileName: string) (pdfText: string) =
+        $"""
+Read this OBD2 diagnostic scan report text from {fileName}. Return JSON only with fields:
+vin, odometer, scanDate, scanner, reportStatus, codes, readiness, freezeFrame, summary, severity, recommendedActions, notes.
+
+codes must be an array of objects with module, code, description, status, severity, recommendedAction.
+readiness must list any monitor/readiness results visible in the report.
+severity must be Green, Yellow, or Red.
+Use Green only when no diagnostic trouble codes or readiness problems are shown.
+Use Yellow for stored/pending/history issues needing review.
+Use Red for active drivability, safety, emissions, ABS, airbag/SRS, brake, overheating, or charging faults.
+Do not invent missing data. If the text is incomplete or OCR/PDF extraction is messy, explain uncertainty in notes.
+
+Report text:
+{truncate 18000 pdfText}
+"""
+
+    let private updateStepDataAsync (connection: NpgsqlConnection) workflowId stepKey status data cancellationToken =
+        task {
+            use command =
+                new NpgsqlCommand(
+                    """
+                    update kwestkarzbusinessdata.workflow_steps
+                    set status = @status,
+                        data = @data::jsonb,
+                        updated_at = @updated_at
+                    where workflow_id = @workflow_id and step_key = @step_key
+                    """,
+                    connection
+                )
+
+            let now = DateTimeOffset.UtcNow
+            command.Parameters.AddWithValue("workflow_id", NpgsqlDbType.Uuid, workflowId) |> ignore
+            command.Parameters.AddWithValue("step_key", NpgsqlDbType.Text, stepKey) |> ignore
+            command.Parameters.AddWithValue("status", NpgsqlDbType.Text, status) |> ignore
+            command.Parameters.AddWithValue("data", NpgsqlDbType.Text, data) |> ignore
+            command.Parameters.AddWithValue("updated_at", NpgsqlDbType.TimestampTz, now) |> ignore
+            let! rows = command.ExecuteNonQueryAsync(cancellationToken)
+
+            if rows > 0 then
+                use workflowCommand =
+                    new NpgsqlCommand(
+                        """
+                        update kwestkarzbusinessdata.workflow_instances
+                        set status = case when status = 'Draft' then 'InProgress' else status end,
+                            current_step_key = @step_key,
+                            updated_at = @updated_at
+                        where id = @workflow_id
+                        """,
+                        connection
+                    )
+
+                workflowCommand.Parameters.AddWithValue("workflow_id", NpgsqlDbType.Uuid, workflowId) |> ignore
+                workflowCommand.Parameters.AddWithValue("step_key", NpgsqlDbType.Text, stepKey) |> ignore
+                workflowCommand.Parameters.AddWithValue("updated_at", NpgsqlDbType.TimestampTz, now) |> ignore
+                let! _ = workflowCommand.ExecuteNonQueryAsync(cancellationToken)
+                ()
+
+            return rows
+        }
 
     let private readOptionalGuid (reader: NpgsqlDataReader) name =
         let ordinal = reader.GetOrdinal(name)
@@ -371,6 +456,76 @@ module WorkflowEndpoints =
                             do! insertEventAsync connection workflowId (Some stepKey) "StepSaved" (Some request.Status) (jsonOrEmpty request.Data) httpContext.RequestAborted
                             let! workflow = fetchWorkflowAsync dataSource workflowId httpContext.RequestAborted
                             return Results.Ok(workflow.Value)
+                })
+        )
+        |> ignore
+
+        group.MapPost(
+            "/{workflowId:guid}/steps/{stepKey}/obd2-report",
+            Func<Guid, string, IDocumentRepository, IAIConnection, NpgsqlDataSource, HttpContext, Task<IResult>>(fun workflowId stepKey documents ai dataSource httpContext ->
+                task {
+                    if stepKey <> "obd2Scan" then
+                        return Results.BadRequest("OBD2 reports can only be uploaded to the obd2Scan step.")
+                    else
+                        let! form = httpContext.Request.ReadFormAsync(httpContext.RequestAborted)
+                        let file = form.Files.GetFile("file")
+
+                        if isNull file || file.Length = 0L then
+                            return Results.BadRequest("A multipart form PDF named 'file' is required.")
+                        elif not (file.FileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) || file.ContentType.Contains("pdf", StringComparison.OrdinalIgnoreCase)) then
+                            return Results.BadRequest("Upload the RepairSolutions2/Innova report as a PDF.")
+                        else
+                            use memory = new MemoryStream()
+                            use stream = file.OpenReadStream()
+                            do! stream.CopyToAsync(memory, httpContext.RequestAborted)
+                            let contentBytes = memory.ToArray()
+                            let pdfText = extractPdfText contentBytes
+
+                            let newDocument =
+                                { OwnerType = DocumentOwnerType.DiagnosticReport
+                                  OwnerId = workflowId
+                                  Kind = DocumentKind.Obd2Report
+                                  OriginalFileName = file.FileName
+                                  ContentType = if String.IsNullOrWhiteSpace(file.ContentType) then "application/pdf" else file.ContentType
+                                  StoragePath = ""
+                                  SizeBytes = int64 contentBytes.Length
+                                  Description = Some "OBD2 diagnostic scan report"
+                                  ContentBytes = Some contentBytes }
+
+                            let! document = documents.CreateAsync(newDocument, httpContext.RequestAborted)
+
+                            let! aiResponse =
+                                ai.CompleteAsync(
+                                    { SystemInstructions = Some "You extract structured fleet maintenance facts from OBD2 diagnostic reports. Return JSON only. Be conservative and do not invent facts."
+                                      UserMessage = obd2Prompt file.FileName pdfText },
+                                    httpContext.RequestAborted
+                                )
+
+                            let data =
+                                JsonSerializer.Serialize(
+                                    {| documentId = document.Id
+                                       fileName = document.OriginalFileName
+                                       contentType = document.ContentType
+                                       uploadedAt = document.CreatedAt
+                                       extractedTextPreview = truncate 4000 pdfText
+                                       aiText = aiResponse.Text |}
+                                )
+
+                            use! connection = dataSource.OpenConnectionAsync(httpContext.RequestAborted)
+                            let! rows = updateStepDataAsync connection workflowId stepKey "NeedsReview" data httpContext.RequestAborted
+
+                            if rows = 0 then
+                                return Results.NotFound()
+                            else
+                                do! insertEventAsync connection workflowId (Some stepKey) "Obd2ReportUploaded" (Some document.OriginalFileName) data httpContext.RequestAborted
+                                let! workflow = fetchWorkflowAsync dataSource workflowId httpContext.RequestAborted
+                                return
+                                    Results.Ok(
+                                        { Workflow = workflow.Value
+                                          DocumentId = document.Id
+                                          AiText = aiResponse.Text
+                                          ExtractedText = truncate 12000 pdfText }
+                                    )
                 })
         )
         |> ignore

@@ -37,6 +37,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
+    <PackageReference Include="PdfPig" Version="0.1.14" />
   </ItemGroup>
 
 </Project>
