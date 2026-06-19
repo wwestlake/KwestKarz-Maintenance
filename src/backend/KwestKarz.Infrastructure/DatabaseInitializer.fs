@@ -205,6 +205,22 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
 
                 create index if not exists ix_documents_owner
                     on kwestkarzbusinessdata.documents(owner_type, owner_id);
+
+                create table if not exists kwestkarzbusinessdata.system_logs (
+                    id uuid primary key,
+                    logged_at timestamptz not null,
+                    level text not null,
+                    source text not null,
+                    method text null,
+                    path text null,
+                    status_code integer null,
+                    elapsed_ms integer null,
+                    message text null,
+                    exception text null
+                );
+
+                create index if not exists ix_system_logs_logged_at
+                    on kwestkarzbusinessdata.system_logs(logged_at desc);
                 """
 
             use! connection = dataSource.OpenConnectionAsync(cancellationToken)

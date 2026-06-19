@@ -179,6 +179,8 @@ const maintenanceTypes = [
 
 const lockBoxStyles = ['Mechanical Keypad', 'Dial', 'Other']
 const lockBoxStatuses = ['Available', 'Assigned', 'Lost', 'Retired']
+const selectedVehicleStorageKey = 'kwestkarz.selectedVehicleId'
+const tirePanelStorageKey = 'kwestkarz.showTirePressurePanel'
 
 const api = {
   async get<T>(path: string): Promise<T> {
@@ -225,15 +227,66 @@ function extractVin(text: string) {
   return compact.match(/[A-HJ-NPR-Z0-9]{17}/)?.[0] ?? ''
 }
 
+function pressureValue(value: unknown) {
+  if (typeof value === 'number' && value >= 15 && value <= 80) return value
+  if (typeof value !== 'string') return undefined
+
+  const match = value.match(/\b([1-9]\d)\b/)
+  const number = Number(match?.[1] ?? '')
+  return number >= 15 && number <= 80 ? number : undefined
+}
+
 function extractPressure(label: string, text: string) {
-  const pattern = new RegExp(`(?:${label})[^0-9]{0,20}(\\d{2})`, 'i')
-  return Number(text.match(pattern)?.[1] ?? '') || undefined
+  const afterLabel = new RegExp(`(?:${label})[^0-9]{0,50}([1-9]\\d)\\s*(?:psi|psig)?`, 'i')
+  const beforeLabel = new RegExp(`([1-9]\\d)\\s*(?:psi|psig)?[^a-z0-9]{0,30}(?:${label})`, 'i')
+  return pressureValue(text.match(afterLabel)?.[1]) ?? pressureValue(text.match(beforeLabel)?.[1])
 }
 
 function firstPressures(text: string) {
-  return [...text.matchAll(/\b([1-9]\d)\s*(?:psi|psig)?\b/gi)]
+  const explicitPsi = [...text.matchAll(/\b([1-9]\d)\s*(?:psi|psig)\b/gi)]
     .map((match) => Number(match[1]))
     .filter((value) => value >= 15 && value <= 80)
+
+  if (explicitPsi.length > 0) return explicitPsi
+
+  return [...text.matchAll(/\b([1-9]\d)\b/g)]
+    .map((match) => Number(match[1]))
+    .filter((value) => value >= 15 && value <= 80)
+}
+
+function parseTireSpec(text: string) {
+  const normalizedKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const jsonText = text.match(/\{[\s\S]*\}/)?.[0]
+  let jsonValues: Record<string, unknown> = {}
+
+  if (jsonText) {
+    try {
+      const parsed = JSON.parse(jsonText) as Record<string, unknown>
+      jsonValues = Object.fromEntries(Object.entries(parsed).map(([key, value]) => [normalizedKey(key), value]))
+    } catch {
+      jsonValues = {}
+    }
+  }
+
+  const fromJson = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = pressureValue(jsonValues[normalizedKey(key)])
+      if (value) return value
+    }
+
+    return undefined
+  }
+
+  const numbers = firstPressures(text)
+  const frontPsi = fromJson('frontPsi', 'front') ?? extractPressure('front tire|front axle|front', text) ?? numbers[0]
+  const rearPsi = fromJson('rearPsi', 'rear') ?? extractPressure('rear tire|rear axle|rear', text) ?? numbers[1] ?? frontPsi
+
+  return {
+    frontLeftPsi: fromJson('frontLeftPsi', 'frontLeft', 'fl') ?? extractPressure('front left|front-left|fl', text) ?? frontPsi,
+    frontRightPsi: fromJson('frontRightPsi', 'frontRight', 'fr') ?? extractPressure('front right|front-right|fr', text) ?? frontPsi,
+    rearLeftPsi: fromJson('rearLeftPsi', 'rearLeft', 'rl') ?? extractPressure('rear left|rear-left|rl', text) ?? rearPsi,
+    rearRightPsi: fromJson('rearRightPsi', 'rearRight', 'rr') ?? extractPressure('rear right|rear-right|rr', text) ?? rearPsi,
+  }
 }
 
 function App() {
@@ -300,9 +353,33 @@ function App() {
   }, [dashboard])
 
   useEffect(() => {
-    refreshVehicles()
+    restoreWorkspace()
     refreshLockBoxes()
   }, [])
+
+  async function restoreWorkspace() {
+    await refreshVehicles()
+
+    const savedVehicleId = localStorage.getItem(selectedVehicleStorageKey)
+    const savedTirePanel = localStorage.getItem(tirePanelStorageKey) === 'true'
+
+    if (savedTirePanel) setShowTirePressurePanel(true)
+    if (!savedVehicleId) return
+
+    setLoading(true)
+    setMessage('Restoring vehicle...')
+
+    try {
+      await loadDashboard(savedVehicleId)
+      setMessage('Vehicle restored')
+    } catch {
+      localStorage.removeItem(selectedVehicleStorageKey)
+      localStorage.removeItem(tirePanelStorageKey)
+      setMessage('Ready')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   async function refreshVehicles() {
     try {
@@ -362,6 +439,7 @@ function App() {
     setDecoded(null)
     setVin(vehicle.vin)
     setShowMaintenanceForm(false)
+    localStorage.setItem(selectedVehicleStorageKey, vehicle.id)
 
     try {
       await loadDashboard(vehicle.id)
@@ -381,6 +459,8 @@ function App() {
     setShowTirePressurePanel(false)
     setShowLockBoxManager(false)
     setEditingLockBoxId('')
+    localStorage.removeItem(selectedVehicleStorageKey)
+    localStorage.removeItem(tirePanelStorageKey)
     setMessage('Ready')
   }
 
@@ -401,6 +481,7 @@ function App() {
 
     try {
       const vehicle = await api.get<Vehicle>(`/api/vehicles/by-vin/${encodeURIComponent(nextVin)}`)
+      localStorage.setItem(selectedVehicleStorageKey, vehicle.id)
       await loadDashboard(vehicle.id)
       setMessage('Vehicle loaded')
     } catch {
@@ -481,6 +562,7 @@ function App() {
       setVin(vehicle.vin)
       setDecoded(null)
       setShowMaintenanceForm(false)
+      localStorage.setItem(selectedVehicleStorageKey, vehicle.id)
       await loadDashboard(vehicle.id)
       await refreshVehicles()
       await refreshLockBoxes()
@@ -591,20 +673,14 @@ function App() {
       form.append('vehicleVin', dashboard.vehicle.vin)
       form.append(
         'prompt',
-        'Read the vehicle tire pressure placard. Return recommended PSI for front left, front right, rear left, and rear right. If the placard only lists front and rear axle PSI, copy front to both front tires and rear to both rear tires. Use labels frontLeftPsi, frontRightPsi, rearLeftPsi, rearRightPsi. Include any uncertainty.',
+        'Read the vehicle tire pressure placard. Return only a compact JSON object with numeric PSI values: {"frontLeftPsi":35,"frontRightPsi":35,"rearLeftPsi":35,"rearRightPsi":35,"notes":"short note"}. If the placard only lists front and rear axle PSI, copy front to both front tires and rear to both rear tires. Ignore kPa values, tire sizes, load limits, and wheel sizes.',
       )
 
       const response = await fetch('/api/ai/interpret-image', { method: 'POST', body: form })
       if (!response.ok) throw new Error(await response.text())
 
       const ai = (await response.json()) as AIResponse
-      const numbers = firstPressures(ai.text)
-      const frontPsi = extractPressure('front', ai.text) ?? numbers[0]
-      const rearPsi = extractPressure('rear', ai.text) ?? numbers[1] ?? frontPsi
-      const frontLeftPsi = extractPressure('frontLeft|front left|fl', ai.text) ?? frontPsi
-      const frontRightPsi = extractPressure('frontRight|front right|fr', ai.text) ?? frontPsi
-      const rearLeftPsi = extractPressure('rearLeft|rear left|rl', ai.text) ?? rearPsi
-      const rearRightPsi = extractPressure('rearRight|rear right|rr', ai.text) ?? rearPsi
+      const { frontLeftPsi, frontRightPsi, rearLeftPsi, rearRightPsi } = parseTireSpec(ai.text)
       const nextSpecForm = {
         frontLeftPsi: frontLeftPsi?.toString() ?? '',
         frontRightPsi: frontRightPsi?.toString() ?? '',
@@ -614,6 +690,7 @@ function App() {
       }
 
       setShowTirePressurePanel(true)
+      localStorage.setItem(tirePanelStorageKey, 'true')
       setTirePressureInsight(ai.text)
       setTireSpecForm(nextSpecForm)
 
@@ -1054,7 +1131,11 @@ function App() {
                 className={showTirePressurePanel ? 'switch-button switch-on' : 'switch-button'}
                 type="button"
                 aria-pressed={showTirePressurePanel}
-                onClick={() => setShowTirePressurePanel(!showTirePressurePanel)}
+                onClick={() => {
+                  const nextValue = !showTirePressurePanel
+                  setShowTirePressurePanel(nextValue)
+                  localStorage.setItem(tirePanelStorageKey, nextValue ? 'true' : 'false')
+                }}
               >
                 <span className="switch-track" aria-hidden="true">
                   <span className="switch-thumb" />
@@ -1285,7 +1366,12 @@ function App() {
                 </form>
               </div>
 
-              {tirePressureInsight && <pre className="receipt-insight">{tirePressureInsight}</pre>}
+              {tirePressureInsight && (
+                <div className="wide">
+                  <p className="context">Last tire scan readout</p>
+                  <pre className="receipt-insight">{tirePressureInsight}</pre>
+                </div>
+              )}
 
               <div className="record-list tire-log-list">
                 {tirePressure.recentLogs.length === 0 && <p className="empty">No tire pressure logs yet.</p>}

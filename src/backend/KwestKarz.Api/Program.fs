@@ -2,12 +2,15 @@ namespace KwestKarz.Api
 #nowarn "20"
 
 open System
+open System.Diagnostics
 open System.IO
 open System.Net.Http
 open System.Text
+open System.Threading.Tasks
 open Microsoft.AspNetCore.Authentication.JwtBearer
 open Microsoft.AspNetCore.Authorization
 open Microsoft.AspNetCore.Builder
+open Microsoft.AspNetCore.Http
 open Microsoft.AspNetCore.Http.Json
 open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.DependencyInjection
@@ -16,9 +19,41 @@ open Microsoft.IdentityModel.Tokens
 open KwestKarz.Domain
 open KwestKarz.Infrastructure
 open Npgsql
+open NpgsqlTypes
 
 module Program =
     let exitCode = 0
+
+    let private writeSystemLogAsync (dataSource: NpgsqlDataSource) (level: string) (source: string) (method: string) (path: string) (statusCode: Nullable<int>) (elapsedMs: Nullable<int>) (message: string) (exceptionText: string) cancellationToken =
+        task {
+            use! connection = dataSource.OpenConnectionAsync(cancellationToken)
+            use command =
+                new NpgsqlCommand(
+                    """
+                    insert into kwestkarzbusinessdata.system_logs (
+                        id, logged_at, level, source, method, path, status_code, elapsed_ms, message, exception
+                    )
+                    values (
+                        @id, @logged_at, @level, @source, @method, @path, @status_code, @elapsed_ms, @message, @exception
+                    )
+                    """,
+                    connection
+                )
+
+            let optionalText (value: string) = if String.IsNullOrWhiteSpace(value) then box DBNull.Value else box value
+            command.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, Guid.NewGuid()) |> ignore
+            command.Parameters.AddWithValue("logged_at", NpgsqlDbType.TimestampTz, DateTimeOffset.UtcNow) |> ignore
+            command.Parameters.AddWithValue("level", NpgsqlDbType.Text, level) |> ignore
+            command.Parameters.AddWithValue("source", NpgsqlDbType.Text, source) |> ignore
+            command.Parameters.AddWithValue("method", NpgsqlDbType.Text, optionalText method) |> ignore
+            command.Parameters.AddWithValue("path", NpgsqlDbType.Text, optionalText path) |> ignore
+            command.Parameters.AddWithValue("status_code", NpgsqlDbType.Integer, if statusCode.HasValue then box statusCode.Value else box DBNull.Value) |> ignore
+            command.Parameters.AddWithValue("elapsed_ms", NpgsqlDbType.Integer, if elapsedMs.HasValue then box elapsedMs.Value else box DBNull.Value) |> ignore
+            command.Parameters.AddWithValue("message", NpgsqlDbType.Text, optionalText message) |> ignore
+            command.Parameters.AddWithValue("exception", NpgsqlDbType.Text, optionalText exceptionText) |> ignore
+            let! _ = command.ExecuteNonQueryAsync(cancellationToken)
+            return ()
+        }
 
     [<EntryPoint>]
     let main args =
@@ -29,6 +64,7 @@ module Program =
         )
 
         let authEnabled = builder.Configuration.GetValue<bool>("Auth:Enabled")
+        let systemLogEnabled = builder.Configuration.GetValue<bool>("SystemLog:Enabled")
 
         builder.Services.AddCors(fun options ->
             options.AddDefaultPolicy(fun policy ->
@@ -137,6 +173,48 @@ module Program =
             .GetResult()
 
         app.UseCors()
+
+        if systemLogEnabled then
+            app.Use(Func<HttpContext, Func<Task>, Task>(fun (context: HttpContext) (next: Func<Task>) ->
+                task {
+                    let stopwatch = Stopwatch.StartNew()
+                    let dataSource = context.RequestServices.GetRequiredService<NpgsqlDataSource>()
+                    let path = context.Request.Path.ToString()
+                    let method = context.Request.Method
+
+                    try
+                        do! next.Invoke()
+                        stopwatch.Stop()
+                        do!
+                            writeSystemLogAsync
+                                dataSource
+                                "Information"
+                                "ApiResponse"
+                                method
+                                path
+                                (Nullable context.Response.StatusCode)
+                                (Nullable(int stopwatch.ElapsedMilliseconds))
+                                "Request completed"
+                                null
+                                context.RequestAborted
+                    with ex ->
+                        stopwatch.Stop()
+                        do!
+                            writeSystemLogAsync
+                                dataSource
+                                "Error"
+                                "ApiResponse"
+                                method
+                                path
+                                (Nullable 500)
+                                (Nullable(int stopwatch.ElapsedMilliseconds))
+                                "Request failed"
+                                (ex.ToString())
+                                context.RequestAborted
+                        raise ex
+                }
+                :> Task))
+            |> ignore
 
         if authEnabled then
             app.UseAuthentication() |> ignore
