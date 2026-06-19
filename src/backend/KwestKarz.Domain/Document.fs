@@ -74,9 +74,15 @@ type NewStoredDocument =
       ContentType: string
       StoragePath: string
       SizeBytes: int64
-      Description: string option }
+      Description: string option
+      ContentBytes: byte array option }
+
+type StoredDocumentContent =
+    { Document: StoredDocument
+      ContentBytes: byte array option }
 
 type IDocumentRepository =
     abstract member CreateAsync: document: NewStoredDocument * cancellationToken: CancellationToken -> Task<StoredDocument>
     abstract member FindAsync: id: Guid * cancellationToken: CancellationToken -> Task<StoredDocument option>
+    abstract member FindContentAsync: id: Guid * cancellationToken: CancellationToken -> Task<StoredDocumentContent option>
     abstract member ListForOwnerAsync: ownerType: DocumentOwnerType * ownerId: Guid * cancellationToken: CancellationToken -> Task<StoredDocument list>

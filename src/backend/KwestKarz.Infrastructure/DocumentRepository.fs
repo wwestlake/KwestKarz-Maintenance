@@ -35,6 +35,12 @@ type PostgresDocumentRepository(dataSource: NpgsqlDataSource) =
         storage_path, size_bytes, description, created_at
         """
 
+    let contentColumns =
+        """
+        id, owner_type, owner_id, kind, original_file_name, content_type,
+        storage_path, size_bytes, description, created_at, content_bytes
+        """
+
     interface IDocumentRepository with
         member _.CreateAsync(document: NewStoredDocument, cancellationToken: CancellationToken) : Task<StoredDocument> =
             task {
@@ -47,11 +53,11 @@ type PostgresDocumentRepository(dataSource: NpgsqlDataSource) =
                         $"""
                         insert into kwestkarzbusinessdata.documents (
                             id, owner_type, owner_id, kind, original_file_name, content_type,
-                            storage_path, size_bytes, description, created_at
+                            storage_path, size_bytes, content_bytes, description, created_at
                         )
                         values (
                             @id, @owner_type, @owner_id, @kind, @original_file_name, @content_type,
-                            @storage_path, @size_bytes, @description, @created_at
+                            @storage_path, @size_bytes, @content_bytes, @description, @created_at
                         )
                         returning {selectColumns}
                         """,
@@ -66,6 +72,7 @@ type PostgresDocumentRepository(dataSource: NpgsqlDataSource) =
                 command.Parameters.AddWithValue("content_type", NpgsqlDbType.Text, document.ContentType) |> ignore
                 command.Parameters.AddWithValue("storage_path", NpgsqlDbType.Text, document.StoragePath) |> ignore
                 command.Parameters.AddWithValue("size_bytes", NpgsqlDbType.Bigint, document.SizeBytes) |> ignore
+                command.Parameters.AddWithValue("content_bytes", NpgsqlDbType.Bytea, optionOrDbNull document.ContentBytes) |> ignore
                 command.Parameters.AddWithValue("description", NpgsqlDbType.Text, optionOrDbNull document.Description) |> ignore
                 command.Parameters.AddWithValue("created_at", NpgsqlDbType.TimestampTz, now) |> ignore
 
@@ -91,6 +98,32 @@ type PostgresDocumentRepository(dataSource: NpgsqlDataSource) =
                 use! reader = command.ExecuteReaderAsync(cancellationToken)
                 let! hasRow = reader.ReadAsync(cancellationToken)
                 return if hasRow then Some(mapDocument reader) else None
+            }
+
+        member _.FindContentAsync(id: Guid, cancellationToken: CancellationToken) : Task<StoredDocumentContent option> =
+            task {
+                use! connection = dataSource.OpenConnectionAsync(cancellationToken)
+                use command =
+                    new NpgsqlCommand(
+                        $"select {contentColumns} from kwestkarzbusinessdata.documents where id = @id",
+                        connection
+                    )
+
+                command.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, id) |> ignore
+                use! reader = command.ExecuteReaderAsync(cancellationToken)
+                let! hasRow = reader.ReadAsync(cancellationToken)
+
+                if not hasRow then
+                    return None
+                else
+                    let contentOrdinal = reader.GetOrdinal("content_bytes")
+                    let contentBytes =
+                        if reader.IsDBNull(contentOrdinal) then
+                            None
+                        else
+                            Some(reader.GetFieldValue<byte array>(contentOrdinal))
+
+                    return Some { Document = mapDocument reader; ContentBytes = contentBytes }
             }
 
         member _.ListForOwnerAsync(ownerType: DocumentOwnerType, ownerId: Guid, cancellationToken: CancellationToken) : Task<StoredDocument list> =

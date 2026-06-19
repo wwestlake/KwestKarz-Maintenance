@@ -1,6 +1,7 @@
 namespace KwestKarz.Api
 
 open System
+open System.IO
 open KwestKarz.Domain
 open KwestKarz.Infrastructure
 open Microsoft.AspNetCore.Builder
@@ -28,7 +29,7 @@ module DocumentEndpoints =
 
         vehicleDocuments.MapPost(
             "/",
-            Func<Guid, IDocumentRepository, FileStorage, HttpContext, Threading.Tasks.Task<IResult>>(fun vehicleId repository storage httpContext ->
+            Func<Guid, IDocumentRepository, HttpContext, Threading.Tasks.Task<IResult>>(fun vehicleId repository httpContext ->
                 task {
                     let! form = httpContext.Request.ReadFormAsync(httpContext.RequestAborted)
                     let file = form.Files.GetFile("file")
@@ -38,8 +39,10 @@ module DocumentEndpoints =
                     else
                         let kind = form["kind"].ToString() |> parseKind
                         let description = form["description"].ToString()
+                        use memory = new MemoryStream()
                         use stream = file.OpenReadStream()
-                        let! storedFile = storage.SaveAsync(file.FileName, stream, httpContext.RequestAborted)
+                        do! stream.CopyToAsync(memory, httpContext.RequestAborted)
+                        let contentBytes = memory.ToArray()
 
                         let newDocument =
                             { OwnerType = DocumentOwnerType.Vehicle
@@ -47,9 +50,10 @@ module DocumentEndpoints =
                               Kind = kind
                               OriginalFileName = file.FileName
                               ContentType = if String.IsNullOrWhiteSpace(file.ContentType) then "application/octet-stream" else file.ContentType
-                              StoragePath = storedFile.RelativePath
-                              SizeBytes = storedFile.SizeBytes
-                              Description = if String.IsNullOrWhiteSpace(description) then None else Some description }
+                              StoragePath = ""
+                              SizeBytes = int64 contentBytes.Length
+                              Description = if String.IsNullOrWhiteSpace(description) then None else Some description
+                              ContentBytes = Some contentBytes }
 
                         let! document = repository.CreateAsync(newDocument, httpContext.RequestAborted)
                         return Results.Created($"/api/documents/{document.Id}", DocumentResponse.fromDomain document)
@@ -61,13 +65,16 @@ module DocumentEndpoints =
             "/api/documents/{documentId:guid}/content",
             Func<Guid, IDocumentRepository, FileStorage, HttpContext, Threading.Tasks.Task<IResult>>(fun documentId repository storage httpContext ->
                 task {
-                    let! document = repository.FindAsync(documentId, httpContext.RequestAborted)
+                    let! documentContent = repository.FindContentAsync(documentId, httpContext.RequestAborted)
 
                     return
-                        match document with
+                        match documentContent with
                         | None -> Results.NotFound()
-                        | Some document when not (storage.Exists(document.StoragePath)) -> Results.NotFound("Stored file is missing.")
-                        | Some document ->
+                        | Some { Document = document; ContentBytes = Some contentBytes } ->
+                            Results.File(contentBytes, document.ContentType, document.OriginalFileName)
+                        | Some { Document = document; ContentBytes = None } when not (storage.Exists(document.StoragePath)) ->
+                            Results.NotFound("Stored file is missing.")
+                        | Some { Document = document; ContentBytes = None } ->
                             let stream = storage.OpenRead(document.StoragePath)
                             Results.File(stream, document.ContentType, document.OriginalFileName)
                 })

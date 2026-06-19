@@ -605,20 +605,50 @@ function App() {
       const frontRightPsi = extractPressure('frontRight|front right|fr', ai.text) ?? frontPsi
       const rearLeftPsi = extractPressure('rearLeft|rear left|rl', ai.text) ?? rearPsi
       const rearRightPsi = extractPressure('rearRight|rear right|rr', ai.text) ?? rearPsi
-      const document = await uploadVehicleDocument(dashboard.vehicle.id, file, 'Tire pressure placard photo')
+      const nextSpecForm = {
+        frontLeftPsi: frontLeftPsi?.toString() ?? '',
+        frontRightPsi: frontRightPsi?.toString() ?? '',
+        rearLeftPsi: rearLeftPsi?.toString() ?? '',
+        rearRightPsi: rearRightPsi?.toString() ?? '',
+        notes: ai.text,
+      }
 
-      await api.put<TirePressureSpec>(`/api/vehicles/${dashboard.vehicle.id}/tire-pressure/spec`, {
+      setShowTirePressurePanel(true)
+      setTirePressureInsight(ai.text)
+      setTireSpecForm(nextSpecForm)
+
+      if (![frontLeftPsi, frontRightPsi, rearLeftPsi, rearRightPsi].some(Boolean)) {
+        setMessage('Could not find PSI numbers. Review the AI notes or try a closer plate photo.')
+        return
+      }
+
+      const savedSpec = await api.put<TirePressureSpec>(`/api/vehicles/${dashboard.vehicle.id}/tire-pressure/spec`, {
         frontLeftPsi: frontLeftPsi ?? null,
         frontRightPsi: frontRightPsi ?? null,
         rearLeftPsi: rearLeftPsi ?? null,
         rearRightPsi: rearRightPsi ?? null,
         notes: ai.text,
-        photoDocumentId: document.id,
+        photoDocumentId: tirePressure.spec?.photoDocumentId ?? null,
       })
 
-      setTirePressureInsight(ai.text)
-      await loadDashboard(dashboard.vehicle.id)
-      setShowTirePressurePanel(true)
+      setTirePressure((current) => ({ ...current, spec: savedSpec }))
+
+      try {
+        const document = await uploadVehicleDocument(dashboard.vehicle.id, file, 'Tire pressure placard photo')
+        const specWithPhoto = await api.put<TirePressureSpec>(`/api/vehicles/${dashboard.vehicle.id}/tire-pressure/spec`, {
+          frontLeftPsi: frontLeftPsi ?? null,
+          frontRightPsi: frontRightPsi ?? null,
+          rearLeftPsi: rearLeftPsi ?? null,
+          rearRightPsi: rearRightPsi ?? null,
+          notes: ai.text,
+          photoDocumentId: document.id,
+        })
+        setTirePressure((current) => ({ ...current, spec: specWithPhoto }))
+      } catch {
+        setMessage('Tire pressure spec saved. Photo attach failed, but the PSI values are kept.')
+        return
+      }
+
       setMessage('Tire pressure spec saved. Review it before relying on it.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not read tire placard')

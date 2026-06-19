@@ -189,6 +189,7 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                     content_type text not null,
                     storage_path text not null,
                     size_bytes bigint not null,
+                    content_bytes bytea null,
                     description text null,
                     created_at timestamptz not null,
                     constraint documents_owner_type_check check (
@@ -198,6 +199,9 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                         kind in ('CarPhoto', 'Receipt', 'Obd2Report', 'Inspection', 'Insurance', 'Other')
                     )
                 );
+
+                alter table kwestkarzbusinessdata.documents
+                    add column if not exists content_bytes bytea null;
 
                 create index if not exists ix_documents_owner
                     on kwestkarzbusinessdata.documents(owner_type, owner_id);
