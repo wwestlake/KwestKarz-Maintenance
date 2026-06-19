@@ -97,6 +97,12 @@ type TirePressureSnapshot = {
   recentLogs: TirePressureLog[]
 }
 
+type TirePressureSpecScanResponse = {
+  spec: TirePressureSpec
+  aiText: string
+  photoDocumentId?: string
+}
+
 type VinDecode = {
   vin: string
   year?: number
@@ -252,41 +258,6 @@ function firstPressures(text: string) {
   return [...text.matchAll(/\b([1-9]\d)\b/g)]
     .map((match) => Number(match[1]))
     .filter((value) => value >= 15 && value <= 80)
-}
-
-function parseTireSpec(text: string) {
-  const normalizedKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, '')
-  const jsonText = text.match(/\{[\s\S]*\}/)?.[0]
-  let jsonValues: Record<string, unknown> = {}
-
-  if (jsonText) {
-    try {
-      const parsed = JSON.parse(jsonText) as Record<string, unknown>
-      jsonValues = Object.fromEntries(Object.entries(parsed).map(([key, value]) => [normalizedKey(key), value]))
-    } catch {
-      jsonValues = {}
-    }
-  }
-
-  const fromJson = (...keys: string[]) => {
-    for (const key of keys) {
-      const value = pressureValue(jsonValues[normalizedKey(key)])
-      if (value) return value
-    }
-
-    return undefined
-  }
-
-  const numbers = firstPressures(text)
-  const frontPsi = fromJson('frontPsi', 'front') ?? extractPressure('front tire|front axle|front', text) ?? numbers[0]
-  const rearPsi = fromJson('rearPsi', 'rear') ?? extractPressure('rear tire|rear axle|rear', text) ?? numbers[1] ?? frontPsi
-
-  return {
-    frontLeftPsi: fromJson('frontLeftPsi', 'frontLeft', 'fl') ?? extractPressure('front left|front-left|fl', text) ?? frontPsi,
-    frontRightPsi: fromJson('frontRightPsi', 'frontRight', 'fr') ?? extractPressure('front right|front-right|fr', text) ?? frontPsi,
-    rearLeftPsi: fromJson('rearLeftPsi', 'rearLeft', 'rl') ?? extractPressure('rear left|rear-left|rl', text) ?? rearPsi,
-    rearRightPsi: fromJson('rearRightPsi', 'rearRight', 'rr') ?? extractPressure('rear right|rear-right|rr', text) ?? rearPsi,
-  }
 }
 
 function App() {
@@ -670,62 +641,43 @@ function App() {
     try {
       const form = new FormData()
       form.append('file', file)
-      form.append('vehicleVin', dashboard.vehicle.vin)
-      form.append(
-        'prompt',
-        'Read the vehicle tire pressure placard. Return only a compact JSON object with numeric PSI values: {"frontLeftPsi":35,"frontRightPsi":35,"rearLeftPsi":35,"rearRightPsi":35,"notes":"short note"}. If the placard only lists front and rear axle PSI, copy front to both front tires and rear to both rear tires. Ignore kPa values, tire sizes, load limits, and wheel sizes.',
-      )
 
-      const response = await fetch('/api/ai/interpret-image', { method: 'POST', body: form })
-      if (!response.ok) throw new Error(await response.text())
+      const response = await fetch(`/api/vehicles/${dashboard.vehicle.id}/tire-pressure/spec/photo`, {
+        method: 'POST',
+        body: form,
+      })
 
-      const ai = (await response.json()) as AIResponse
-      const { frontLeftPsi, frontRightPsi, rearLeftPsi, rearRightPsi } = parseTireSpec(ai.text)
+      if (!response.ok) {
+        const errorText = await response.text()
+        try {
+          const parsed = JSON.parse(errorText) as { error?: string; aiText?: string }
+          if (parsed.aiText) {
+            setShowTirePressurePanel(true)
+            localStorage.setItem(tirePanelStorageKey, 'true')
+            setTirePressureInsight(parsed.aiText)
+            setTireSpecForm((current) => ({ ...current, notes: parsed.aiText ?? current.notes }))
+          }
+          throw new Error(parsed.error || errorText)
+        } catch (error) {
+          if (error instanceof Error && error.message !== errorText) throw error
+          throw new Error(errorText)
+        }
+      }
+
+      const result = (await response.json()) as TirePressureSpecScanResponse
       const nextSpecForm = {
-        frontLeftPsi: frontLeftPsi?.toString() ?? '',
-        frontRightPsi: frontRightPsi?.toString() ?? '',
-        rearLeftPsi: rearLeftPsi?.toString() ?? '',
-        rearRightPsi: rearRightPsi?.toString() ?? '',
-        notes: ai.text,
+        frontLeftPsi: result.spec.frontLeftPsi?.toString() ?? '',
+        frontRightPsi: result.spec.frontRightPsi?.toString() ?? '',
+        rearLeftPsi: result.spec.rearLeftPsi?.toString() ?? '',
+        rearRightPsi: result.spec.rearRightPsi?.toString() ?? '',
+        notes: result.aiText,
       }
 
       setShowTirePressurePanel(true)
       localStorage.setItem(tirePanelStorageKey, 'true')
-      setTirePressureInsight(ai.text)
+      setTirePressureInsight(result.aiText)
       setTireSpecForm(nextSpecForm)
-
-      if (![frontLeftPsi, frontRightPsi, rearLeftPsi, rearRightPsi].some(Boolean)) {
-        setMessage('Could not find PSI numbers. Review the AI notes or try a closer plate photo.')
-        return
-      }
-
-      const savedSpec = await api.put<TirePressureSpec>(`/api/vehicles/${dashboard.vehicle.id}/tire-pressure/spec`, {
-        frontLeftPsi: frontLeftPsi ?? null,
-        frontRightPsi: frontRightPsi ?? null,
-        rearLeftPsi: rearLeftPsi ?? null,
-        rearRightPsi: rearRightPsi ?? null,
-        notes: ai.text,
-        photoDocumentId: tirePressure.spec?.photoDocumentId ?? null,
-      })
-
-      setTirePressure((current) => ({ ...current, spec: savedSpec }))
-
-      try {
-        const document = await uploadVehicleDocument(dashboard.vehicle.id, file, 'Tire pressure placard photo')
-        const specWithPhoto = await api.put<TirePressureSpec>(`/api/vehicles/${dashboard.vehicle.id}/tire-pressure/spec`, {
-          frontLeftPsi: frontLeftPsi ?? null,
-          frontRightPsi: frontRightPsi ?? null,
-          rearLeftPsi: rearLeftPsi ?? null,
-          rearRightPsi: rearRightPsi ?? null,
-          notes: ai.text,
-          photoDocumentId: document.id,
-        })
-        setTirePressure((current) => ({ ...current, spec: specWithPhoto }))
-      } catch {
-        setMessage('Tire pressure spec saved. Photo attach failed, but the PSI values are kept.')
-        return
-      }
-
+      setTirePressure((current) => ({ ...current, spec: result.spec }))
       setMessage('Tire pressure spec saved. Review it before relying on it.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not read tire placard')

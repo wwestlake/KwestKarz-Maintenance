@@ -99,3 +99,8 @@ module CreateTirePressureLogRequest =
           RearRightPsi = request.RearRightPsi
           Notes = request.Notes
           PhotoDocumentId = request.PhotoDocumentId }
+
+type TirePressureSpecScanResponse =
+    { Spec: TirePressureSpecResponse
+      AiText: string
+      PhotoDocumentId: Guid option }
