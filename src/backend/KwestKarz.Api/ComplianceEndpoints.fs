@@ -115,7 +115,11 @@ module ComplianceEndpoints =
         let plateNumber = parsedField aiText "plateNumber"
         let plateState = parsedField aiText "plateState"
         let effectiveDate = parsedField aiText "effectiveDate" |> Option.bind tryDate
-        let expirationDate = parsedField aiText "expirationDate" |> Option.bind tryDate
+        let parsedExpirationDate = parsedField aiText "expirationDate" |> Option.bind tryDate
+        let expirationDate =
+            match recordType, effectiveDate, parsedExpirationDate with
+            | "Insurance", Some effective, Some expiration when effective = expiration -> None
+            | _ -> parsedExpirationDate
         let notes = parsedField aiText "notes"
 
         {| RecordType = recordType
@@ -248,7 +252,15 @@ module ComplianceEndpoints =
         | _ -> DocumentKind.Other
 
     let private promptFor recordType =
-        $"Read this vehicle {recordType} image. Return JSON only with fields provider, policyNumber, documentNumber, plateNumber, plateState, effectiveDate, expirationDate, notes. Dates must be yyyy-MM-dd or empty strings. For license plate photos, focus on plateNumber and plateState."
+        match recordType with
+        | "Insurance" ->
+            "Read this vehicle insurance card or certificate. Return JSON only with fields provider, policyNumber, documentNumber, plateNumber, plateState, effectiveDate, expirationDate, notes. Dates must be yyyy-MM-dd or empty strings. effectiveDate must come only from labels like effective, inception, policy begins, or from date. expirationDate must come only from labels like expiration, expires, policy ends, through, to, or valid until. Do not copy the effective date into expirationDate. If an expiration or policy-period-end date is blurry, missing, or ambiguous, set expirationDate to an empty string and explain uncertainty in notes."
+        | "Registration" ->
+            "Read this vehicle registration document. Return JSON only with fields provider, policyNumber, documentNumber, plateNumber, plateState, effectiveDate, expirationDate, notes. Dates must be yyyy-MM-dd or empty strings. expirationDate must be the registration expiration, tab expiration, valid-until date, or renewal due date. If unclear, leave expirationDate empty and explain in notes."
+        | "LicensePlate" ->
+            "Read this vehicle license plate photo. Return JSON only with fields provider, policyNumber, documentNumber, plateNumber, plateState, effectiveDate, expirationDate, notes. Focus on plateNumber and plateState. If a registration tab month/year is visible, put the best yyyy-MM-dd estimate in expirationDate only when the year is clear; otherwise leave expirationDate empty and explain in notes."
+        | _ ->
+            $"Read this vehicle {recordType} image. Return JSON only with fields provider, policyNumber, documentNumber, plateNumber, plateState, effectiveDate, expirationDate, notes. Dates must be yyyy-MM-dd or empty strings."
 
     let mapComplianceEndpoints (app: WebApplication) =
         let group = app.MapGroup("/api/vehicles/{vehicleId:guid}/compliance")
