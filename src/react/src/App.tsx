@@ -209,6 +209,7 @@ const workflowCatalog = [
   ['PreRentalInspection', 'Pre-Rental Inspection', 'Photos, mileage, fuel, tires, damage'],
   ['PostRentalInspection', 'Post-Rental Inspection', 'Return condition, mileage, fuel, issues'],
   ['MaintenanceIntake', 'Maintenance Intake', 'Receipt, service type, due dates, tire pressure'],
+  ['TechnicalCheck', 'Technical Check', 'Under hood, fluids, battery, OBD2 report, road check'],
   ['DamageReview', 'Damage Review', 'Photos, notes, repair status, documents'],
   ['ComplianceRenewal', 'Compliance Renewal', 'Registration, insurance, plate verification'],
 ] as const

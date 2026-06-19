@@ -10,7 +10,7 @@ open NpgsqlTypes
 
 module WorkflowEndpoints =
     let private workflowTypes =
-        set [ "AddVehicle"; "PreRentalInspection"; "PostRentalInspection"; "MaintenanceIntake"; "DamageReview"; "ComplianceRenewal" ]
+        set [ "AddVehicle"; "PreRentalInspection"; "PostRentalInspection"; "MaintenanceIntake"; "DamageReview"; "ComplianceRenewal"; "TechnicalCheck" ]
 
     let private workflowStatuses = set [ "Draft"; "InProgress"; "Waiting"; "Complete"; "Canceled" ]
     let private stepStatuses = set [ "NotStarted"; "InProgress"; "NeedsReview"; "Complete"; "Skipped"; "Problem" ]
@@ -28,6 +28,7 @@ module WorkflowEndpoints =
         | "MaintenanceIntake" -> "Maintenance Intake"
         | "DamageReview" -> "Damage Review"
         | "ComplianceRenewal" -> "Compliance Renewal"
+        | "TechnicalCheck" -> "Technical Check"
         | _ -> workflowType
 
     let private defaultSteps workflowType =
@@ -71,6 +72,15 @@ module WorkflowEndpoints =
                ("registration", "Registration")
                ("insurance", "Insurance")
                ("plate", "Plate")
+               ("review", "Review") |]
+        | "TechnicalCheck" ->
+            [| ("returnIntake", "Return Intake")
+               ("underHood", "Under Hood")
+               ("fluids", "Fluids")
+               ("batteryCharging", "Battery / Charging")
+               ("obd2Scan", "OBD2 Scan Report")
+               ("idleRoadCheck", "Idle / Road Check")
+               ("issues", "Issues")
                ("review", "Review") |]
         | _ -> [| ("start", "Start"); ("review", "Review") |]
 
