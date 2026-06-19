@@ -230,6 +230,7 @@ module Program =
         DashboardEndpoints.mapDashboardEndpoints app |> ignore
         DocumentEndpoints.mapDocumentEndpoints app |> ignore
         AIEndpoints.mapAIEndpoints app |> ignore
+        WorkflowEndpoints.mapWorkflowEndpoints app |> ignore
 
         app.Run()
 

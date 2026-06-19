@@ -166,6 +166,32 @@ type CreateVehicleForm = {
   notes: string
 }
 
+type WorkflowStep = {
+  id: string
+  workflowId: string
+  stepKey: string
+  title: string
+  status: string
+  sortOrder: number
+  data?: Record<string, unknown>
+  createdAt: string
+  updatedAt: string
+}
+
+type WorkflowInstance = {
+  id: string
+  workflowType: string
+  title: string
+  status: string
+  vehicleId?: string
+  currentStepKey: string
+  createdAt: string
+  updatedAt: string
+  completedAt?: string
+  canceledAt?: string
+  steps: WorkflowStep[]
+}
+
 type AppArea = 'home' | 'inventory' | 'workflows' | 'maintenance' | 'compliance' | 'lockboxes' | 'settings'
 
 const appAreas: { id: AppArea; label: string }[] = [
@@ -177,6 +203,15 @@ const appAreas: { id: AppArea; label: string }[] = [
   { id: 'lockboxes', label: 'Lock Boxes' },
   { id: 'settings', label: 'Settings' },
 ]
+
+const workflowCatalog = [
+  ['AddVehicle', 'Add Vehicle', 'VIN, plate, registration, insurance, lock box'],
+  ['PreRentalInspection', 'Pre-Rental Inspection', 'Photos, mileage, fuel, tires, damage'],
+  ['PostRentalInspection', 'Post-Rental Inspection', 'Return condition, mileage, fuel, issues'],
+  ['MaintenanceIntake', 'Maintenance Intake', 'Receipt, service type, due dates, tire pressure'],
+  ['DamageReview', 'Damage Review', 'Photos, notes, repair status, documents'],
+  ['ComplianceRenewal', 'Compliance Renewal', 'Registration, insurance, plate verification'],
+] as const
 
 const areaTitles: Record<AppArea, string> = {
   home: 'Today',
@@ -403,6 +438,10 @@ function getVinScanClientId() {
 
 function App() {
   const [activeArea, setActiveArea] = useState<AppArea>('home')
+  const [workflows, setWorkflows] = useState<WorkflowInstance[]>([])
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState('')
+  const [selectedWorkflowStepKey, setSelectedWorkflowStepKey] = useState('')
+  const [workflowStepNotes, setWorkflowStepNotes] = useState('')
   const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const complianceCameraInputRef = useRef<HTMLInputElement | null>(null)
   const complianceFormRef = useRef<HTMLFormElement | null>(null)
@@ -490,6 +529,15 @@ function App() {
     () => dashboard?.compliance.find((record) => record.id === editingComplianceId),
     [dashboard, editingComplianceId],
   )
+  const selectedWorkflow = useMemo(
+    () => workflows.find((workflow) => workflow.id === selectedWorkflowId) ?? null,
+    [workflows, selectedWorkflowId],
+  )
+  const selectedWorkflowStep = useMemo(
+    () => selectedWorkflow?.steps.find((step) => step.stepKey === selectedWorkflowStepKey) ?? null,
+    [selectedWorkflow, selectedWorkflowStepKey],
+  )
+  const activeWorkflows = workflows.filter((workflow) => workflow.status !== 'Complete' && workflow.status !== 'Canceled')
 
   const workingIndicator = workingMessage ? (
     <div className="working-inline" role="status" aria-live="polite">
@@ -501,6 +549,7 @@ function App() {
   useEffect(() => {
     restoreWorkspace()
     refreshLockBoxes()
+    refreshWorkflows()
 
     if (localStorage.getItem(vinScanPendingStorageKey) === 'true') {
       recoverLatestVinScan()
@@ -592,6 +641,19 @@ function App() {
       setLockBoxes(nextLockBoxes)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not load lock boxes')
+    }
+  }
+
+  async function refreshWorkflows() {
+    try {
+      const nextWorkflows = await api.get<WorkflowInstance[]>('/api/workflows?includeCompleted=false')
+      setWorkflows(nextWorkflows)
+      if (!selectedWorkflowId && nextWorkflows.length > 0) {
+        setSelectedWorkflowId(nextWorkflows[0].id)
+        setSelectedWorkflowStepKey(nextWorkflows[0].currentStepKey)
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not load workflows')
     }
   }
 
@@ -1374,6 +1436,96 @@ function App() {
     }
   }
 
+  function selectWorkflow(workflow: WorkflowInstance) {
+    setSelectedWorkflowId(workflow.id)
+    setSelectedWorkflowStepKey(workflow.currentStepKey)
+    const step = workflow.steps.find((item) => item.stepKey === workflow.currentStepKey)
+    const notes = typeof step?.data?.notes === 'string' ? step.data.notes : ''
+    setWorkflowStepNotes(notes)
+  }
+
+  function selectWorkflowStep(step: WorkflowStep) {
+    setSelectedWorkflowStepKey(step.stepKey)
+    setWorkflowStepNotes(typeof step.data?.notes === 'string' ? step.data.notes : '')
+  }
+
+  async function startWorkflow(workflowType: string) {
+    setLoading(true)
+    setMessage('Starting workflow...')
+
+    try {
+      const workflow = await api.post<WorkflowInstance>('/api/workflows', {
+        workflowType,
+        vehicleId: dashboard?.vehicle.id ?? null,
+        title: null,
+      })
+      setActiveArea('workflows')
+      setWorkflows((current) => [workflow, ...current])
+      selectWorkflow(workflow)
+      setMessage('Workflow started')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not start workflow')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function saveWorkflowStep(status: string) {
+    if (!selectedWorkflow || !selectedWorkflowStep) return
+
+    setLoading(true)
+    setMessage('Saving workflow step...')
+
+    try {
+      const workflow = await api.put<WorkflowInstance>(
+        `/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}`,
+        {
+          status,
+          makeCurrent: true,
+          data: {
+            ...(selectedWorkflowStep.data ?? {}),
+            notes: workflowStepNotes,
+          },
+        },
+      )
+      setWorkflows((current) => current.map((item) => (item.id === workflow.id ? workflow : item)))
+      selectWorkflow(workflow)
+      setSelectedWorkflowStepKey(selectedWorkflowStep.stepKey)
+      setMessage(status === 'Complete' ? 'Step marked complete' : 'Workflow step saved')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not save workflow step')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function updateWorkflowStatus(status: string) {
+    if (!selectedWorkflow) return
+
+    setLoading(true)
+    setMessage('Updating workflow...')
+
+    try {
+      const workflow = await api.put<WorkflowInstance>(`/api/workflows/${selectedWorkflow.id}/status`, {
+        status,
+        currentStepKey: selectedWorkflowStepKey || selectedWorkflow.currentStepKey,
+      })
+      await refreshWorkflows()
+      if (status === 'Complete' || status === 'Canceled') {
+        setSelectedWorkflowId('')
+        setSelectedWorkflowStepKey('')
+        setWorkflowStepNotes('')
+      } else {
+        selectWorkflow(workflow)
+      }
+      setMessage(`Workflow ${status.toLowerCase()}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not update workflow')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -1435,6 +1587,30 @@ function App() {
 
           <div className="panel area-panel">
             <div className="section-heading">
+              <h2>Active Workflows</h2>
+              <p>{activeWorkflows.length}</p>
+            </div>
+            <div className="record-list">
+              {activeWorkflows.length === 0 && <p className="empty">No active workflows.</p>}
+              {activeWorkflows.slice(0, 4).map((workflow) => (
+                <button
+                  key={workflow.id}
+                  className="vehicle-list-item"
+                  type="button"
+                  onClick={() => {
+                    setActiveArea('workflows')
+                    selectWorkflow(workflow)
+                  }}
+                >
+                  <span>{workflow.title}</span>
+                  <small>{workflow.status} - {workflow.steps.find((step) => step.stepKey === workflow.currentStepKey)?.title ?? workflow.currentStepKey}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="panel area-panel">
+            <div className="section-heading">
               <h2>Recent Vehicles</h2>
               <p>{vehicles.slice(0, 4).length}</p>
             </div>
@@ -1459,21 +1635,104 @@ function App() {
       )}
 
       {activeArea === 'workflows' && (
-        <section className="area-grid workflow-grid">
-          {[
-            ['Add Vehicle', 'VIN, plate, registration, insurance, lock box'],
-            ['Pre-Rental Inspection', 'Photos, mileage, fuel, tires, damage'],
-            ['Post-Rental Inspection', 'Return condition, mileage, fuel, issues'],
-            ['Maintenance Intake', 'Receipt, service type, due dates, tire pressure'],
-            ['Damage Review', 'Photos, notes, repair status, documents'],
-            ['Compliance Renewal', 'Registration, insurance, plate verification'],
-          ].map(([title, detail]) => (
-            <button key={title} className="workflow-card" type="button">
-              <strong>{title}</strong>
-              <span>{detail}</span>
-            </button>
-          ))}
-        </section>
+        <>
+          <section className="area-grid workflow-grid">
+            {workflowCatalog.map(([workflowType, title, detail]) => (
+              <button key={workflowType} className="workflow-card" type="button" disabled={loading} onClick={() => startWorkflow(workflowType)}>
+                <strong>{title}</strong>
+                <span>{detail}</span>
+              </button>
+            ))}
+          </section>
+
+          <section className="area-grid">
+            <div className="panel area-panel">
+              <div className="section-heading">
+                <h2>Active</h2>
+                <p>{activeWorkflows.length} workflows</p>
+              </div>
+              <div className="record-list">
+                {activeWorkflows.length === 0 && <p className="empty">No active workflows.</p>}
+                {activeWorkflows.map((workflow) => (
+                  <button
+                    key={workflow.id}
+                    className={selectedWorkflowId === workflow.id ? 'vehicle-list-item selected-row' : 'vehicle-list-item'}
+                    type="button"
+                    onClick={() => selectWorkflow(workflow)}
+                  >
+                    <span>{workflow.title}</span>
+                    <small>{workflow.status} - {workflow.steps.find((step) => step.stepKey === workflow.currentStepKey)?.title ?? workflow.currentStepKey}</small>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="panel area-panel">
+              <div className="section-heading">
+                <h2>{selectedWorkflow?.title ?? 'Workflow'}</h2>
+                <p>{selectedWorkflow?.status ?? 'Select one'}</p>
+              </div>
+              {!selectedWorkflow && <p className="empty">Start or select a workflow to continue.</p>}
+              {selectedWorkflow && (
+                <>
+                  <div className="workflow-step-list">
+                    {selectedWorkflow.steps.map((step) => (
+                      <button
+                        key={step.id}
+                        className={selectedWorkflowStepKey === step.stepKey ? 'workflow-step selected' : 'workflow-step'}
+                        type="button"
+                        onClick={() => selectWorkflowStep(step)}
+                      >
+                        <strong>{step.title}</strong>
+                        <span>{step.status}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {selectedWorkflowStep && (
+                    <div className="workflow-editor">
+                      <div className="section-heading compact-heading">
+                        <h2>{selectedWorkflowStep.title}</h2>
+                        <p>{selectedWorkflowStep.status}</p>
+                      </div>
+                      <label>
+                        <span>Notes / draft data</span>
+                        <textarea
+                          value={workflowStepNotes}
+                          onChange={(event) => setWorkflowStepNotes(event.target.value)}
+                          placeholder="Save anything learned on this step. Fields and scanners will plug in here as we build each workflow."
+                        />
+                      </label>
+                      <div className="workflow-actions">
+                        <button type="button" disabled={loading} onClick={() => saveWorkflowStep('InProgress')}>
+                          Save Draft
+                        </button>
+                        <button className="secondary-button" type="button" disabled={loading} onClick={() => saveWorkflowStep('NeedsReview')}>
+                          Needs Review
+                        </button>
+                        <button className="secondary-button" type="button" disabled={loading} onClick={() => saveWorkflowStep('Complete')}>
+                          Mark Complete
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="workflow-actions">
+                    <button className="secondary-button" type="button" disabled={loading} onClick={() => updateWorkflowStatus('Waiting')}>
+                      Continue Later
+                    </button>
+                    <button className="secondary-button" type="button" disabled={loading} onClick={() => updateWorkflowStatus('Canceled')}>
+                      Cancel Workflow
+                    </button>
+                    <button className="primary-action" type="button" disabled={loading} onClick={() => updateWorkflowStatus('Complete')}>
+                      Complete Workflow
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
+        </>
       )}
 
       {activeArea === 'maintenance' && (

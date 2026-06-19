@@ -173,6 +173,59 @@ h2 {
   font-weight: 500;
 }
 
+.workflow-step-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.workflow-step {
+  display: grid;
+  gap: 4px;
+  min-height: 68px;
+  border: 1px solid #d9ded6;
+  background: #fbfcf8;
+  color: #172026;
+  text-align: left;
+  padding: 10px;
+}
+
+.workflow-step.selected {
+  border-color: #20343a;
+  background: #20343a;
+  color: #ffffff;
+}
+
+.workflow-step span {
+  color: #65736d;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workflow-step.selected span {
+  color: #dfe8df;
+}
+
+.workflow-editor {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  border-top: 1px solid #d9ded6;
+  padding-top: 14px;
+}
+
+.workflow-editor label {
+  display: grid;
+  gap: 6px;
+}
+
+.workflow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .lookup-form {
   max-width: 980px;
   display: grid;
@@ -201,6 +254,11 @@ h2 {
 }
 
 .vehicle-list-item:hover {
+  background: #eef2ea;
+}
+
+.vehicle-list-item.selected-row {
+  border-color: #20343a;
   background: #eef2ea;
 }
 
@@ -706,6 +764,7 @@ button:disabled {
   .dashboard-grid,
   .area-grid,
   .workflow-grid,
+  .workflow-step-list,
   .vehicle-form,
   .maintenance-form,
   .lockbox-form,

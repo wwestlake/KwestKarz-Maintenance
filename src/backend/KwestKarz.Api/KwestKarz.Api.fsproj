@@ -14,6 +14,7 @@
     <Compile Include="MaintenanceDtos.fs" />
     <Compile Include="TirePressureDtos.fs" />
     <Compile Include="AIDtos.fs" />
+    <Compile Include="WorkflowDtos.fs" />
     <Compile Include="MaintenanceLogic.fs" />
     <Compile Include="VinEndpoints.fs" />
     <Compile Include="VehicleEndpoints.fs" />
@@ -24,6 +25,7 @@
     <Compile Include="DashboardEndpoints.fs" />
     <Compile Include="DocumentEndpoints.fs" />
     <Compile Include="AIEndpoints.fs" />
+    <Compile Include="WorkflowEndpoints.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

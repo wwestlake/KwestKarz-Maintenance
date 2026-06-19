@@ -262,6 +262,65 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
 
                 create index if not exists ix_system_logs_logged_at
                     on kwestkarzbusinessdata.system_logs(logged_at desc);
+
+                create table if not exists kwestkarzbusinessdata.workflow_instances (
+                    id uuid primary key,
+                    workflow_type text not null,
+                    title text not null,
+                    status text not null,
+                    vehicle_id uuid null references kwestkarzbusinessdata.vehicles(id) on delete set null,
+                    current_step_key text not null,
+                    created_at timestamptz not null,
+                    updated_at timestamptz not null,
+                    completed_at timestamptz null,
+                    canceled_at timestamptz null,
+                    constraint workflow_instances_type_check check (
+                        workflow_type in ('AddVehicle', 'PreRentalInspection', 'PostRentalInspection', 'MaintenanceIntake', 'DamageReview', 'ComplianceRenewal')
+                    ),
+                    constraint workflow_instances_status_check check (
+                        status in ('Draft', 'InProgress', 'Waiting', 'Complete', 'Canceled')
+                    )
+                );
+
+                create index if not exists ix_workflow_instances_status
+                    on kwestkarzbusinessdata.workflow_instances(status, updated_at desc);
+
+                create index if not exists ix_workflow_instances_vehicle
+                    on kwestkarzbusinessdata.workflow_instances(vehicle_id, updated_at desc);
+
+                create table if not exists kwestkarzbusinessdata.workflow_steps (
+                    id uuid primary key,
+                    workflow_id uuid not null references kwestkarzbusinessdata.workflow_instances(id) on delete cascade,
+                    step_key text not null,
+                    title text not null,
+                    status text not null,
+                    sort_order integer not null,
+                    data jsonb not null default '{}'::jsonb,
+                    created_at timestamptz not null,
+                    updated_at timestamptz not null,
+                    constraint workflow_steps_status_check check (
+                        status in ('NotStarted', 'InProgress', 'NeedsReview', 'Complete', 'Skipped', 'Problem')
+                    )
+                );
+
+                create unique index if not exists ux_workflow_steps_workflow_step
+                    on kwestkarzbusinessdata.workflow_steps(workflow_id, step_key);
+
+                create index if not exists ix_workflow_steps_workflow
+                    on kwestkarzbusinessdata.workflow_steps(workflow_id, sort_order);
+
+                create table if not exists kwestkarzbusinessdata.workflow_events (
+                    id uuid primary key,
+                    workflow_id uuid not null references kwestkarzbusinessdata.workflow_instances(id) on delete cascade,
+                    step_key text null,
+                    event_type text not null,
+                    message text null,
+                    data jsonb not null default '{}'::jsonb,
+                    created_at timestamptz not null
+                );
+
+                create index if not exists ix_workflow_events_workflow
+                    on kwestkarzbusinessdata.workflow_events(workflow_id, created_at desc);
                 """
 
             use! connection = dataSource.OpenConnectionAsync(cancellationToken)
