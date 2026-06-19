@@ -7,7 +7,11 @@
 
   <ItemGroup>
     <Compile Include="VehicleDtos.fs" />
+    <Compile Include="DocumentDtos.fs" />
+    <Compile Include="AIDtos.fs" />
     <Compile Include="VehicleEndpoints.fs" />
+    <Compile Include="DocumentEndpoints.fs" />
+    <Compile Include="AIEndpoints.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
@@ -17,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
   </ItemGroup>
 

@@ -7,7 +7,10 @@
 
   <ItemGroup>
     <Compile Include="DatabaseInitializer.fs" />
+    <Compile Include="FileStorage.fs" />
+    <Compile Include="OpenAIResponsesConnection.fs" />
     <Compile Include="VehicleRepository.fs" />
+    <Compile Include="DocumentRepository.fs" />
   </ItemGroup>
 
   <ItemGroup>

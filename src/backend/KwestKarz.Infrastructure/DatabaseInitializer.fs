@@ -39,6 +39,28 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
 
                 create index if not exists ix_vehicles_status
                     on kwestkarzbusinessdata.vehicles(status);
+
+                create table if not exists kwestkarzbusinessdata.documents (
+                    id uuid primary key,
+                    owner_type text not null,
+                    owner_id uuid not null,
+                    kind text not null,
+                    original_file_name text not null,
+                    content_type text not null,
+                    storage_path text not null,
+                    size_bytes bigint not null,
+                    description text null,
+                    created_at timestamptz not null,
+                    constraint documents_owner_type_check check (
+                        owner_type in ('Vehicle', 'MaintenanceRecord', 'DiagnosticReport', 'IncidentRecord')
+                    ),
+                    constraint documents_kind_check check (
+                        kind in ('CarPhoto', 'Receipt', 'Obd2Report', 'Inspection', 'Insurance', 'Other')
+                    )
+                );
+
+                create index if not exists ix_documents_owner
+                    on kwestkarzbusinessdata.documents(owner_type, owner_id);
                 """
 
             use! connection = dataSource.OpenConnectionAsync(cancellationToken)
