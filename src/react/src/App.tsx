@@ -65,6 +65,11 @@ type VinScanResponse = {
   model?: unknown
 }
 
+type VinLatestScanResponse = {
+  vin?: string
+  loggedAt?: string
+}
+
 type Dashboard = {
   vehicle: Vehicle
   currentLockBox?: LockBox
@@ -194,6 +199,8 @@ const lockBoxStatuses = ['Available', 'Assigned', 'Lost', 'Retired']
 const selectedVehicleStorageKey = 'kwestkarz.selectedVehicleId'
 const tirePanelStorageKey = 'kwestkarz.showTirePressurePanel'
 const tireSpecScanPendingStorageKey = 'kwestkarz.tireSpecScanPending'
+const vinScanClientStorageKey = 'kwestkarz.vinScanClientId'
+const vinScanPendingStorageKey = 'kwestkarz.vinScanPending'
 
 const api = {
   async get<T>(path: string): Promise<T> {
@@ -271,6 +278,18 @@ function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
+function getVinScanClientId() {
+  const existing = localStorage.getItem(vinScanClientStorageKey)
+  if (existing) return existing
+
+  const next =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `client-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  localStorage.setItem(vinScanClientStorageKey, next)
+  return next
+}
+
 function App() {
   const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const tireSpecCameraInputRef = useRef<HTMLInputElement | null>(null)
@@ -342,6 +361,11 @@ function App() {
   useEffect(() => {
     function refreshAfterCameraReturn() {
       const vehicleId = localStorage.getItem(selectedVehicleStorageKey)
+
+      if (localStorage.getItem(vinScanPendingStorageKey) === 'true') {
+        recoverLatestVinScan()
+      }
+
       if (!vehicleId) return
 
       if (localStorage.getItem(tirePanelStorageKey) === 'true') {
@@ -509,6 +533,38 @@ function App() {
     await lookupVehicleByVin(normalizedVin)
   }
 
+  async function applyScannedVin(scannedVin: string) {
+    localStorage.removeItem(vinScanPendingStorageKey)
+    setVin(scannedVin)
+    setMessage(`VIN read: ${scannedVin}`)
+
+    try {
+      await lookupVehicleByVin(scannedVin)
+    } catch (error) {
+      setMessage(error instanceof Error ? `VIN read, but lookup failed: ${error.message}` : 'VIN read, but lookup failed')
+    }
+  }
+
+  async function recoverLatestVinScan() {
+    const clientId = getVinScanClientId()
+
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      try {
+        const latest = await api.get<VinLatestScanResponse>(`/api/vin/latest-scan/${encodeURIComponent(clientId)}`)
+        const scannedVin = latest.vin?.trim().toUpperCase()
+
+        if (scannedVin) {
+          await applyScannedVin(scannedVin)
+          return
+        }
+      } catch {
+        // Camera return recovery is best effort; the active scan handler will show errors.
+      }
+
+      await wait(1200)
+    }
+  }
+
   async function lookupVehicleByVin(vinToLookup: string) {
     const nextVin = vinToLookup.trim().toUpperCase()
     if (!nextVin) return
@@ -548,7 +604,10 @@ function App() {
 
     try {
       const form = new FormData()
+      const clientId = getVinScanClientId()
       form.append('file', file)
+      form.append('clientId', clientId)
+      localStorage.setItem(vinScanPendingStorageKey, 'true')
 
       const response = await fetch('/api/vin/scan-photo', {
         method: 'POST',
@@ -564,18 +623,12 @@ function App() {
       const scannedVin = apiVin.trim().toUpperCase() || extractVin(aiText)
 
       if (!scannedVin) {
+        localStorage.removeItem(vinScanPendingStorageKey)
         setMessage('No VIN found in photo. Try closer, flatter lighting, and fill the frame with the VIN.')
         return
       }
 
-      setMessage(`VIN read: ${scannedVin}`)
-      setVin(scannedVin)
-
-      try {
-        await lookupVehicleByVin(scannedVin)
-      } catch (error) {
-        setMessage(error instanceof Error ? `VIN read, but lookup failed: ${error.message}` : 'VIN read, but lookup failed')
-      }
+      await applyScannedVin(scannedVin)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not read VIN photo')
     } finally {
@@ -975,7 +1028,11 @@ function App() {
               disabled={loading}
               aria-label="Scan VIN with camera"
               title="Scan VIN with camera"
-              onClick={() => vinCameraInputRef.current?.click()}
+              onClick={() => {
+                getVinScanClientId()
+                localStorage.setItem(vinScanPendingStorageKey, 'true')
+                vinCameraInputRef.current?.click()
+              }}
             >
               <span aria-hidden="true">📷</span>
             </button>

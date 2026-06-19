@@ -62,7 +62,9 @@ module VinEndpoints =
             else
                 findVinCandidate text
 
-    let private writeScanLogAsync (dataSource: NpgsqlDataSource) (vin: string option) (aiText: string) (cancellationToken: Threading.CancellationToken) =
+    let private parsedVinLogPattern = Regex(@"Parsed VIN=([A-HJ-NPR-Z0-9]{17}|None);", RegexOptions.Compiled)
+
+    let private writeScanLogAsync (dataSource: NpgsqlDataSource) (clientId: string) (vin: string option) (aiText: string) (cancellationToken: Threading.CancellationToken) =
         task {
             use! connection = dataSource.OpenConnectionAsync(cancellationToken)
             use command =
@@ -83,7 +85,7 @@ module VinEndpoints =
                 | Some value -> value
                 | None -> "None"
 
-            let message = $"Parsed VIN={parsed}; AI={aiText}"
+            let message = $"Client={clientId}; Parsed VIN={parsed}; AI={aiText}"
             command.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, Guid.NewGuid()) |> ignore
             command.Parameters.AddWithValue("logged_at", NpgsqlDbType.TimestampTz, DateTimeOffset.UtcNow) |> ignore
             command.Parameters.AddWithValue("level", NpgsqlDbType.Text, "Information") |> ignore
@@ -96,6 +98,44 @@ module VinEndpoints =
             command.Parameters.AddWithValue("exception", NpgsqlDbType.Text, box DBNull.Value) |> ignore
             let! _ = command.ExecuteNonQueryAsync(cancellationToken)
             return ()
+        }
+
+    let private readLatestScanAsync (dataSource: NpgsqlDataSource) (clientId: string) (cancellationToken: Threading.CancellationToken) =
+        task {
+            use! connection = dataSource.OpenConnectionAsync(cancellationToken)
+            use command =
+                new NpgsqlCommand(
+                    """
+                    select logged_at, message
+                    from kwestkarzbusinessdata.system_logs
+                    where source = 'VinScan'
+                      and logged_at > now() - interval '2 minutes'
+                      and message like @client
+                    order by logged_at desc
+                    limit 1
+                    """,
+                    connection
+                )
+
+            command.Parameters.AddWithValue("client", NpgsqlDbType.Text, "Client=" + clientId + ";%") |> ignore
+
+            use! reader = command.ExecuteReaderAsync(cancellationToken)
+            let! hasRow = reader.ReadAsync(cancellationToken)
+
+            if hasRow then
+                let loggedAt = reader.GetFieldValue<DateTimeOffset>(0)
+                let message = reader.GetString(1)
+                let matchResult = parsedVinLogPattern.Match(message)
+
+                let vin =
+                    if matchResult.Success && matchResult.Groups[1].Value <> "None" then
+                        Some matchResult.Groups[1].Value
+                    else
+                        None
+
+                return { Vin = vin; LoggedAt = Some loggedAt }
+            else
+                return { Vin = None; LoggedAt = None }
         }
 
     let mapVinEndpoints (app: WebApplication) =
@@ -122,6 +162,9 @@ module VinEndpoints =
                 task {
                     let! form = httpContext.Request.ReadFormAsync(httpContext.RequestAborted)
                     let file = form.Files.GetFile("file")
+                    let clientId =
+                        let raw = form["clientId"].ToString()
+                        if String.IsNullOrWhiteSpace(raw) then "unknown" else raw
 
                     if isNull file || file.Length = 0L then
                         return Results.BadRequest("A multipart form image named 'file' is required.")
@@ -139,8 +182,21 @@ module VinEndpoints =
 
                         let! response = ai.CompleteWithImageAsync(aiRequest, file.ContentType, imageBase64, httpContext.RequestAborted)
                         let vin = findVinFromAiText response.Text
-                        do! writeScanLogAsync dataSource vin response.Text httpContext.RequestAborted
+                        do! writeScanLogAsync dataSource clientId vin response.Text httpContext.RequestAborted
                         return Results.Ok({ Vin = vin; AiText = response.Text; Model = response.Model })
+                })
+        )
+        |> ignore
+
+        group.MapGet(
+            "/latest-scan/{clientId}",
+            Func<string, NpgsqlDataSource, HttpContext, Task<IResult>>(fun clientId dataSource httpContext ->
+                task {
+                    if String.IsNullOrWhiteSpace(clientId) then
+                        return Results.BadRequest("Client id is required.")
+                    else
+                        let! latest = readLatestScanAsync dataSource clientId httpContext.RequestAborted
+                        return Results.Ok(latest)
                 })
         )
         |> ignore

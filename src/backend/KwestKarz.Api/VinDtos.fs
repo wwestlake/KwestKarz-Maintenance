@@ -29,3 +29,7 @@ type VinScanResponse =
     { Vin: string option
       AiText: string
       Model: string }
+
+type VinLatestScanResponse =
+    { Vin: string option
+      LoggedAt: System.DateTimeOffset option }
