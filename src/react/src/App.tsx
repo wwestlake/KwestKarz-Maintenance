@@ -381,6 +381,7 @@ function getVinScanClientId() {
 function App() {
   const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const complianceCameraInputRef = useRef<HTMLInputElement | null>(null)
+  const complianceFormRef = useRef<HTMLFormElement | null>(null)
   const tireSpecCameraInputRef = useRef<HTMLInputElement | null>(null)
   const tireLogCameraInputRef = useRef<HTMLInputElement | null>(null)
   const vinRecoveryActiveRef = useRef(false)
@@ -460,6 +461,11 @@ function App() {
     if (!vehicle) return 'No vehicle selected'
     return [vehicle.year, vehicle.make, vehicle.model, vehicle.trim].filter(Boolean).join(' ')
   }, [dashboard])
+
+  const editingComplianceRecord = useMemo(
+    () => dashboard?.compliance.find((record) => record.id === editingComplianceId),
+    [dashboard, editingComplianceId],
+  )
 
   const workingIndicator = workingMessage ? (
     <div className="working-inline" role="status" aria-live="polite">
@@ -642,6 +648,9 @@ function App() {
       expirationDate: record.expirationDate ?? '',
       notes: record.notes ?? '',
     })
+    window.setTimeout(() => {
+      complianceFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
   }
 
   function markComplianceScanPending(recordType: string) {
@@ -1734,7 +1743,11 @@ function App() {
               })}
             </div>
             {editingComplianceId && (
-              <form className="compliance-form compact" onSubmit={saveComplianceRecord}>
+              <form ref={complianceFormRef} className="compliance-form compact" onSubmit={saveComplianceRecord}>
+                <div className="wide form-heading">
+                  <strong>Editing {formatComplianceType(editingComplianceRecord?.recordType ?? 'Compliance')}</strong>
+                  <span>Review scanned fields before saving.</span>
+                </div>
                 <label>
                   <span>Provider</span>
                   <input

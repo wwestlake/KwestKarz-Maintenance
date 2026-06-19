@@ -530,6 +530,20 @@ button:disabled {
   grid-column: 1 / -1;
 }
 
+.form-heading {
+  display: grid;
+  gap: 4px;
+  border: 1px solid #d9ded6;
+  background: #fbfcf8;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.form-heading span {
+  color: #65736d;
+  font-size: 13px;
+}
+
 .record-list {
   display: grid;
   gap: 10px;
