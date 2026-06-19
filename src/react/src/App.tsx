@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 
@@ -190,7 +190,17 @@ function tryApplyReceiptDetails(text: string) {
   }
 }
 
+function extractVin(text: string) {
+  const upper = text.toUpperCase()
+  const directMatch = upper.match(/[A-HJ-NPR-Z0-9]{17}/)
+  if (directMatch) return directMatch[0]
+
+  const compact = upper.replace(/[^A-Z0-9]/g, '')
+  return compact.match(/[A-HJ-NPR-Z0-9]{17}/)?.[0] ?? ''
+}
+
 function App() {
+  const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [lockBoxes, setLockBoxes] = useState<LockBox[]>([])
   const [vin, setVin] = useState('')
@@ -287,30 +297,72 @@ function App() {
 
   async function lookupVehicle(event?: FormEvent) {
     event?.preventDefault()
-    if (!normalizedVin) return
+    await lookupVehicleByVin(normalizedVin)
+  }
+
+  async function lookupVehicleByVin(vinToLookup: string) {
+    const nextVin = vinToLookup.trim().toUpperCase()
+    if (!nextVin) return
 
     setLoading(true)
     setMessage('Looking up vehicle...')
     setDashboard(null)
     setDecoded(null)
+    setVin(nextVin)
 
     try {
-      const vehicle = await api.get<Vehicle>(`/api/vehicles/by-vin/${encodeURIComponent(normalizedVin)}`)
+      const vehicle = await api.get<Vehicle>(`/api/vehicles/by-vin/${encodeURIComponent(nextVin)}`)
       await loadDashboard(vehicle.id)
       setMessage('Vehicle loaded')
     } catch {
       setMessage('VIN not found. Decoding basics...')
-      const decode = await api.get<VinDecode>(`/api/vin/${encodeURIComponent(normalizedVin)}/decode`)
+      const decode = await api.get<VinDecode>(`/api/vin/${encodeURIComponent(nextVin)}/decode`)
       setDecoded(decode)
       setVehicleForm({
         ...emptyVehicleForm,
-        vin: normalizedVin,
+        vin: nextVin,
         year: decode.year?.toString() ?? '',
         make: decode.make ?? '',
         model: decode.model ?? '',
         trim: decode.trim ?? '',
       })
       setMessage('Decoded VIN. Confirm details to create the vehicle.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function scanVinFromPhoto(file: File) {
+    setLoading(true)
+    setMessage('Reading VIN photo...')
+
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append(
+        'prompt',
+        'Read the VIN from this vehicle label, windshield plate, door jamb label, dashboard plate, title, or paperwork. Return the 17-character VIN only. VINs never contain I, O, or Q. If uncertain, return the best VIN candidate and say uncertain.',
+      )
+
+      const response = await fetch('/api/ai/interpret-image', {
+        method: 'POST',
+        body: form,
+      })
+
+      if (!response.ok) throw new Error(await response.text())
+
+      const ai = (await response.json()) as AIResponse
+      const scannedVin = extractVin(ai.text)
+
+      if (!scannedVin) {
+        setMessage('Could not read a VIN from that photo. Try closer and flatter lighting.')
+        return
+      }
+
+      setMessage(`VIN read: ${scannedVin}`)
+      await lookupVehicleByVin(scannedVin)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not read VIN photo')
     } finally {
       setLoading(false)
     }
@@ -537,6 +589,28 @@ function App() {
               placeholder="Scan or enter VIN"
               autoCapitalize="characters"
             />
+            <input
+              ref={vinCameraInputRef}
+              className="hidden-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                event.target.value = ''
+                if (file) scanVinFromPhoto(file)
+              }}
+            />
+            <button
+              className="camera-button"
+              type="button"
+              disabled={loading}
+              aria-label="Scan VIN with camera"
+              title="Scan VIN with camera"
+              onClick={() => vinCameraInputRef.current?.click()}
+            >
+              <span aria-hidden="true">📷</span>
+            </button>
             <button type="submit" disabled={loading || normalizedVin.length < 11}>
               Find
             </button>

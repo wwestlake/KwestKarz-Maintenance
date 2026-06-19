@@ -159,8 +159,12 @@ label span,
 
 .lookup-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr auto auto;
   gap: 10px;
+}
+
+.hidden-input {
+  display: none;
 }
 
 input,
@@ -221,6 +225,15 @@ button:disabled {
 .secondary-button {
   min-height: 38px;
   padding: 8px 12px;
+}
+
+.camera-button {
+  width: 48px;
+  min-width: 48px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  font-size: 20px;
 }
 
 .quick-actions {
