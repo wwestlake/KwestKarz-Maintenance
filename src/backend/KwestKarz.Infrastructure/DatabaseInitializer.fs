@@ -40,6 +40,24 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                 create index if not exists ix_vehicles_status
                     on kwestkarzbusinessdata.vehicles(status);
 
+                create table if not exists kwestkarzbusinessdata.maintenance_records (
+                    id uuid primary key,
+                    vehicle_id uuid not null references kwestkarzbusinessdata.vehicles(id) on delete cascade,
+                    event_type text not null,
+                    date_performed date not null,
+                    odometer integer null,
+                    performed_by text null,
+                    cost numeric(12, 2) null,
+                    next_due_date date null,
+                    next_due_odometer integer null,
+                    notes text null,
+                    created_at timestamptz not null,
+                    updated_at timestamptz not null
+                );
+
+                create index if not exists ix_maintenance_records_vehicle
+                    on kwestkarzbusinessdata.maintenance_records(vehicle_id, date_performed desc, created_at desc);
+
                 create table if not exists kwestkarzbusinessdata.documents (
                     id uuid primary key,
                     owner_type text not null,

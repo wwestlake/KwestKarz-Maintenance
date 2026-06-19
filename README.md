@@ -65,3 +65,18 @@ dotnet user-secrets set --project src\backend\KwestKarz.Api\KwestKarz.Api.fsproj
 ```
 
 The backend uses the OpenAI Responses API through the server-side `IAIConnection` abstraction. The phone app never receives the API key.
+
+## Current Backend API
+
+- `GET /api/health`
+- `GET /api/vehicles`
+- `GET /api/vehicles/by-vin/{vin}`
+- `POST /api/vehicles`
+- `GET /api/vehicles/{vehicleId}/dashboard`
+- `GET /api/vehicles/{vehicleId}/maintenance`
+- `POST /api/vehicles/{vehicleId}/maintenance`
+- `GET /api/vehicles/{vehicleId}/documents`
+- `POST /api/vehicles/{vehicleId}/documents`
+- `GET /api/documents/{documentId}/content`
+- `POST /api/ai/chat`
+- `POST /api/ai/interpret-image`

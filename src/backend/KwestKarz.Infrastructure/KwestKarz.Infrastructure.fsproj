@@ -10,6 +10,7 @@
     <Compile Include="FileStorage.fs" />
     <Compile Include="OpenAIResponsesConnection.fs" />
     <Compile Include="VehicleRepository.fs" />
+    <Compile Include="MaintenanceRepository.fs" />
     <Compile Include="DocumentRepository.fs" />
   </ItemGroup>
 
