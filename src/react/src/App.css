@@ -286,6 +286,50 @@ button:disabled {
   font-size: 20px;
 }
 
+.switch-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 8px 12px;
+  background: #eef2ea;
+  color: #20343a;
+  border: 1px solid #c9d2c7;
+}
+
+.switch-button.switch-on {
+  background: #20343a;
+  color: #ffffff;
+  border-color: #20343a;
+}
+
+.switch-track {
+  width: 34px;
+  height: 18px;
+  border-radius: 999px;
+  background: #bdc7bb;
+  padding: 2px;
+  box-sizing: border-box;
+}
+
+.switch-thumb {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #ffffff;
+  transform: translateX(0);
+  transition: transform 120ms ease;
+}
+
+.switch-on .switch-track {
+  background: #c74f35;
+}
+
+.switch-on .switch-thumb {
+  transform: translateX(16px);
+}
+
 .quick-actions {
   display: flex;
   flex-wrap: wrap;

@@ -1020,7 +1020,15 @@ function App() {
               <button className="primary-action" type="button" onClick={() => setShowMaintenanceForm(true)}>
                 Add Maintenance
               </button>
-              <button className="secondary-button" type="button" onClick={() => setShowTirePressurePanel(!showTirePressurePanel)}>
+              <button
+                className={showTirePressurePanel ? 'switch-button switch-on' : 'switch-button'}
+                type="button"
+                aria-pressed={showTirePressurePanel}
+                onClick={() => setShowTirePressurePanel(!showTirePressurePanel)}
+              >
+                <span className="switch-track" aria-hidden="true">
+                  <span className="switch-thumb" />
+                </span>
                 Tire Pressure
               </button>
             </div>
