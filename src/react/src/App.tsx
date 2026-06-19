@@ -60,9 +60,9 @@ type AIResponse = {
 }
 
 type VinScanResponse = {
-  vin?: string
-  aiText: string
-  model: string
+  vin?: unknown
+  aiText?: unknown
+  model?: unknown
 }
 
 type Dashboard = {
@@ -555,10 +555,13 @@ function App() {
         body: form,
       })
 
-      if (!response.ok) throw new Error(await response.text())
+      const responseText = await response.text()
+      if (!response.ok) throw new Error(responseText)
 
-      const scan = (await response.json()) as VinScanResponse
-      const scannedVin = scan.vin?.trim().toUpperCase() ?? extractVin(scan.aiText)
+      const scan = JSON.parse(responseText) as VinScanResponse
+      const apiVin = typeof scan.vin === 'string' ? scan.vin : ''
+      const aiText = typeof scan.aiText === 'string' ? scan.aiText : ''
+      const scannedVin = apiVin.trim().toUpperCase() || extractVin(aiText)
 
       if (!scannedVin) {
         setMessage('No VIN found in photo. Try closer, flatter lighting, and fill the frame with the VIN.')
@@ -566,7 +569,13 @@ function App() {
       }
 
       setMessage(`VIN read: ${scannedVin}`)
-      await lookupVehicleByVin(scannedVin)
+      setVin(scannedVin)
+
+      try {
+        await lookupVehicleByVin(scannedVin)
+      } catch (error) {
+        setMessage(error instanceof Error ? `VIN read, but lookup failed: ${error.message}` : 'VIN read, but lookup failed')
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not read VIN photo')
     } finally {

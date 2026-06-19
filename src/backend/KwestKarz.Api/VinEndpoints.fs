@@ -2,6 +2,7 @@ namespace KwestKarz.Api
 
 open System
 open System.IO
+open System.Text.Json
 open System.Text.RegularExpressions
 open System.Threading.Tasks
 open KwestKarz.Domain
@@ -13,6 +14,7 @@ open NpgsqlTypes
 
 module VinEndpoints =
     let private allowedVinPattern = Regex("[A-HJ-NPR-Z0-9]{17}", RegexOptions.Compiled)
+    let private vinJsonPattern = Regex(@"(?i)""vin""\s*:\s*""([^""]*)""", RegexOptions.Compiled)
 
     let private normalizeOcrVinText (text: string) =
         if String.IsNullOrWhiteSpace(text) then
@@ -33,6 +35,32 @@ module VinEndpoints =
             let compact = Regex.Replace(normalized, "[^A-Z0-9]", "")
             let compactMatch = allowedVinPattern.Match(compact)
             if compactMatch.Success then Some compactMatch.Value else None
+
+    let private findVinFromJson (text: string) =
+        if String.IsNullOrWhiteSpace(text) then
+            None
+        else
+            try
+                use json = JsonDocument.Parse(text)
+                match json.RootElement.TryGetProperty("vin") with
+                | true, value when value.ValueKind = JsonValueKind.String ->
+                    value.GetString() |> findVinCandidate
+                | _ -> None
+            with _ ->
+                let matchResult = vinJsonPattern.Match(text)
+                if matchResult.Success then
+                    matchResult.Groups[1].Value |> findVinCandidate
+                else
+                    None
+
+    let private findVinFromAiText (text: string) =
+        match findVinFromJson text with
+        | Some vin -> Some vin
+        | None ->
+            if vinJsonPattern.IsMatch(text) then
+                None
+            else
+                findVinCandidate text
 
     let private writeScanLogAsync (dataSource: NpgsqlDataSource) (vin: string option) (aiText: string) (cancellationToken: Threading.CancellationToken) =
         task {
@@ -110,7 +138,7 @@ module VinEndpoints =
                                 "Read the VIN from this dashboard plate, windshield VIN plate, door jamb label, title, or paperwork. Return exactly this JSON shape: {\"vin\":\"17_CHARACTER_VIN_OR_EMPTY\",\"confidence\":\"high|medium|low\",\"notes\":\"brief note\"}. If the VIN is partly obscured, return the best candidate." }
 
                         let! response = ai.CompleteWithImageAsync(aiRequest, file.ContentType, imageBase64, httpContext.RequestAborted)
-                        let vin = findVinCandidate response.Text
+                        let vin = findVinFromAiText response.Text
                         do! writeScanLogAsync dataSource vin response.Text httpContext.RequestAborted
                         return Results.Ok({ Vin = vin; AiText = response.Text; Model = response.Model })
                 })
