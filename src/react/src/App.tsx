@@ -294,6 +294,7 @@ function App() {
   const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const tireSpecCameraInputRef = useRef<HTMLInputElement | null>(null)
   const tireLogCameraInputRef = useRef<HTMLInputElement | null>(null)
+  const vinRecoveryActiveRef = useRef(false)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [lockBoxes, setLockBoxes] = useState<LockBox[]>([])
   const [vin, setVin] = useState('')
@@ -356,6 +357,10 @@ function App() {
   useEffect(() => {
     restoreWorkspace()
     refreshLockBoxes()
+
+    if (localStorage.getItem(vinScanPendingStorageKey) === 'true') {
+      recoverLatestVinScan()
+    }
   }, [])
 
   useEffect(() => {
@@ -546,22 +551,34 @@ function App() {
   }
 
   async function recoverLatestVinScan() {
+    if (vinRecoveryActiveRef.current) return
+    vinRecoveryActiveRef.current = true
     const clientId = getVinScanClientId()
 
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-      try {
-        const latest = await api.get<VinLatestScanResponse>(`/api/vin/latest-scan/${encodeURIComponent(clientId)}`)
-        const scannedVin = latest.vin?.trim().toUpperCase()
+    try {
+      for (let attempt = 0; attempt < 45; attempt += 1) {
+        try {
+          if (attempt === 0) setMessage('Waiting for VIN scan result...')
+          const latest = await api.get<VinLatestScanResponse>(`/api/vin/latest-scan/${encodeURIComponent(clientId)}`)
+          const scannedVin = latest.vin?.trim().toUpperCase()
 
-        if (scannedVin) {
-          await applyScannedVin(scannedVin)
-          return
+          if (scannedVin) {
+            await applyScannedVin(scannedVin)
+            return
+          }
+        } catch {
+          // Camera return recovery is best effort; the active scan handler will show errors.
         }
-      } catch {
-        // Camera return recovery is best effort; the active scan handler will show errors.
+
+        await wait(2000)
       }
 
-      await wait(1200)
+      if (localStorage.getItem(vinScanPendingStorageKey) === 'true') {
+        localStorage.removeItem(vinScanPendingStorageKey)
+        setMessage('VIN scan timed out. Try the door jamb label again, closer and steady.')
+      }
+    } finally {
+      vinRecoveryActiveRef.current = false
     }
   }
 
