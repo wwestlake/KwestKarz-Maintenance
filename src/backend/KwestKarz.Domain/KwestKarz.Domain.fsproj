@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <Compile Include="Vehicle.fs" />
+    <Compile Include="Vin.fs" />
     <Compile Include="Maintenance.fs" />
     <Compile Include="Document.fs" />
     <Compile Include="AI.fs" />

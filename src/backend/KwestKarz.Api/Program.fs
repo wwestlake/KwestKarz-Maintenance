@@ -118,6 +118,11 @@ module Program =
         )
         |> ignore
 
+        builder.Services.AddHttpClient<IVinDecoder, NhtsaVinDecoder>(fun (client: HttpClient) ->
+            client.BaseAddress <- Uri("https://vpic.nhtsa.dot.gov/api/")
+        )
+        |> ignore
+
         builder.Services.AddScoped<IAIConnection>(fun serviceProvider ->
             serviceProvider.GetRequiredService<OpenAIResponsesConnection>() :> IAIConnection
         )
@@ -136,6 +141,7 @@ module Program =
             app.UseAuthorization() |> ignore
 
         app.MapGet("/api/health", Func<string>(fun () -> "ok")) |> ignore
+        VinEndpoints.mapVinEndpoints app |> ignore
         VehicleEndpoints.mapVehicleEndpoints app |> ignore
         MaintenanceEndpoints.mapMaintenanceEndpoints app |> ignore
         DashboardEndpoints.mapDashboardEndpoints app |> ignore

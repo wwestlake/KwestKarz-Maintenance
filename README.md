@@ -19,6 +19,27 @@ cd src\react
 npm run build
 ```
 
+## Local App
+
+Run the backend:
+
+```powershell
+dotnet run --project src\backend\KwestKarz.Api\KwestKarz.Api.fsproj --launch-profile http
+```
+
+Run the frontend:
+
+```powershell
+cd src\react
+npm run dev -- --host 0.0.0.0 --port 5175 --strictPort
+```
+
+Local URL:
+
+```text
+http://localhost:5175
+```
+
 ## Local Database
 
 The API expects a PostgreSQL connection string named `KwestKarz`. Keep local credentials in .NET user secrets:
@@ -69,6 +90,7 @@ The backend uses the OpenAI Responses API through the server-side `IAIConnection
 ## Current Backend API
 
 - `GET /api/health`
+- `GET /api/vin/{vin}/decode`
 - `GET /api/vehicles`
 - `GET /api/vehicles/by-vin/{vin}`
 - `POST /api/vehicles`

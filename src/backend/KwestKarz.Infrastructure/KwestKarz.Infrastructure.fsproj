@@ -9,6 +9,7 @@
     <Compile Include="DatabaseInitializer.fs" />
     <Compile Include="FileStorage.fs" />
     <Compile Include="OpenAIResponsesConnection.fs" />
+    <Compile Include="NhtsaVinDecoder.fs" />
     <Compile Include="VehicleRepository.fs" />
     <Compile Include="MaintenanceRepository.fs" />
     <Compile Include="DocumentRepository.fs" />
