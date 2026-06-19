@@ -24,3 +24,8 @@ module VinDecodeResponse =
           BodyClass = result.BodyClass
           ErrorCode = result.ErrorCode
           ErrorText = result.ErrorText }
+
+type VinScanResponse =
+    { Vin: string option
+      AiText: string
+      Model: string }

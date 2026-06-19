@@ -59,6 +59,12 @@ type AIResponse = {
   model: string
 }
 
+type VinScanResponse = {
+  vin?: string
+  aiText: string
+  model: string
+}
+
 type Dashboard = {
   vehicle: Vehicle
   currentLockBox?: LockBox
@@ -543,23 +549,19 @@ function App() {
     try {
       const form = new FormData()
       form.append('file', file)
-      form.append(
-        'prompt',
-        'Read the VIN from this vehicle label, windshield plate, door jamb label, dashboard plate, title, or paperwork. Return the 17-character VIN only. VINs never contain I, O, or Q. If uncertain, return the best VIN candidate and say uncertain.',
-      )
 
-      const response = await fetch('/api/ai/interpret-image', {
+      const response = await fetch('/api/vin/scan-photo', {
         method: 'POST',
         body: form,
       })
 
       if (!response.ok) throw new Error(await response.text())
 
-      const ai = (await response.json()) as AIResponse
-      const scannedVin = extractVin(ai.text)
+      const scan = (await response.json()) as VinScanResponse
+      const scannedVin = scan.vin?.trim().toUpperCase() ?? extractVin(scan.aiText)
 
       if (!scannedVin) {
-        setMessage('Could not read a VIN from that photo. Try closer and flatter lighting.')
+        setMessage('No VIN found in photo. Try closer, flatter lighting, and fill the frame with the VIN.')
         return
       }
 
