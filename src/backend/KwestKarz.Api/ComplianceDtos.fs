@@ -11,6 +11,10 @@ type ComplianceRecordResponse =
       DocumentNumber: string option
       PlateNumber: string option
       PlateState: string option
+      Vin: string option
+      StickerMonth: string option
+      StickerYear: int option
+      SerialNumber: string option
       EffectiveDate: DateOnly option
       ExpirationDate: DateOnly option
       DocumentId: Guid option
@@ -29,6 +33,10 @@ type UpdateComplianceRecordRequest =
       DocumentNumber: string option
       PlateNumber: string option
       PlateState: string option
+      Vin: string option
+      StickerMonth: string option
+      StickerYear: int option
+      SerialNumber: string option
       EffectiveDate: DateOnly option
       ExpirationDate: DateOnly option
       Notes: string option }

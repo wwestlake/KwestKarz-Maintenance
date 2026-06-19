@@ -223,6 +223,10 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                     document_number text null,
                     plate_number text null,
                     plate_state text null,
+                    vin text null,
+                    sticker_month text null,
+                    sticker_year integer null,
+                    serial_number text null,
                     effective_date date null,
                     expiration_date date null,
                     document_id uuid null references kwestkarzbusinessdata.documents(id) on delete set null,
@@ -236,6 +240,12 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
 
                 create index if not exists ix_vehicle_compliance_records_vehicle
                     on kwestkarzbusinessdata.vehicle_compliance_records(vehicle_id, record_type, updated_at desc);
+
+                alter table kwestkarzbusinessdata.vehicle_compliance_records
+                    add column if not exists vin text null,
+                    add column if not exists sticker_month text null,
+                    add column if not exists sticker_year integer null,
+                    add column if not exists serial_number text null;
 
                 create table if not exists kwestkarzbusinessdata.system_logs (
                     id uuid primary key,

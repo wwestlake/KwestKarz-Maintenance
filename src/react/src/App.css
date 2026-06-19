@@ -566,6 +566,13 @@ button:disabled {
   margin-top: 10px;
 }
 
+.match-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
 .status-chip {
   border-radius: 999px;
   padding: 4px 10px;

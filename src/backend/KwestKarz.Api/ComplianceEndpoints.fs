@@ -46,6 +46,10 @@ module ComplianceEndpoints =
           DocumentNumber = getOption reader "document_number" reader.GetString
           PlateNumber = getOption reader "plate_number" reader.GetString
           PlateState = getOption reader "plate_state" reader.GetString
+          Vin = getOption reader "vin" reader.GetString
+          StickerMonth = getOption reader "sticker_month" reader.GetString
+          StickerYear = getOption reader "sticker_year" reader.GetInt32
+          SerialNumber = getOption reader "serial_number" reader.GetString
           EffectiveDate = getOption reader "effective_date" (fun ordinal -> reader.GetFieldValue<DateOnly>(ordinal))
           ExpirationDate = expirationDate
           DocumentId = getOption reader "document_id" reader.GetGuid
@@ -57,7 +61,8 @@ module ComplianceEndpoints =
     let private selectColumns =
         """
         id, vehicle_id, record_type, provider, policy_number, document_number,
-        plate_number, plate_state, effective_date, expiration_date, document_id,
+        plate_number, plate_state, vin, sticker_month, sticker_year, serial_number,
+        effective_date, expiration_date, document_id,
         notes, created_at, updated_at
         """
 
@@ -96,6 +101,14 @@ module ComplianceEndpoints =
             | true, parsed -> Some parsed
             | _ -> None
 
+    let private tryInt value =
+        match textOrNone value with
+        | None -> None
+        | Some value ->
+            match Int32.TryParse(value) with
+            | true, parsed -> Some parsed
+            | _ -> None
+
     let private jsonString (json: JsonElement) (name: string) =
         match json.TryGetProperty(name) with
         | true, value when value.ValueKind = JsonValueKind.String -> value.GetString() |> textOrNone
@@ -114,6 +127,10 @@ module ComplianceEndpoints =
         let documentNumber = parsedField aiText "documentNumber"
         let plateNumber = parsedField aiText "plateNumber"
         let plateState = parsedField aiText "plateState"
+        let vin = parsedField aiText "vin"
+        let stickerMonth = parsedField aiText "stickerMonth"
+        let stickerYear = parsedField aiText "stickerYear" |> Option.bind tryInt
+        let serialNumber = parsedField aiText "serialNumber"
         let effectiveDate = parsedField aiText "effectiveDate" |> Option.bind tryDate
         let parsedExpirationDate = parsedField aiText "expirationDate" |> Option.bind tryDate
         let expirationDate =
@@ -128,11 +145,15 @@ module ComplianceEndpoints =
            DocumentNumber = documentNumber
            PlateNumber = plateNumber
            PlateState = plateState
+           Vin = vin
+           StickerMonth = stickerMonth
+           StickerYear = stickerYear
+           SerialNumber = serialNumber
            EffectiveDate = effectiveDate
            ExpirationDate = expirationDate
            Notes = notes |}
 
-    let private insertRecordAsync (dataSource: NpgsqlDataSource) vehicleId recordType provider policyNumber documentNumber plateNumber plateState effectiveDate expirationDate documentId notes cancellationToken =
+    let private insertRecordAsync (dataSource: NpgsqlDataSource) vehicleId recordType provider policyNumber documentNumber plateNumber plateState vin stickerMonth stickerYear serialNumber effectiveDate expirationDate documentId notes cancellationToken =
         task {
             use! connection = dataSource.OpenConnectionAsync(cancellationToken)
             use command =
@@ -140,12 +161,14 @@ module ComplianceEndpoints =
                     $"""
                     insert into kwestkarzbusinessdata.vehicle_compliance_records (
                         id, vehicle_id, record_type, provider, policy_number, document_number,
-                        plate_number, plate_state, effective_date, expiration_date, document_id,
+                        plate_number, plate_state, vin, sticker_month, sticker_year, serial_number,
+                        effective_date, expiration_date, document_id,
                         notes, created_at, updated_at
                     )
                     values (
                         @id, @vehicle_id, @record_type, @provider, @policy_number, @document_number,
-                        @plate_number, @plate_state, @effective_date, @expiration_date, @document_id,
+                        @plate_number, @plate_state, @vin, @sticker_month, @sticker_year, @serial_number,
+                        @effective_date, @expiration_date, @document_id,
                         @notes, @created_at, @updated_at
                     )
                     returning {selectColumns}
@@ -162,6 +185,10 @@ module ComplianceEndpoints =
             command.Parameters.AddWithValue("document_number", NpgsqlDbType.Text, optionOrDbNull documentNumber) |> ignore
             command.Parameters.AddWithValue("plate_number", NpgsqlDbType.Text, optionOrDbNull plateNumber) |> ignore
             command.Parameters.AddWithValue("plate_state", NpgsqlDbType.Text, optionOrDbNull plateState) |> ignore
+            command.Parameters.AddWithValue("vin", NpgsqlDbType.Text, optionOrDbNull vin) |> ignore
+            command.Parameters.AddWithValue("sticker_month", NpgsqlDbType.Text, optionOrDbNull stickerMonth) |> ignore
+            command.Parameters.AddWithValue("sticker_year", NpgsqlDbType.Integer, optionOrDbNull stickerYear) |> ignore
+            command.Parameters.AddWithValue("serial_number", NpgsqlDbType.Text, optionOrDbNull serialNumber) |> ignore
             command.Parameters.AddWithValue("effective_date", NpgsqlDbType.Date, optionOrDbNull effectiveDate) |> ignore
             command.Parameters.AddWithValue("expiration_date", NpgsqlDbType.Date, optionOrDbNull expirationDate) |> ignore
             command.Parameters.AddWithValue("document_id", NpgsqlDbType.Uuid, optionOrDbNull documentId) |> ignore
@@ -187,6 +214,10 @@ module ComplianceEndpoints =
                         document_number = @document_number,
                         plate_number = @plate_number,
                         plate_state = @plate_state,
+                        vin = @vin,
+                        sticker_month = @sticker_month,
+                        sticker_year = @sticker_year,
+                        serial_number = @serial_number,
                         effective_date = @effective_date,
                         expiration_date = @expiration_date,
                         notes = @notes,
@@ -204,6 +235,10 @@ module ComplianceEndpoints =
             command.Parameters.AddWithValue("document_number", NpgsqlDbType.Text, optionOrDbNull request.DocumentNumber) |> ignore
             command.Parameters.AddWithValue("plate_number", NpgsqlDbType.Text, optionOrDbNull request.PlateNumber) |> ignore
             command.Parameters.AddWithValue("plate_state", NpgsqlDbType.Text, optionOrDbNull request.PlateState) |> ignore
+            command.Parameters.AddWithValue("vin", NpgsqlDbType.Text, optionOrDbNull request.Vin) |> ignore
+            command.Parameters.AddWithValue("sticker_month", NpgsqlDbType.Text, optionOrDbNull request.StickerMonth) |> ignore
+            command.Parameters.AddWithValue("sticker_year", NpgsqlDbType.Integer, optionOrDbNull request.StickerYear) |> ignore
+            command.Parameters.AddWithValue("serial_number", NpgsqlDbType.Text, optionOrDbNull request.SerialNumber) |> ignore
             command.Parameters.AddWithValue("effective_date", NpgsqlDbType.Date, optionOrDbNull request.EffectiveDate) |> ignore
             command.Parameters.AddWithValue("expiration_date", NpgsqlDbType.Date, optionOrDbNull request.ExpirationDate) |> ignore
             command.Parameters.AddWithValue("notes", NpgsqlDbType.Text, optionOrDbNull request.Notes) |> ignore
@@ -254,13 +289,13 @@ module ComplianceEndpoints =
     let private promptFor recordType =
         match recordType with
         | "Insurance" ->
-            "Read this vehicle insurance card or certificate. Return JSON only with fields provider, policyNumber, documentNumber, plateNumber, plateState, effectiveDate, expirationDate, notes. Dates must be yyyy-MM-dd or empty strings. effectiveDate must come only from labels like effective, inception, policy begins, or from date. expirationDate must come only from labels like expiration, expires, policy ends, through, to, or valid until. Do not copy the effective date into expirationDate. If an expiration or policy-period-end date is blurry, missing, or ambiguous, set expirationDate to an empty string and explain uncertainty in notes."
+            "Read this vehicle insurance card or certificate. Return JSON only with fields provider, policyNumber, documentNumber, plateNumber, plateState, vin, stickerMonth, stickerYear, serialNumber, effectiveDate, expirationDate, notes. Dates must be yyyy-MM-dd or empty strings. effectiveDate must come only from labels like effective, inception, policy begins, or from date. expirationDate must come only from labels like expiration, expires, policy ends, through, to, or valid until. Do not copy the effective date into expirationDate. If an expiration or policy-period-end date is blurry, missing, or ambiguous, set expirationDate to an empty string and explain uncertainty in notes. Capture VIN only when a full 17-character VIN is visible."
         | "Registration" ->
-            "Read this vehicle registration document. Return JSON only with fields provider, policyNumber, documentNumber, plateNumber, plateState, effectiveDate, expirationDate, notes. Dates must be yyyy-MM-dd or empty strings. expirationDate must be the registration expiration, tab expiration, valid-until date, or renewal due date. If unclear, leave expirationDate empty and explain in notes."
+            "Read this vehicle registration document. Return JSON only with fields provider, policyNumber, documentNumber, plateNumber, plateState, vin, stickerMonth, stickerYear, serialNumber, effectiveDate, expirationDate, notes. Dates must be yyyy-MM-dd or empty strings. expirationDate must be the registration expiration, tab expiration, valid-until date, or renewal due date. Capture VIN only when a full 17-character VIN is visible. Put registration/control/sticker/serial number in serialNumber or documentNumber as appropriate. If unclear, leave expirationDate empty and explain in notes."
         | "LicensePlate" ->
-            "Read this vehicle license plate photo. Return JSON only with fields provider, policyNumber, documentNumber, plateNumber, plateState, effectiveDate, expirationDate, notes. Focus on plateNumber and plateState. If a registration tab month/year is visible, put the best yyyy-MM-dd estimate in expirationDate only when the year is clear; otherwise leave expirationDate empty and explain in notes."
+            "Read this close-up vehicle license plate photo. Return JSON only with fields provider, policyNumber, documentNumber, plateNumber, plateState, vin, stickerMonth, stickerYear, serialNumber, effectiveDate, expirationDate, notes. Focus on plateNumber, plateState, registration tab/sticker month and year, and any sticker serial/control number. Put the visible tab month abbreviation or number in stickerMonth and the visible tab year in stickerYear. If a registration tab month/year is visible, put the best yyyy-MM-dd estimate in expirationDate only when the year is clear; otherwise leave expirationDate empty and explain in notes. VIN is usually not on the plate; only fill vin if a full 17-character VIN is visible."
         | _ ->
-            $"Read this vehicle {recordType} image. Return JSON only with fields provider, policyNumber, documentNumber, plateNumber, plateState, effectiveDate, expirationDate, notes. Dates must be yyyy-MM-dd or empty strings."
+            $"Read this vehicle {recordType} image. Return JSON only with fields provider, policyNumber, documentNumber, plateNumber, plateState, vin, stickerMonth, stickerYear, serialNumber, effectiveDate, expirationDate, notes. Dates must be yyyy-MM-dd or empty strings."
 
     let mapComplianceEndpoints (app: WebApplication) =
         let group = app.MapGroup("/api/vehicles/{vehicleId:guid}/compliance")
@@ -322,6 +357,10 @@ module ComplianceEndpoints =
                                 parsed.DocumentNumber
                                 parsed.PlateNumber
                                 parsed.PlateState
+                                parsed.Vin
+                                parsed.StickerMonth
+                                parsed.StickerYear
+                                parsed.SerialNumber
                                 parsed.EffectiveDate
                                 parsed.ExpirationDate
                                 (Some document.Id)

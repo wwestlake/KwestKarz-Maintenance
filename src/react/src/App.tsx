@@ -79,6 +79,10 @@ type ComplianceRecord = {
   documentNumber?: string
   plateNumber?: string
   plateState?: string
+  vin?: string
+  stickerMonth?: string
+  stickerYear?: number
+  serialNumber?: string
   effectiveDate?: string
   expirationDate?: string
   documentId?: string
@@ -317,6 +321,51 @@ function complianceClass(status?: string) {
   return 'status-chip good'
 }
 
+function normalizePlate(value?: string) {
+  return value?.toUpperCase().replace(/[^A-Z0-9]/g, '') ?? ''
+}
+
+function complianceChecks(record: ComplianceRecord, dashboard: Dashboard) {
+  const issues: string[] = []
+  const ok: string[] = []
+  const recordPlate = normalizePlate(record.plateNumber)
+  const vehiclePlate = normalizePlate(dashboard.vehicle.licensePlate)
+  const recordState = record.plateState?.toUpperCase().trim()
+  const vehicleState = dashboard.vehicle.licensePlateState?.toUpperCase().trim()
+  const recordVin = record.vin?.toUpperCase().trim()
+
+  if (recordVin) {
+    if (recordVin === dashboard.vehicle.vin) ok.push('VIN matches')
+    else issues.push('VIN mismatch')
+  }
+
+  if (recordPlate && vehiclePlate) {
+    if (recordPlate === vehiclePlate) ok.push('Vehicle plate matches')
+    else issues.push('Vehicle plate mismatch')
+  }
+
+  if (recordState && vehicleState) {
+    if (recordState === vehicleState) ok.push('State matches')
+    else issues.push('State mismatch')
+  }
+
+  for (const other of dashboard.compliance) {
+    if (other.id === record.id) continue
+    const otherPlate = normalizePlate(other.plateNumber)
+    if (recordPlate && otherPlate) {
+      if (recordPlate === otherPlate) ok.push(`${formatComplianceType(other.recordType)} plate matches`)
+      else issues.push(`${formatComplianceType(other.recordType)} plate mismatch`)
+    }
+    const otherVin = other.vin?.toUpperCase().trim()
+    if (recordVin && otherVin) {
+      if (recordVin === otherVin) ok.push(`${formatComplianceType(other.recordType)} VIN matches`)
+      else issues.push(`${formatComplianceType(other.recordType)} VIN mismatch`)
+    }
+  }
+
+  return { issues: [...new Set(issues)], ok: [...new Set(ok)] }
+}
+
 function getVinScanClientId() {
   const existing = localStorage.getItem(vinScanClientStorageKey)
   if (existing) return existing
@@ -375,6 +424,10 @@ function App() {
     documentNumber: '',
     plateNumber: '',
     plateState: '',
+    vin: '',
+    stickerMonth: '',
+    stickerYear: '',
+    serialNumber: '',
     effectiveDate: '',
     expirationDate: '',
     notes: '',
@@ -581,6 +634,10 @@ function App() {
       documentNumber: record.documentNumber ?? '',
       plateNumber: record.plateNumber ?? '',
       plateState: record.plateState ?? '',
+      vin: record.vin ?? '',
+      stickerMonth: record.stickerMonth ?? '',
+      stickerYear: record.stickerYear?.toString() ?? '',
+      serialNumber: record.serialNumber ?? '',
       effectiveDate: record.effectiveDate ?? '',
       expirationDate: record.expirationDate ?? '',
       notes: record.notes ?? '',
@@ -712,6 +769,10 @@ function App() {
         documentNumber: complianceForm.documentNumber || null,
         plateNumber: complianceForm.plateNumber || null,
         plateState: complianceForm.plateState || null,
+        vin: complianceForm.vin || null,
+        stickerMonth: complianceForm.stickerMonth || null,
+        stickerYear: complianceForm.stickerYear ? Number(complianceForm.stickerYear) : null,
+        serialNumber: complianceForm.serialNumber || null,
         effectiveDate: complianceForm.effectiveDate || null,
         expirationDate: complianceForm.expirationDate || null,
         notes: complianceForm.notes || null,
@@ -1623,6 +1684,7 @@ function App() {
             <div className="record-list">
               {complianceTypes.map((type) => {
                 const record = dashboard.compliance.find((item) => item.recordType === type)
+                const checks = record ? complianceChecks(record, dashboard) : { issues: [], ok: [] }
                 return (
                   <article key={type} className="record compliance-record">
                     <div className="record-heading">
@@ -1636,8 +1698,23 @@ function App() {
                           {record.plateNumber ? ` - Plate ${record.plateNumber}` : ''}
                         </p>
                         <span>
-                          {[record.provider, record.policyNumber, record.documentNumber, record.plateState].filter(Boolean).join(' - ') || 'Details not filled'}
+                          {[record.provider, record.policyNumber, record.documentNumber, record.plateState, record.vin].filter(Boolean).join(' - ') || 'Details not filled'}
                         </span>
+                        {(record.stickerMonth || record.stickerYear || record.serialNumber) && (
+                          <p>
+                            {[record.stickerMonth, record.stickerYear ? `Tab ${record.stickerYear}` : '', record.serialNumber ? `Serial ${record.serialNumber}` : ''].filter(Boolean).join(' - ')}
+                          </p>
+                        )}
+                        {(checks.issues.length > 0 || checks.ok.length > 0) && (
+                          <div className="match-list">
+                            {checks.issues.map((issue) => (
+                              <span key={issue} className="status-chip danger">{issue}</span>
+                            ))}
+                            {checks.ok.map((item) => (
+                              <span key={item} className="status-chip good">{item}</span>
+                            ))}
+                          </div>
+                        )}
                         <div className="record-actions">
                           {record.documentId && (
                             <a className="secondary-button" href={`/api/documents/${record.documentId}/content`} target="_blank" rel="noreferrer">
@@ -1691,6 +1768,35 @@ function App() {
                   <input
                     value={complianceForm.plateState}
                     onChange={(event) => setComplianceForm({ ...complianceForm, plateState: event.target.value.toUpperCase() })}
+                  />
+                </label>
+                <label>
+                  <span>VIN</span>
+                  <input
+                    value={complianceForm.vin}
+                    onChange={(event) => setComplianceForm({ ...complianceForm, vin: event.target.value.toUpperCase() })}
+                  />
+                </label>
+                <label>
+                  <span>Tab Month</span>
+                  <input
+                    value={complianceForm.stickerMonth}
+                    onChange={(event) => setComplianceForm({ ...complianceForm, stickerMonth: event.target.value.toUpperCase() })}
+                  />
+                </label>
+                <label>
+                  <span>Tab Year</span>
+                  <input
+                    inputMode="numeric"
+                    value={complianceForm.stickerYear}
+                    onChange={(event) => setComplianceForm({ ...complianceForm, stickerYear: event.target.value.replace(/\D/g, '') })}
+                  />
+                </label>
+                <label>
+                  <span>Serial / Control #</span>
+                  <input
+                    value={complianceForm.serialNumber}
+                    onChange={(event) => setComplianceForm({ ...complianceForm, serialNumber: event.target.value.toUpperCase() })}
                   />
                 </label>
                 <label>
