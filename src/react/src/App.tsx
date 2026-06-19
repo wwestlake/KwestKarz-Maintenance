@@ -482,7 +482,9 @@ function App() {
       if (localStorage.getItem(tireSpecScanPendingStorageKey) === 'true') {
         await pollTirePressureSpec(savedVehicleId)
       }
-      setMessage('Vehicle restored')
+      if (localStorage.getItem(complianceScanPendingStorageKey) !== 'true' && localStorage.getItem(vinScanPendingStorageKey) !== 'true') {
+        setMessage('Vehicle restored')
+      }
     } catch {
       localStorage.removeItem(selectedVehicleStorageKey)
       localStorage.removeItem(tirePanelStorageKey)
@@ -615,6 +617,7 @@ function App() {
     }
 
     try {
+      localStorage.setItem(selectedVehicleStorageKey, vehicleId)
       for (let attempt = 0; attempt < 45; attempt += 1) {
         try {
           const waitMessage = `Waiting for ${formatComplianceType(recordType)} scan result...`
@@ -650,20 +653,29 @@ function App() {
   }
 
   async function scanCompliancePhoto(file: File) {
-    if (!dashboard) return
+    const vehicleId =
+      dashboard?.vehicle.id ??
+      localStorage.getItem(complianceScanVehicleStorageKey) ??
+      localStorage.getItem(selectedVehicleStorageKey)
+    const recordType = localStorage.getItem(complianceScanTypeStorageKey) || complianceScanType
+
+    if (!vehicleId) {
+      setMessage('No vehicle selected for compliance scan.')
+      return
+    }
 
     setLoading(true)
-    const scanMessage = `Reading ${formatComplianceType(complianceScanType)} photo...`
+    const scanMessage = `Reading ${formatComplianceType(recordType)} photo...`
     setMessage(scanMessage)
     setWorkingMessage(scanMessage)
 
     try {
       const form = new FormData()
       form.append('file', file)
-      form.append('recordType', complianceScanType)
-      markComplianceScanPending(complianceScanType)
+      form.append('recordType', recordType)
+      markComplianceScanPending(recordType)
 
-      const response = await fetch(`/api/vehicles/${dashboard.vehicle.id}/compliance/photo`, {
+      const response = await fetch(`/api/vehicles/${vehicleId}/compliance/photo`, {
         method: 'POST',
         body: form,
       })
@@ -672,7 +684,8 @@ function App() {
 
       const scan = (await response.json()) as CompliancePhotoScanResponse
       clearComplianceScanPending()
-      await loadDashboard(dashboard.vehicle.id)
+      localStorage.setItem(selectedVehicleStorageKey, vehicleId)
+      await loadDashboard(vehicleId)
       startEditingCompliance(scan.record)
       setWorkingMessage('')
       setMessage(`${formatComplianceType(scan.record.recordType)} read. Review and save corrections if needed.`)
