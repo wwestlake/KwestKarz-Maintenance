@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 
@@ -107,6 +107,7 @@ const api = {
 }
 
 function App() {
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [vin, setVin] = useState('')
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [decoded, setDecoded] = useState<VinDecode | null>(null)
@@ -132,9 +133,38 @@ function App() {
 
   const normalizedVin = vin.trim().toUpperCase()
 
+  useEffect(() => {
+    refreshVehicles()
+  }, [])
+
+  async function refreshVehicles() {
+    try {
+      const nextVehicles = await api.get<Vehicle[]>('/api/vehicles')
+      setVehicles(nextVehicles)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not load vehicles')
+    }
+  }
+
   async function loadDashboard(vehicleId: string) {
     const nextDashboard = await api.get<Dashboard>(`/api/vehicles/${vehicleId}/dashboard`)
     setDashboard(nextDashboard)
+  }
+
+  async function openVehicle(vehicle: Vehicle) {
+    setLoading(true)
+    setMessage('Loading vehicle...')
+    setDecoded(null)
+    setVin(vehicle.vin)
+
+    try {
+      await loadDashboard(vehicle.id)
+      setMessage('Vehicle loaded')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not load vehicle')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function lookupVehicle(event?: FormEvent) {
@@ -192,6 +222,7 @@ function App() {
       setVin(vehicle.vin)
       setDecoded(null)
       await loadDashboard(vehicle.id)
+      await refreshVehicles()
       setMessage('Vehicle created')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not create vehicle')
@@ -219,6 +250,7 @@ function App() {
         notes: maintenanceForm.notes || null,
       })
       await loadDashboard(dashboard.vehicle.id)
+      await refreshVehicles()
       setMessage('Maintenance logged')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not log maintenance')
@@ -238,21 +270,53 @@ function App() {
       </header>
 
       <section className="lookup-band">
-        <form className="lookup-form" onSubmit={lookupVehicle}>
-          <label htmlFor="vin">VIN</label>
-          <div className="lookup-row">
-            <input
-              id="vin"
-              value={vin}
-              onChange={(event) => setVin(event.target.value.toUpperCase())}
-              placeholder="Scan or enter VIN"
-              autoCapitalize="characters"
-            />
-            <button type="submit" disabled={loading || normalizedVin.length < 11}>
-              Find
-            </button>
+        <div className="lookup-layout">
+          <div className="fleet-list">
+            <div className="fleet-list-header">
+              <span>Fleet</span>
+              <strong>{vehicles.length}</strong>
+            </div>
+            <div className="vehicle-list">
+              {vehicles.length === 0 && <p>No vehicles yet. Scan or enter a VIN to add one.</p>}
+              {vehicles.map((vehicle) => {
+                const title = [vehicle.fleetPositionNumber, vehicle.year, vehicle.make, vehicle.model]
+                  .filter(Boolean)
+                  .join(' ')
+                const selected = dashboard?.vehicle.id === vehicle.id
+
+                return (
+                  <button
+                    key={vehicle.id}
+                    className={selected ? 'vehicle-list-item selected' : 'vehicle-list-item'}
+                    type="button"
+                    onClick={() => openVehicle(vehicle)}
+                  >
+                    <span>{title || vehicle.vin}</span>
+                    <small>
+                      {vehicle.currentOdometer?.toLocaleString() ?? 'No miles'} · {vehicle.status}
+                    </small>
+                  </button>
+                )
+              })}
+            </div>
           </div>
-        </form>
+
+          <form className="lookup-form" onSubmit={lookupVehicle}>
+            <label htmlFor="vin">VIN Lookup / Add Vehicle</label>
+            <div className="lookup-row">
+              <input
+                id="vin"
+                value={vin}
+                onChange={(event) => setVin(event.target.value.toUpperCase())}
+                placeholder="Scan or enter VIN"
+                autoCapitalize="characters"
+              />
+              <button type="submit" disabled={loading || normalizedVin.length < 11}>
+                Find
+              </button>
+            </div>
+          </form>
+        </div>
       </section>
 
       {decoded && (
