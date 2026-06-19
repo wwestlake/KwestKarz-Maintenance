@@ -397,6 +397,7 @@ function App() {
   const [tireLogPhotoFile, setTireLogPhotoFile] = useState<File | null>(null)
   const [tirePressureInsight, setTirePressureInsight] = useState('')
   const [message, setMessage] = useState('Ready')
+  const [workingMessage, setWorkingMessage] = useState('')
   const [loading, setLoading] = useState(false)
 
   const normalizedVin = vin.trim().toUpperCase()
@@ -406,6 +407,13 @@ function App() {
     if (!vehicle) return 'No vehicle selected'
     return [vehicle.year, vehicle.make, vehicle.model, vehicle.trim].filter(Boolean).join(' ')
   }, [dashboard])
+
+  const workingIndicator = workingMessage ? (
+    <div className="working-inline" role="status" aria-live="polite">
+      <span className="spinner" aria-hidden="true" />
+      <span>{workingMessage}</span>
+    </div>
+  ) : null
 
   useEffect(() => {
     restoreWorkspace()
@@ -609,7 +617,9 @@ function App() {
     try {
       for (let attempt = 0; attempt < 45; attempt += 1) {
         try {
-          setMessage(`Waiting for ${formatComplianceType(recordType)} scan result...`)
+          const waitMessage = `Waiting for ${formatComplianceType(recordType)} scan result...`
+          setMessage(waitMessage)
+          setWorkingMessage(waitMessage)
           const nextDashboard = await api.get<Dashboard>(`/api/vehicles/${vehicleId}/dashboard`)
           setDashboard(nextDashboard)
           const record = nextDashboard.compliance.find((item) => item.recordType === recordType)
@@ -618,6 +628,7 @@ function App() {
           if (record && (!Number.isFinite(startedAt) || updatedAt >= startedAt)) {
             clearComplianceScanPending()
             startEditingCompliance(record)
+            setWorkingMessage('')
             setMessage(`${formatComplianceType(record.recordType)} read. Review and save corrections if needed.`)
             return
           }
@@ -630,6 +641,7 @@ function App() {
 
       if (localStorage.getItem(complianceScanPendingStorageKey) === 'true') {
         clearComplianceScanPending()
+        setWorkingMessage('')
         setMessage(`${formatComplianceType(recordType)} scan timed out. Try again closer and steady.`)
       }
     } finally {
@@ -641,7 +653,9 @@ function App() {
     if (!dashboard) return
 
     setLoading(true)
-    setMessage(`Reading ${formatComplianceType(complianceScanType)} photo...`)
+    const scanMessage = `Reading ${formatComplianceType(complianceScanType)} photo...`
+    setMessage(scanMessage)
+    setWorkingMessage(scanMessage)
 
     try {
       const form = new FormData()
@@ -660,9 +674,11 @@ function App() {
       clearComplianceScanPending()
       await loadDashboard(dashboard.vehicle.id)
       startEditingCompliance(scan.record)
+      setWorkingMessage('')
       setMessage(`${formatComplianceType(scan.record.recordType)} read. Review and save corrections if needed.`)
     } catch (error) {
       clearComplianceScanPending()
+      setWorkingMessage('')
       setMessage(error instanceof Error ? error.message : 'Could not read compliance photo')
     } finally {
       setLoading(false)
@@ -1561,6 +1577,7 @@ function App() {
                 {dashboard.compliance.filter((record) => record.dueStatus === 'Expired' || record.dueStatus === 'Due Soon').length} alerts
               </p>
             </div>
+            {workingIndicator}
             <input
               ref={complianceCameraInputRef}
               className="hidden-input"
@@ -1700,6 +1717,7 @@ function App() {
               <h2>Tire Pressure</h2>
                 <p>{tirePressure.spec ? `FL ${tirePressure.spec.frontLeftPsi ?? '?'} / FR ${tirePressure.spec.frontRightPsi ?? '?'} / RL ${tirePressure.spec.rearLeftPsi ?? '?'} / RR ${tirePressure.spec.rearRightPsi ?? '?'} PSI` : 'No factory spec saved'}</p>
               </div>
+              {workingIndicator}
 
               <input
                 ref={tireSpecCameraInputRef}
