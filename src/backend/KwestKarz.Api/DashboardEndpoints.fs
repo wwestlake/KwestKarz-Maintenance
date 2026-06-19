@@ -5,12 +5,13 @@ open System.Threading.Tasks
 open KwestKarz.Domain
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Http
+open Npgsql
 
 module DashboardEndpoints =
     let mapDashboardEndpoints (app: WebApplication) =
         app.MapGet(
             "/api/vehicles/{vehicleId:guid}/dashboard",
-            Func<Guid, IVehicleRepository, IMaintenanceRepository, IDocumentRepository, ILockBoxRepository, HttpContext, Task<IResult>>(fun vehicleId vehicles maintenance documents lockBoxes httpContext ->
+            Func<Guid, IVehicleRepository, IMaintenanceRepository, IDocumentRepository, ILockBoxRepository, NpgsqlDataSource, HttpContext, Task<IResult>>(fun vehicleId vehicles maintenance documents lockBoxes dataSource httpContext ->
                 task {
                     let! allVehicles = vehicles.ListAsync(httpContext.RequestAborted)
 
@@ -21,11 +22,13 @@ module DashboardEndpoints =
                         let! allMaintenance = maintenance.ListForVehicleAsync(vehicleId, httpContext.RequestAborted)
                         let! vehicleDocuments = documents.ListForOwnerAsync(DocumentOwnerType.Vehicle, vehicleId, httpContext.RequestAborted)
                         let! currentLockBox = lockBoxes.FindCurrentForVehicleAsync(vehicleId, httpContext.RequestAborted)
+                        let! compliance = ComplianceEndpoints.listLatestAsync dataSource vehicleId httpContext.RequestAborted
                         let nextDue = MaintenanceLogic.nextDue (DateOnly.FromDateTime(DateTime.UtcNow)) vehicle.CurrentOdometer allMaintenance
 
                         let response =
                             { Vehicle = VehicleResponse.fromDomain vehicle
                               CurrentLockBox = currentLockBox |> Option.map LockBoxResponse.fromDomain
+                              Compliance = compliance
                               Documents = vehicleDocuments |> List.map DocumentResponse.fromDomain |> List.toArray
                               RecentMaintenance = recentMaintenance |> List.map MaintenanceRecordResponse.fromDomain |> List.toArray
                               NextDue =

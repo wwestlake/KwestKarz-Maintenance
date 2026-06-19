@@ -70,9 +70,33 @@ type VinLatestScanResponse = {
   loggedAt?: string
 }
 
+type ComplianceRecord = {
+  id: string
+  vehicleId: string
+  recordType: string
+  provider?: string
+  policyNumber?: string
+  documentNumber?: string
+  plateNumber?: string
+  plateState?: string
+  effectiveDate?: string
+  expirationDate?: string
+  documentId?: string
+  notes?: string
+  dueStatus: string
+  createdAt: string
+  updatedAt: string
+}
+
+type CompliancePhotoScanResponse = {
+  record: ComplianceRecord
+  aiText: string
+}
+
 type Dashboard = {
   vehicle: Vehicle
   currentLockBox?: LockBox
+  compliance: ComplianceRecord[]
   documents: DocumentRecord[]
   recentMaintenance: MaintenanceRecord[]
   nextDue?: {
@@ -196,6 +220,7 @@ const maintenanceTypes = [
 
 const lockBoxStyles = ['Mechanical Keypad', 'Dial', 'Other']
 const lockBoxStatuses = ['Available', 'Assigned', 'Lost', 'Retired']
+const complianceTypes = ['Registration', 'Insurance', 'LicensePlate']
 const selectedVehicleStorageKey = 'kwestkarz.selectedVehicleId'
 const tirePanelStorageKey = 'kwestkarz.showTirePressurePanel'
 const tireSpecScanPendingStorageKey = 'kwestkarz.tireSpecScanPending'
@@ -278,6 +303,16 @@ function wait(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
+function formatComplianceType(type: string) {
+  return type === 'LicensePlate' ? 'License Plate' : type
+}
+
+function complianceClass(status?: string) {
+  if (status === 'Expired') return 'status-chip danger'
+  if (status === 'Due Soon' || status === 'Missing Expiration') return 'status-chip warning'
+  return 'status-chip good'
+}
+
 function getVinScanClientId() {
   const existing = localStorage.getItem(vinScanClientStorageKey)
   if (existing) return existing
@@ -292,6 +327,7 @@ function getVinScanClientId() {
 
 function App() {
   const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
+  const complianceCameraInputRef = useRef<HTMLInputElement | null>(null)
   const tireSpecCameraInputRef = useRef<HTMLInputElement | null>(null)
   const tireLogCameraInputRef = useRef<HTMLInputElement | null>(null)
   const vinRecoveryActiveRef = useRef(false)
@@ -324,6 +360,18 @@ function App() {
     combo: '',
     style: 'Mechanical Keypad',
     status: 'Available',
+    notes: '',
+  })
+  const [complianceScanType, setComplianceScanType] = useState('Registration')
+  const [editingComplianceId, setEditingComplianceId] = useState('')
+  const [complianceForm, setComplianceForm] = useState({
+    provider: '',
+    policyNumber: '',
+    documentNumber: '',
+    plateNumber: '',
+    plateState: '',
+    effectiveDate: '',
+    expirationDate: '',
     notes: '',
   })
   const [tirePressure, setTirePressure] = useState<TirePressureSnapshot>({ recentLogs: [] })
@@ -502,6 +550,77 @@ function App() {
     return (await response.json()) as DocumentRecord
   }
 
+  function startEditingCompliance(record: ComplianceRecord) {
+    setEditingComplianceId(record.id)
+    setComplianceForm({
+      provider: record.provider ?? '',
+      policyNumber: record.policyNumber ?? '',
+      documentNumber: record.documentNumber ?? '',
+      plateNumber: record.plateNumber ?? '',
+      plateState: record.plateState ?? '',
+      effectiveDate: record.effectiveDate ?? '',
+      expirationDate: record.expirationDate ?? '',
+      notes: record.notes ?? '',
+    })
+  }
+
+  async function scanCompliancePhoto(file: File) {
+    if (!dashboard) return
+
+    setLoading(true)
+    setMessage(`Reading ${formatComplianceType(complianceScanType)} photo...`)
+
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('recordType', complianceScanType)
+
+      const response = await fetch(`/api/vehicles/${dashboard.vehicle.id}/compliance/photo`, {
+        method: 'POST',
+        body: form,
+      })
+
+      if (!response.ok) throw new Error(await response.text())
+
+      const scan = (await response.json()) as CompliancePhotoScanResponse
+      await loadDashboard(dashboard.vehicle.id)
+      startEditingCompliance(scan.record)
+      setMessage(`${formatComplianceType(scan.record.recordType)} read. Review and save corrections if needed.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not read compliance photo')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function saveComplianceRecord(event: FormEvent) {
+    event.preventDefault()
+    if (!dashboard || !editingComplianceId) return
+
+    setLoading(true)
+    setMessage('Saving compliance details...')
+
+    try {
+      await api.put<ComplianceRecord>(`/api/vehicles/${dashboard.vehicle.id}/compliance/${editingComplianceId}`, {
+        provider: complianceForm.provider || null,
+        policyNumber: complianceForm.policyNumber || null,
+        documentNumber: complianceForm.documentNumber || null,
+        plateNumber: complianceForm.plateNumber || null,
+        plateState: complianceForm.plateState || null,
+        effectiveDate: complianceForm.effectiveDate || null,
+        expirationDate: complianceForm.expirationDate || null,
+        notes: complianceForm.notes || null,
+      })
+      setEditingComplianceId('')
+      await loadDashboard(dashboard.vehicle.id)
+      setMessage('Compliance details saved')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not save compliance details')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function openVehicle(vehicle: Vehicle) {
     setLoading(true)
     setMessage('Loading vehicle...')
@@ -528,6 +647,7 @@ function App() {
     setShowTirePressurePanel(false)
     setShowLockBoxManager(false)
     setEditingLockBoxId('')
+    setEditingComplianceId('')
     localStorage.removeItem(selectedVehicleStorageKey)
     localStorage.removeItem(tirePanelStorageKey)
     setMessage('Ready')
@@ -1352,6 +1472,145 @@ function App() {
                 </label>
                 <button type="submit" disabled={loading}>Save Lock Box</button>
                 <button className="secondary-button" type="button" onClick={() => setEditingLockBoxId('')}>
+                  Cancel
+                </button>
+              </form>
+            )}
+          </div>
+
+          <div className="panel compliance-panel">
+            <div className="section-heading">
+              <h2>Compliance</h2>
+              <p>
+                {dashboard.compliance.filter((record) => record.dueStatus === 'Expired' || record.dueStatus === 'Due Soon').length} alerts
+              </p>
+            </div>
+            <input
+              ref={complianceCameraInputRef}
+              className="hidden-input"
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={(event) => {
+                const file = event.target.files?.[0]
+                event.target.value = ''
+                if (file) scanCompliancePhoto(file)
+              }}
+            />
+            <div className="compliance-actions">
+              {complianceTypes.map((type) => (
+                <button
+                  key={type}
+                  className="secondary-button"
+                  type="button"
+                  disabled={loading}
+                  onClick={() => {
+                    setComplianceScanType(type)
+                    complianceCameraInputRef.current?.click()
+                  }}
+                >
+                  Scan {formatComplianceType(type)}
+                </button>
+              ))}
+            </div>
+            <div className="record-list">
+              {complianceTypes.map((type) => {
+                const record = dashboard.compliance.find((item) => item.recordType === type)
+                return (
+                  <article key={type} className="record compliance-record">
+                    <div className="record-heading">
+                      <strong>{formatComplianceType(type)}</strong>
+                      <span className={complianceClass(record?.dueStatus)}>{record?.dueStatus ?? 'Missing'}</span>
+                    </div>
+                    {record ? (
+                      <>
+                        <p>
+                          {record.expirationDate ? `Expires ${record.expirationDate}` : 'No expiration saved'}
+                          {record.plateNumber ? ` - Plate ${record.plateNumber}` : ''}
+                        </p>
+                        <span>
+                          {[record.provider, record.policyNumber, record.documentNumber, record.plateState].filter(Boolean).join(' - ') || 'Details not filled'}
+                        </span>
+                        <div className="record-actions">
+                          {record.documentId && (
+                            <a className="secondary-button" href={`/api/documents/${record.documentId}/content`} target="_blank" rel="noreferrer">
+                              View Photo
+                            </a>
+                          )}
+                          <button className="secondary-button" type="button" onClick={() => startEditingCompliance(record)}>
+                            Edit
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="empty">No {formatComplianceType(type).toLowerCase()} saved.</p>
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+            {editingComplianceId && (
+              <form className="compliance-form compact" onSubmit={saveComplianceRecord}>
+                <label>
+                  <span>Provider</span>
+                  <input
+                    value={complianceForm.provider}
+                    onChange={(event) => setComplianceForm({ ...complianceForm, provider: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Policy #</span>
+                  <input
+                    value={complianceForm.policyNumber}
+                    onChange={(event) => setComplianceForm({ ...complianceForm, policyNumber: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Document #</span>
+                  <input
+                    value={complianceForm.documentNumber}
+                    onChange={(event) => setComplianceForm({ ...complianceForm, documentNumber: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Plate #</span>
+                  <input
+                    value={complianceForm.plateNumber}
+                    onChange={(event) => setComplianceForm({ ...complianceForm, plateNumber: event.target.value.toUpperCase() })}
+                  />
+                </label>
+                <label>
+                  <span>State</span>
+                  <input
+                    value={complianceForm.plateState}
+                    onChange={(event) => setComplianceForm({ ...complianceForm, plateState: event.target.value.toUpperCase() })}
+                  />
+                </label>
+                <label>
+                  <span>Effective</span>
+                  <input
+                    type="date"
+                    value={complianceForm.effectiveDate}
+                    onChange={(event) => setComplianceForm({ ...complianceForm, effectiveDate: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Expiration</span>
+                  <input
+                    type="date"
+                    value={complianceForm.expirationDate}
+                    onChange={(event) => setComplianceForm({ ...complianceForm, expirationDate: event.target.value })}
+                  />
+                </label>
+                <label className="wide">
+                  <span>Notes</span>
+                  <textarea
+                    value={complianceForm.notes}
+                    onChange={(event) => setComplianceForm({ ...complianceForm, notes: event.target.value })}
+                  />
+                </label>
+                <button type="submit" disabled={loading}>Save Compliance</button>
+                <button className="secondary-button" type="button" onClick={() => setEditingComplianceId('')}>
                   Cancel
                 </button>
               </form>

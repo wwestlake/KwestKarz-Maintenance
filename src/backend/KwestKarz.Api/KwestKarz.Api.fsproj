@@ -10,6 +10,7 @@
     <Compile Include="LockBoxDtos.fs" />
     <Compile Include="VinDtos.fs" />
     <Compile Include="DocumentDtos.fs" />
+    <Compile Include="ComplianceDtos.fs" />
     <Compile Include="MaintenanceDtos.fs" />
     <Compile Include="TirePressureDtos.fs" />
     <Compile Include="AIDtos.fs" />
@@ -19,6 +20,7 @@
     <Compile Include="LockBoxEndpoints.fs" />
     <Compile Include="MaintenanceEndpoints.fs" />
     <Compile Include="TirePressureEndpoints.fs" />
+    <Compile Include="ComplianceEndpoints.fs" />
     <Compile Include="DashboardEndpoints.fs" />
     <Compile Include="DocumentEndpoints.fs" />
     <Compile Include="AIEndpoints.fs" />

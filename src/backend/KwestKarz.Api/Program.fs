@@ -226,6 +226,7 @@ module Program =
         LockBoxEndpoints.mapLockBoxEndpoints app |> ignore
         MaintenanceEndpoints.mapMaintenanceEndpoints app |> ignore
         TirePressureEndpoints.mapTirePressureEndpoints app |> ignore
+        ComplianceEndpoints.mapComplianceEndpoints app |> ignore
         DashboardEndpoints.mapDashboardEndpoints app |> ignore
         DocumentEndpoints.mapDocumentEndpoints app |> ignore
         AIEndpoints.mapAIEndpoints app |> ignore

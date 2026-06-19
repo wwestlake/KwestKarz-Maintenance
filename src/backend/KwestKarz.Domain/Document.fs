@@ -31,7 +31,9 @@ type DocumentKind =
     | Receipt
     | Obd2Report
     | Inspection
+    | Registration
     | Insurance
+    | LicensePlate
     | Other
 
 module DocumentKind =
@@ -41,7 +43,9 @@ module DocumentKind =
         | Receipt -> "Receipt"
         | Obd2Report -> "Obd2Report"
         | Inspection -> "Inspection"
+        | Registration -> "Registration"
         | Insurance -> "Insurance"
+        | LicensePlate -> "LicensePlate"
         | Other -> "Other"
 
     let fromStorageValue value =
@@ -50,7 +54,9 @@ module DocumentKind =
         | "Receipt" -> Receipt
         | "Obd2Report" -> Obd2Report
         | "Inspection" -> Inspection
+        | "Registration" -> Registration
         | "Insurance" -> Insurance
+        | "LicensePlate" -> LicensePlate
         | "Other" -> Other
         | _ -> invalidArg (nameof value) $"Unknown document kind: {value}"
 

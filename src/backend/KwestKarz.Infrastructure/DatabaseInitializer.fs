@@ -196,15 +196,46 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                         owner_type in ('Vehicle', 'MaintenanceRecord', 'DiagnosticReport', 'IncidentRecord')
                     ),
                     constraint documents_kind_check check (
-                        kind in ('CarPhoto', 'Receipt', 'Obd2Report', 'Inspection', 'Insurance', 'Other')
+                        kind in ('CarPhoto', 'Receipt', 'Obd2Report', 'Inspection', 'Registration', 'Insurance', 'LicensePlate', 'Other')
                     )
                 );
 
                 alter table kwestkarzbusinessdata.documents
                     add column if not exists content_bytes bytea null;
 
+                alter table kwestkarzbusinessdata.documents
+                    drop constraint if exists documents_kind_check;
+
+                alter table kwestkarzbusinessdata.documents
+                    add constraint documents_kind_check check (
+                        kind in ('CarPhoto', 'Receipt', 'Obd2Report', 'Inspection', 'Registration', 'Insurance', 'LicensePlate', 'Other')
+                    );
+
                 create index if not exists ix_documents_owner
                     on kwestkarzbusinessdata.documents(owner_type, owner_id);
+
+                create table if not exists kwestkarzbusinessdata.vehicle_compliance_records (
+                    id uuid primary key,
+                    vehicle_id uuid not null references kwestkarzbusinessdata.vehicles(id) on delete cascade,
+                    record_type text not null,
+                    provider text null,
+                    policy_number text null,
+                    document_number text null,
+                    plate_number text null,
+                    plate_state text null,
+                    effective_date date null,
+                    expiration_date date null,
+                    document_id uuid null references kwestkarzbusinessdata.documents(id) on delete set null,
+                    notes text null,
+                    created_at timestamptz not null,
+                    updated_at timestamptz not null,
+                    constraint vehicle_compliance_records_type_check check (
+                        record_type in ('Registration', 'Insurance', 'LicensePlate')
+                    )
+                );
+
+                create index if not exists ix_vehicle_compliance_records_vehicle
+                    on kwestkarzbusinessdata.vehicle_compliance_records(vehicle_id, record_type, updated_at desc);
 
                 create table if not exists kwestkarzbusinessdata.system_logs (
                     id uuid primary key,
