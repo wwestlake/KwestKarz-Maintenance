@@ -25,8 +25,10 @@ module TirePressureStatus =
 
 type TirePressureSpec =
     { VehicleId: Guid
-      FrontPsi: int option
-      RearPsi: int option
+      FrontLeftPsi: int option
+      FrontRightPsi: int option
+      RearLeftPsi: int option
+      RearRightPsi: int option
       Notes: string option
       PhotoDocumentId: Guid option
       CreatedAt: DateTimeOffset
@@ -34,8 +36,10 @@ type TirePressureSpec =
 
 type UpsertTirePressureSpec =
     { VehicleId: Guid
-      FrontPsi: int option
-      RearPsi: int option
+      FrontLeftPsi: int option
+      FrontRightPsi: int option
+      RearLeftPsi: int option
+      RearRightPsi: int option
       Notes: string option
       PhotoDocumentId: Guid option }
 

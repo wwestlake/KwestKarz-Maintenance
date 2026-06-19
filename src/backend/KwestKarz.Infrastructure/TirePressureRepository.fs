@@ -19,8 +19,10 @@ type PostgresTirePressureRepository(dataSource: NpgsqlDataSource) =
 
     let mapSpec (reader: NpgsqlDataReader) =
         { VehicleId = reader.GetGuid(reader.GetOrdinal("vehicle_id"))
-          FrontPsi = getOption reader "front_psi" reader.GetInt32
-          RearPsi = getOption reader "rear_psi" reader.GetInt32
+          FrontLeftPsi = getOption reader "front_left_psi" reader.GetInt32
+          FrontRightPsi = getOption reader "front_right_psi" reader.GetInt32
+          RearLeftPsi = getOption reader "rear_left_psi" reader.GetInt32
+          RearRightPsi = getOption reader "rear_right_psi" reader.GetInt32
           Notes = getOption reader "notes" reader.GetString
           PhotoDocumentId = getOption reader "photo_document_id" reader.GetGuid
           CreatedAt = reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("created_at"))
@@ -40,7 +42,10 @@ type PostgresTirePressureRepository(dataSource: NpgsqlDataSource) =
           CreatedAt = reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("created_at")) }
 
     let specColumns =
-        "vehicle_id, front_psi, rear_psi, notes, photo_document_id, created_at, updated_at"
+        """
+        vehicle_id, front_left_psi, front_right_psi, rear_left_psi, rear_right_psi,
+        notes, photo_document_id, created_at, updated_at
+        """
 
     let logColumns =
         """
@@ -57,14 +62,11 @@ type PostgresTirePressureRepository(dataSource: NpgsqlDataSource) =
             | Some _, None -> 0
             | None, _ -> 1
 
-        let frontTarget = spec |> Option.bind (fun item -> item.FrontPsi)
-        let rearTarget = spec |> Option.bind (fun item -> item.RearPsi)
-
         let worst =
-            [ score log.FrontLeftPsi frontTarget
-              score log.FrontRightPsi frontTarget
-              score log.RearLeftPsi rearTarget
-              score log.RearRightPsi rearTarget ]
+            [ score log.FrontLeftPsi (spec |> Option.bind (fun item -> item.FrontLeftPsi))
+              score log.FrontRightPsi (spec |> Option.bind (fun item -> item.FrontRightPsi))
+              score log.RearLeftPsi (spec |> Option.bind (fun item -> item.RearLeftPsi))
+              score log.RearRightPsi (spec |> Option.bind (fun item -> item.RearRightPsi)) ]
             |> List.max
 
         if worst >= 2 then TirePressureStatus.Red
@@ -114,14 +116,20 @@ type PostgresTirePressureRepository(dataSource: NpgsqlDataSource) =
                     new NpgsqlCommand(
                         $"""
                         insert into kwestkarzbusinessdata.tire_pressure_specs (
-                            vehicle_id, front_psi, rear_psi, notes, photo_document_id, created_at, updated_at
+                            vehicle_id, front_psi, rear_psi, front_left_psi, front_right_psi,
+                            rear_left_psi, rear_right_psi, notes, photo_document_id, created_at, updated_at
                         )
                         values (
-                            @vehicle_id, @front_psi, @rear_psi, @notes, @photo_document_id, @created_at, @updated_at
+                            @vehicle_id, @front_psi, @rear_psi, @front_left_psi, @front_right_psi,
+                            @rear_left_psi, @rear_right_psi, @notes, @photo_document_id, @created_at, @updated_at
                         )
                         on conflict (vehicle_id) do update
                         set front_psi = excluded.front_psi,
                             rear_psi = excluded.rear_psi,
+                            front_left_psi = excluded.front_left_psi,
+                            front_right_psi = excluded.front_right_psi,
+                            rear_left_psi = excluded.rear_left_psi,
+                            rear_right_psi = excluded.rear_right_psi,
                             notes = excluded.notes,
                             photo_document_id = excluded.photo_document_id,
                             updated_at = excluded.updated_at
@@ -131,8 +139,12 @@ type PostgresTirePressureRepository(dataSource: NpgsqlDataSource) =
                     )
 
                 command.Parameters.AddWithValue("vehicle_id", NpgsqlDbType.Uuid, spec.VehicleId) |> ignore
-                command.Parameters.AddWithValue("front_psi", NpgsqlDbType.Integer, optionOrDbNull spec.FrontPsi) |> ignore
-                command.Parameters.AddWithValue("rear_psi", NpgsqlDbType.Integer, optionOrDbNull spec.RearPsi) |> ignore
+                command.Parameters.AddWithValue("front_psi", NpgsqlDbType.Integer, optionOrDbNull spec.FrontLeftPsi) |> ignore
+                command.Parameters.AddWithValue("rear_psi", NpgsqlDbType.Integer, optionOrDbNull spec.RearLeftPsi) |> ignore
+                command.Parameters.AddWithValue("front_left_psi", NpgsqlDbType.Integer, optionOrDbNull spec.FrontLeftPsi) |> ignore
+                command.Parameters.AddWithValue("front_right_psi", NpgsqlDbType.Integer, optionOrDbNull spec.FrontRightPsi) |> ignore
+                command.Parameters.AddWithValue("rear_left_psi", NpgsqlDbType.Integer, optionOrDbNull spec.RearLeftPsi) |> ignore
+                command.Parameters.AddWithValue("rear_right_psi", NpgsqlDbType.Integer, optionOrDbNull spec.RearRightPsi) |> ignore
                 command.Parameters.AddWithValue("notes", NpgsqlDbType.Text, optionOrDbNull spec.Notes) |> ignore
                 command.Parameters.AddWithValue("photo_document_id", NpgsqlDbType.Uuid, optionOrDbNull spec.PhotoDocumentId) |> ignore
                 command.Parameters.AddWithValue("created_at", NpgsqlDbType.TimestampTz, now) |> ignore

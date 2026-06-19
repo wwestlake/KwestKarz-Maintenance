@@ -126,13 +126,37 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                     vehicle_id uuid primary key references kwestkarzbusinessdata.vehicles(id) on delete cascade,
                     front_psi integer null,
                     rear_psi integer null,
+                    front_left_psi integer null,
+                    front_right_psi integer null,
+                    rear_left_psi integer null,
+                    rear_right_psi integer null,
                     notes text null,
                     photo_document_id uuid null,
                     created_at timestamptz not null,
                     updated_at timestamptz not null,
                     constraint tire_pressure_specs_front_check check (front_psi is null or front_psi between 15 and 80),
-                    constraint tire_pressure_specs_rear_check check (rear_psi is null or rear_psi between 15 and 80)
+                    constraint tire_pressure_specs_rear_check check (rear_psi is null or rear_psi between 15 and 80),
+                    constraint tire_pressure_specs_fl_check check (front_left_psi is null or front_left_psi between 15 and 80),
+                    constraint tire_pressure_specs_fr_check check (front_right_psi is null or front_right_psi between 15 and 80),
+                    constraint tire_pressure_specs_rl_check check (rear_left_psi is null or rear_left_psi between 15 and 80),
+                    constraint tire_pressure_specs_rr_check check (rear_right_psi is null or rear_right_psi between 15 and 80)
                 );
+
+                alter table kwestkarzbusinessdata.tire_pressure_specs
+                    add column if not exists front_left_psi integer null,
+                    add column if not exists front_right_psi integer null,
+                    add column if not exists rear_left_psi integer null,
+                    add column if not exists rear_right_psi integer null;
+
+                update kwestkarzbusinessdata.tire_pressure_specs
+                set front_left_psi = coalesce(front_left_psi, front_psi),
+                    front_right_psi = coalesce(front_right_psi, front_psi),
+                    rear_left_psi = coalesce(rear_left_psi, rear_psi),
+                    rear_right_psi = coalesce(rear_right_psi, rear_psi)
+                where front_left_psi is null
+                   or front_right_psi is null
+                   or rear_left_psi is null
+                   or rear_right_psi is null;
 
                 create table if not exists kwestkarzbusinessdata.tire_pressure_logs (
                     id uuid primary key,

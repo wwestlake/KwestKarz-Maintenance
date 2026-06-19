@@ -5,8 +5,10 @@ open KwestKarz.Domain
 
 type TirePressureSpecResponse =
     { VehicleId: Guid
-      FrontPsi: int option
-      RearPsi: int option
+      FrontLeftPsi: int option
+      FrontRightPsi: int option
+      RearLeftPsi: int option
+      RearRightPsi: int option
       Notes: string option
       PhotoDocumentId: Guid option
       CreatedAt: DateTimeOffset
@@ -15,8 +17,10 @@ type TirePressureSpecResponse =
 module TirePressureSpecResponse =
     let fromDomain (spec: TirePressureSpec) =
         { VehicleId = spec.VehicleId
-          FrontPsi = spec.FrontPsi
-          RearPsi = spec.RearPsi
+          FrontLeftPsi = spec.FrontLeftPsi
+          FrontRightPsi = spec.FrontRightPsi
+          RearLeftPsi = spec.RearLeftPsi
+          RearRightPsi = spec.RearRightPsi
           Notes = spec.Notes
           PhotoDocumentId = spec.PhotoDocumentId
           CreatedAt = spec.CreatedAt
@@ -59,16 +63,20 @@ module TirePressureSnapshotResponse =
           RecentLogs = snapshot.RecentLogs |> List.map TirePressureLogResponse.fromDomain |> List.toArray }
 
 type UpsertTirePressureSpecRequest =
-    { FrontPsi: int option
-      RearPsi: int option
+    { FrontLeftPsi: int option
+      FrontRightPsi: int option
+      RearLeftPsi: int option
+      RearRightPsi: int option
       Notes: string option
       PhotoDocumentId: Guid option }
 
 module UpsertTirePressureSpecRequest =
     let toDomain vehicleId (request: UpsertTirePressureSpecRequest) =
         { VehicleId = vehicleId
-          FrontPsi = request.FrontPsi
-          RearPsi = request.RearPsi
+          FrontLeftPsi = request.FrontLeftPsi
+          FrontRightPsi = request.FrontRightPsi
+          RearLeftPsi = request.RearLeftPsi
+          RearRightPsi = request.RearRightPsi
           Notes = request.Notes
           PhotoDocumentId = request.PhotoDocumentId }
 

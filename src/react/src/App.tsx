@@ -72,8 +72,10 @@ type Dashboard = {
 }
 
 type TirePressureSpec = {
-  frontPsi?: number
-  rearPsi?: number
+  frontLeftPsi?: number
+  frontRightPsi?: number
+  rearLeftPsi?: number
+  rearRightPsi?: number
   notes?: string
   photoDocumentId?: string
 }
@@ -271,8 +273,10 @@ function App() {
   })
   const [tirePressure, setTirePressure] = useState<TirePressureSnapshot>({ recentLogs: [] })
   const [tireSpecForm, setTireSpecForm] = useState({
-    frontPsi: '',
-    rearPsi: '',
+    frontLeftPsi: '',
+    frontRightPsi: '',
+    rearLeftPsi: '',
+    rearRightPsi: '',
     notes: '',
   })
   const [tireLogForm, setTireLogForm] = useState({
@@ -329,8 +333,10 @@ function App() {
     const snapshot = await api.get<TirePressureSnapshot>(`/api/vehicles/${vehicleId}/tire-pressure`)
     setTirePressure(snapshot)
     setTireSpecForm({
-      frontPsi: snapshot.spec?.frontPsi?.toString() ?? '',
-      rearPsi: snapshot.spec?.rearPsi?.toString() ?? '',
+      frontLeftPsi: snapshot.spec?.frontLeftPsi?.toString() ?? '',
+      frontRightPsi: snapshot.spec?.frontRightPsi?.toString() ?? '',
+      rearLeftPsi: snapshot.spec?.rearLeftPsi?.toString() ?? '',
+      rearRightPsi: snapshot.spec?.rearRightPsi?.toString() ?? '',
       notes: snapshot.spec?.notes ?? '',
     })
   }
@@ -585,7 +591,7 @@ function App() {
       form.append('vehicleVin', dashboard.vehicle.vin)
       form.append(
         'prompt',
-        'Read the vehicle tire pressure placard. Return front recommended PSI and rear recommended PSI. Use labels frontPsi and rearPsi. Include any uncertainty.',
+        'Read the vehicle tire pressure placard. Return recommended PSI for front left, front right, rear left, and rear right. If the placard only lists front and rear axle PSI, copy front to both front tires and rear to both rear tires. Use labels frontLeftPsi, frontRightPsi, rearLeftPsi, rearRightPsi. Include any uncertainty.',
       )
 
       const response = await fetch('/api/ai/interpret-image', { method: 'POST', body: form })
@@ -595,11 +601,17 @@ function App() {
       const numbers = firstPressures(ai.text)
       const frontPsi = extractPressure('front', ai.text) ?? numbers[0]
       const rearPsi = extractPressure('rear', ai.text) ?? numbers[1] ?? frontPsi
+      const frontLeftPsi = extractPressure('frontLeft|front left|fl', ai.text) ?? frontPsi
+      const frontRightPsi = extractPressure('frontRight|front right|fr', ai.text) ?? frontPsi
+      const rearLeftPsi = extractPressure('rearLeft|rear left|rl', ai.text) ?? rearPsi
+      const rearRightPsi = extractPressure('rearRight|rear right|rr', ai.text) ?? rearPsi
       const document = await uploadVehicleDocument(dashboard.vehicle.id, file, 'Tire pressure placard photo')
 
       await api.put<TirePressureSpec>(`/api/vehicles/${dashboard.vehicle.id}/tire-pressure/spec`, {
-        frontPsi: frontPsi ?? null,
-        rearPsi: rearPsi ?? null,
+        frontLeftPsi: frontLeftPsi ?? null,
+        frontRightPsi: frontRightPsi ?? null,
+        rearLeftPsi: rearLeftPsi ?? null,
+        rearRightPsi: rearRightPsi ?? null,
         notes: ai.text,
         photoDocumentId: document.id,
       })
@@ -663,8 +675,10 @@ function App() {
 
     try {
       await api.put<TirePressureSpec>(`/api/vehicles/${dashboard.vehicle.id}/tire-pressure/spec`, {
-        frontPsi: tireSpecForm.frontPsi ? Number(tireSpecForm.frontPsi) : null,
-        rearPsi: tireSpecForm.rearPsi ? Number(tireSpecForm.rearPsi) : null,
+        frontLeftPsi: tireSpecForm.frontLeftPsi ? Number(tireSpecForm.frontLeftPsi) : null,
+        frontRightPsi: tireSpecForm.frontRightPsi ? Number(tireSpecForm.frontRightPsi) : null,
+        rearLeftPsi: tireSpecForm.rearLeftPsi ? Number(tireSpecForm.rearLeftPsi) : null,
+        rearRightPsi: tireSpecForm.rearRightPsi ? Number(tireSpecForm.rearRightPsi) : null,
         notes: tireSpecForm.notes || null,
         photoDocumentId: tirePressure.spec?.photoDocumentId ?? null,
       })
@@ -1125,9 +1139,9 @@ function App() {
 
           {showTirePressurePanel && (
             <div className="panel tire-pressure-panel">
-              <div className="section-heading">
-                <h2>Tire Pressure</h2>
-                <p>{tirePressure.spec ? `${tirePressure.spec.frontPsi ?? '?'} / ${tirePressure.spec.rearPsi ?? '?'} PSI` : 'No factory spec saved'}</p>
+            <div className="section-heading">
+              <h2>Tire Pressure</h2>
+                <p>{tirePressure.spec ? `FL ${tirePressure.spec.frontLeftPsi ?? '?'} / FR ${tirePressure.spec.frontRightPsi ?? '?'} / RL ${tirePressure.spec.rearLeftPsi ?? '?'} / RR ${tirePressure.spec.rearRightPsi ?? '?'} PSI` : 'No factory spec saved'}</p>
               </div>
 
               <input
@@ -1164,19 +1178,35 @@ function App() {
                     </button>
                   </div>
                   <label>
-                    <span>Front PSI</span>
+                    <span>Front Left</span>
                     <input
                       inputMode="numeric"
-                      value={tireSpecForm.frontPsi}
-                      onChange={(event) => setTireSpecForm({ ...tireSpecForm, frontPsi: event.target.value })}
+                      value={tireSpecForm.frontLeftPsi}
+                      onChange={(event) => setTireSpecForm({ ...tireSpecForm, frontLeftPsi: event.target.value })}
                     />
                   </label>
                   <label>
-                    <span>Rear PSI</span>
+                    <span>Front Right</span>
                     <input
                       inputMode="numeric"
-                      value={tireSpecForm.rearPsi}
-                      onChange={(event) => setTireSpecForm({ ...tireSpecForm, rearPsi: event.target.value })}
+                      value={tireSpecForm.frontRightPsi}
+                      onChange={(event) => setTireSpecForm({ ...tireSpecForm, frontRightPsi: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    <span>Rear Left</span>
+                    <input
+                      inputMode="numeric"
+                      value={tireSpecForm.rearLeftPsi}
+                      onChange={(event) => setTireSpecForm({ ...tireSpecForm, rearLeftPsi: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    <span>Rear Right</span>
+                    <input
+                      inputMode="numeric"
+                      value={tireSpecForm.rearRightPsi}
+                      onChange={(event) => setTireSpecForm({ ...tireSpecForm, rearRightPsi: event.target.value })}
                     />
                   </label>
                   <label className="wide">
