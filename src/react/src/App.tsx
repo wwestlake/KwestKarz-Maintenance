@@ -89,6 +89,17 @@ const emptyVehicleForm: CreateVehicleForm = {
   notes: '',
 }
 
+const maintenanceActions = [
+  'Oil Change',
+  'Tire Rotation',
+  'Brake Inspection',
+  'Battery',
+  'Detail',
+  'Inspection',
+  'Registration',
+  'Repair',
+]
+
 const api = {
   async get<T>(path: string): Promise<T> {
     const response = await fetch(path)
@@ -125,13 +136,13 @@ function App() {
   const [message, setMessage] = useState('Ready')
   const [loading, setLoading] = useState(false)
 
+  const normalizedVin = vin.trim().toUpperCase()
+
   const vehicleTitle = useMemo(() => {
     const vehicle = dashboard?.vehicle
     if (!vehicle) return 'No vehicle selected'
     return [vehicle.year, vehicle.make, vehicle.model, vehicle.trim].filter(Boolean).join(' ')
   }, [dashboard])
-
-  const normalizedVin = vin.trim().toUpperCase()
 
   useEffect(() => {
     refreshVehicles()
@@ -165,6 +176,13 @@ function App() {
     } finally {
       setLoading(false)
     }
+  }
+
+  function showFleet() {
+    setDashboard(null)
+    setDecoded(null)
+    setVin('')
+    setMessage('Ready')
   }
 
   async function lookupVehicle(event?: FormEvent) {
@@ -270,54 +288,48 @@ function App() {
       </header>
 
       <section className="lookup-band">
-        <div className="lookup-layout">
-          <div className="fleet-list">
-            <div className="fleet-list-header">
-              <span>Fleet</span>
-              <strong>{vehicles.length}</strong>
-            </div>
-            <div className="vehicle-list">
-              {vehicles.length === 0 && <p>No vehicles yet. Scan or enter a VIN to add one.</p>}
-              {vehicles.map((vehicle) => {
-                const title = [vehicle.fleetPositionNumber, vehicle.year, vehicle.make, vehicle.model]
-                  .filter(Boolean)
-                  .join(' ')
-                const selected = dashboard?.vehicle.id === vehicle.id
-
-                return (
-                  <button
-                    key={vehicle.id}
-                    className={selected ? 'vehicle-list-item selected' : 'vehicle-list-item'}
-                    type="button"
-                    onClick={() => openVehicle(vehicle)}
-                  >
-                    <span>{title || vehicle.vin}</span>
-                    <small>
-                      {vehicle.currentOdometer?.toLocaleString() ?? 'No miles'} · {vehicle.status}
-                    </small>
-                  </button>
-                )
-              })}
-            </div>
+        <form className="lookup-form" onSubmit={lookupVehicle}>
+          <label htmlFor="vin">VIN Lookup / Add Vehicle</label>
+          <div className="lookup-row">
+            <input
+              id="vin"
+              value={vin}
+              onChange={(event) => setVin(event.target.value.toUpperCase())}
+              placeholder="Scan or enter VIN"
+              autoCapitalize="characters"
+            />
+            <button type="submit" disabled={loading || normalizedVin.length < 11}>
+              Find
+            </button>
           </div>
-
-          <form className="lookup-form" onSubmit={lookupVehicle}>
-            <label htmlFor="vin">VIN Lookup / Add Vehicle</label>
-            <div className="lookup-row">
-              <input
-                id="vin"
-                value={vin}
-                onChange={(event) => setVin(event.target.value.toUpperCase())}
-                placeholder="Scan or enter VIN"
-                autoCapitalize="characters"
-              />
-              <button type="submit" disabled={loading || normalizedVin.length < 11}>
-                Find
-              </button>
-            </div>
-          </form>
-        </div>
+        </form>
       </section>
+
+      {!dashboard && !decoded && (
+        <section className="panel fleet-panel">
+          <div className="section-heading">
+            <h2>Fleet</h2>
+            <p>{vehicles.length} vehicles</p>
+          </div>
+          <div className="vehicle-list">
+            {vehicles.length === 0 && <p className="empty">No vehicles yet. Scan or enter a VIN to add one.</p>}
+            {vehicles.map((vehicle) => {
+              const title = [vehicle.fleetPositionNumber, vehicle.year, vehicle.make, vehicle.model]
+                .filter(Boolean)
+                .join(' ')
+
+              return (
+                <button key={vehicle.id} className="vehicle-list-item" type="button" onClick={() => openVehicle(vehicle)}>
+                  <span>{title || vehicle.vin}</span>
+                  <small>
+                    {vehicle.vin} - {vehicle.currentOdometer?.toLocaleString() ?? 'No miles'} - {vehicle.status}
+                  </small>
+                </button>
+              )
+            })}
+          </div>
+        </section>
+      )}
 
       {decoded && (
         <section className="panel">
@@ -364,8 +376,13 @@ function App() {
         <section className="dashboard-grid">
           <div className="summary-panel">
             <div className="section-heading">
-              <h2>{vehicleTitle}</h2>
-              <p>{dashboard.vehicle.vin}</p>
+              <div>
+                <h2>{vehicleTitle}</h2>
+                <p>{dashboard.vehicle.vin}</p>
+              </div>
+              <button className="secondary-button" type="button" onClick={showFleet}>
+                Fleet
+              </button>
             </div>
             <div className="metrics">
               <div>
@@ -390,6 +407,18 @@ function App() {
               <p>Record the work while you are standing by the car.</p>
             </div>
             <form className="maintenance-form" onSubmit={logMaintenance}>
+              <div className="quick-actions wide">
+                {maintenanceActions.map((action) => (
+                  <button
+                    key={action}
+                    className={maintenanceForm.eventType === action ? 'action-chip selected' : 'action-chip'}
+                    type="button"
+                    onClick={() => setMaintenanceForm({ ...maintenanceForm, eventType: action })}
+                  >
+                    {action}
+                  </button>
+                ))}
+              </div>
               <label>
                 <span>Event</span>
                 <input
@@ -463,7 +492,7 @@ function App() {
                   <span>{record.datePerformed}</span>
                   <p>
                     {record.odometer ? `${record.odometer.toLocaleString()} miles` : 'Mileage not recorded'}
-                    {record.cost ? ` · $${record.cost.toFixed(2)}` : ''}
+                    {record.cost ? ` - $${record.cost.toFixed(2)}` : ''}
                   </p>
                 </article>
               ))}
