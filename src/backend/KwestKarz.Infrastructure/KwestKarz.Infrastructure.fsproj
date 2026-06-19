@@ -13,6 +13,7 @@
     <Compile Include="VehicleRepository.fs" />
     <Compile Include="LockBoxRepository.fs" />
     <Compile Include="MaintenanceRepository.fs" />
+    <Compile Include="TirePressureRepository.fs" />
     <Compile Include="DocumentRepository.fs" />
   </ItemGroup>
 

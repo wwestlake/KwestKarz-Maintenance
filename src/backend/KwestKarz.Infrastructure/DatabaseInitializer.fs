@@ -122,6 +122,40 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                 create index if not exists ix_maintenance_records_vehicle
                     on kwestkarzbusinessdata.maintenance_records(vehicle_id, date_performed desc, created_at desc);
 
+                create table if not exists kwestkarzbusinessdata.tire_pressure_specs (
+                    vehicle_id uuid primary key references kwestkarzbusinessdata.vehicles(id) on delete cascade,
+                    front_psi integer null,
+                    rear_psi integer null,
+                    notes text null,
+                    photo_document_id uuid null,
+                    created_at timestamptz not null,
+                    updated_at timestamptz not null,
+                    constraint tire_pressure_specs_front_check check (front_psi is null or front_psi between 15 and 80),
+                    constraint tire_pressure_specs_rear_check check (rear_psi is null or rear_psi between 15 and 80)
+                );
+
+                create table if not exists kwestkarzbusinessdata.tire_pressure_logs (
+                    id uuid primary key,
+                    vehicle_id uuid not null references kwestkarzbusinessdata.vehicles(id) on delete cascade,
+                    measured_at timestamptz not null,
+                    front_left_psi integer null,
+                    front_right_psi integer null,
+                    rear_left_psi integer null,
+                    rear_right_psi integer null,
+                    status text not null,
+                    notes text null,
+                    photo_document_id uuid null,
+                    created_at timestamptz not null,
+                    constraint tire_pressure_logs_status_check check (status in ('Green', 'Yellow', 'Red')),
+                    constraint tire_pressure_logs_fl_check check (front_left_psi is null or front_left_psi between 0 and 100),
+                    constraint tire_pressure_logs_fr_check check (front_right_psi is null or front_right_psi between 0 and 100),
+                    constraint tire_pressure_logs_rl_check check (rear_left_psi is null or rear_left_psi between 0 and 100),
+                    constraint tire_pressure_logs_rr_check check (rear_right_psi is null or rear_right_psi between 0 and 100)
+                );
+
+                create index if not exists ix_tire_pressure_logs_vehicle
+                    on kwestkarzbusinessdata.tire_pressure_logs(vehicle_id, measured_at desc, created_at desc);
+
                 create table if not exists kwestkarzbusinessdata.documents (
                     id uuid primary key,
                     owner_type text not null,

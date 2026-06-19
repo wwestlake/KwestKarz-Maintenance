@@ -100,6 +100,7 @@ module Program =
         builder.Services.AddScoped<IVehicleRepository, PostgresVehicleRepository>() |> ignore
         builder.Services.AddScoped<ILockBoxRepository, PostgresLockBoxRepository>() |> ignore
         builder.Services.AddScoped<IMaintenanceRepository, PostgresMaintenanceRepository>() |> ignore
+        builder.Services.AddScoped<ITirePressureRepository, PostgresTirePressureRepository>() |> ignore
         builder.Services.AddScoped<IDocumentRepository, PostgresDocumentRepository>() |> ignore
 
         builder.Services.AddSingleton<OpenAIOptions>(fun _ ->
@@ -146,6 +147,7 @@ module Program =
         VehicleEndpoints.mapVehicleEndpoints app |> ignore
         LockBoxEndpoints.mapLockBoxEndpoints app |> ignore
         MaintenanceEndpoints.mapMaintenanceEndpoints app |> ignore
+        TirePressureEndpoints.mapTirePressureEndpoints app |> ignore
         DashboardEndpoints.mapDashboardEndpoints app |> ignore
         DocumentEndpoints.mapDocumentEndpoints app |> ignore
         AIEndpoints.mapAIEndpoints app |> ignore

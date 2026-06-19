@@ -71,6 +71,30 @@ type Dashboard = {
   aiContextSummary: string
 }
 
+type TirePressureSpec = {
+  frontPsi?: number
+  rearPsi?: number
+  notes?: string
+  photoDocumentId?: string
+}
+
+type TirePressureLog = {
+  id: string
+  measuredAt: string
+  frontLeftPsi?: number
+  frontRightPsi?: number
+  rearLeftPsi?: number
+  rearRightPsi?: number
+  status: string
+  notes?: string
+  photoDocumentId?: string
+}
+
+type TirePressureSnapshot = {
+  spec?: TirePressureSpec
+  recentLogs: TirePressureLog[]
+}
+
 type VinDecode = {
   vin: string
   year?: number
@@ -199,8 +223,21 @@ function extractVin(text: string) {
   return compact.match(/[A-HJ-NPR-Z0-9]{17}/)?.[0] ?? ''
 }
 
+function extractPressure(label: string, text: string) {
+  const pattern = new RegExp(`(?:${label})[^0-9]{0,20}(\\d{2})`, 'i')
+  return Number(text.match(pattern)?.[1] ?? '') || undefined
+}
+
+function firstPressures(text: string) {
+  return [...text.matchAll(/\b([1-9]\d)\s*(?:psi|psig)?\b/gi)]
+    .map((match) => Number(match[1]))
+    .filter((value) => value >= 15 && value <= 80)
+}
+
 function App() {
   const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
+  const tireSpecCameraInputRef = useRef<HTMLInputElement | null>(null)
+  const tireLogCameraInputRef = useRef<HTMLInputElement | null>(null)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [lockBoxes, setLockBoxes] = useState<LockBox[]>([])
   const [vin, setVin] = useState('')
@@ -221,6 +258,7 @@ function App() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptInsight, setReceiptInsight] = useState('')
   const [showMaintenanceForm, setShowMaintenanceForm] = useState(false)
+  const [showTirePressurePanel, setShowTirePressurePanel] = useState(false)
   const [showLockBoxManager, setShowLockBoxManager] = useState(false)
   const [selectedLockBoxId, setSelectedLockBoxId] = useState('')
   const [editingLockBoxId, setEditingLockBoxId] = useState('')
@@ -231,6 +269,21 @@ function App() {
     status: 'Available',
     notes: '',
   })
+  const [tirePressure, setTirePressure] = useState<TirePressureSnapshot>({ recentLogs: [] })
+  const [tireSpecForm, setTireSpecForm] = useState({
+    frontPsi: '',
+    rearPsi: '',
+    notes: '',
+  })
+  const [tireLogForm, setTireLogForm] = useState({
+    frontLeftPsi: '',
+    frontRightPsi: '',
+    rearLeftPsi: '',
+    rearRightPsi: '',
+    notes: '',
+  })
+  const [tireLogPhotoFile, setTireLogPhotoFile] = useState<File | null>(null)
+  const [tirePressureInsight, setTirePressureInsight] = useState('')
   const [message, setMessage] = useState('Ready')
   const [loading, setLoading] = useState(false)
 
@@ -269,6 +322,32 @@ function App() {
     const nextDashboard = await api.get<Dashboard>(`/api/vehicles/${vehicleId}/dashboard`)
     setDashboard(nextDashboard)
     setSelectedLockBoxId('')
+    await loadTirePressure(vehicleId)
+  }
+
+  async function loadTirePressure(vehicleId: string) {
+    const snapshot = await api.get<TirePressureSnapshot>(`/api/vehicles/${vehicleId}/tire-pressure`)
+    setTirePressure(snapshot)
+    setTireSpecForm({
+      frontPsi: snapshot.spec?.frontPsi?.toString() ?? '',
+      rearPsi: snapshot.spec?.rearPsi?.toString() ?? '',
+      notes: snapshot.spec?.notes ?? '',
+    })
+  }
+
+  async function uploadVehicleDocument(vehicleId: string, file: File, description: string) {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('kind', 'Other')
+    form.append('description', description)
+
+    const response = await fetch(`/api/vehicles/${vehicleId}/documents`, {
+      method: 'POST',
+      body: form,
+    })
+
+    if (!response.ok) throw new Error(await response.text())
+    return (await response.json()) as DocumentRecord
   }
 
   async function openVehicle(vehicle: Vehicle) {
@@ -293,6 +372,7 @@ function App() {
     setDecoded(null)
     setVin('')
     setShowMaintenanceForm(false)
+    setShowTirePressurePanel(false)
     setShowLockBoxManager(false)
     setEditingLockBoxId('')
     setMessage('Ready')
@@ -488,6 +568,142 @@ function App() {
       setMessage('Receipt read. Review fields before saving.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not read receipt')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function readTireSpecPhoto(file: File) {
+    if (!dashboard) return
+
+    setLoading(true)
+    setMessage('Reading tire placard...')
+
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('vehicleVin', dashboard.vehicle.vin)
+      form.append(
+        'prompt',
+        'Read the vehicle tire pressure placard. Return front recommended PSI and rear recommended PSI. Use labels frontPsi and rearPsi. Include any uncertainty.',
+      )
+
+      const response = await fetch('/api/ai/interpret-image', { method: 'POST', body: form })
+      if (!response.ok) throw new Error(await response.text())
+
+      const ai = (await response.json()) as AIResponse
+      const numbers = firstPressures(ai.text)
+      const frontPsi = extractPressure('front', ai.text) ?? numbers[0]
+      const rearPsi = extractPressure('rear', ai.text) ?? numbers[1] ?? frontPsi
+      const document = await uploadVehicleDocument(dashboard.vehicle.id, file, 'Tire pressure placard photo')
+
+      await api.put<TirePressureSpec>(`/api/vehicles/${dashboard.vehicle.id}/tire-pressure/spec`, {
+        frontPsi: frontPsi ?? null,
+        rearPsi: rearPsi ?? null,
+        notes: ai.text,
+        photoDocumentId: document.id,
+      })
+
+      setTirePressureInsight(ai.text)
+      await loadDashboard(dashboard.vehicle.id)
+      setShowTirePressurePanel(true)
+      setMessage('Tire pressure spec saved. Review it before relying on it.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not read tire placard')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function readTireLogPhoto(file: File) {
+    if (!dashboard) return
+
+    setLoading(true)
+    setMessage('Reading tire pressure readings...')
+
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('vehicleVin', dashboard.vehicle.vin)
+      form.append(
+        'prompt',
+        'Read actual tire pressure readings from this image. Return PSI values using labels frontLeftPsi, frontRightPsi, rearLeftPsi, rearRightPsi. If only handwritten/listed values are visible, infer positions from labels if possible.',
+      )
+
+      const response = await fetch('/api/ai/interpret-image', { method: 'POST', body: form })
+      if (!response.ok) throw new Error(await response.text())
+
+      const ai = (await response.json()) as AIResponse
+      const numbers = firstPressures(ai.text)
+      const nextForm = {
+        frontLeftPsi: (extractPressure('frontLeft|front left|fl', ai.text) ?? numbers[0] ?? '').toString(),
+        frontRightPsi: (extractPressure('frontRight|front right|fr', ai.text) ?? numbers[1] ?? '').toString(),
+        rearLeftPsi: (extractPressure('rearLeft|rear left|rl', ai.text) ?? numbers[2] ?? '').toString(),
+        rearRightPsi: (extractPressure('rearRight|rear right|rr', ai.text) ?? numbers[3] ?? '').toString(),
+        notes: ai.text,
+      }
+
+      setTireLogForm(nextForm)
+      setTireLogPhotoFile(file)
+      setTirePressureInsight(ai.text)
+      setMessage('Tire readings filled. Review before saving.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not read tire pressure photo')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function saveTireSpec(event: FormEvent) {
+    event.preventDefault()
+    if (!dashboard) return
+
+    setLoading(true)
+    setMessage('Saving tire pressure spec...')
+
+    try {
+      await api.put<TirePressureSpec>(`/api/vehicles/${dashboard.vehicle.id}/tire-pressure/spec`, {
+        frontPsi: tireSpecForm.frontPsi ? Number(tireSpecForm.frontPsi) : null,
+        rearPsi: tireSpecForm.rearPsi ? Number(tireSpecForm.rearPsi) : null,
+        notes: tireSpecForm.notes || null,
+        photoDocumentId: tirePressure.spec?.photoDocumentId ?? null,
+      })
+      await loadTirePressure(dashboard.vehicle.id)
+      setMessage('Tire pressure spec saved')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not save tire pressure spec')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function saveTireLog(event: FormEvent) {
+    event.preventDefault()
+    if (!dashboard) return
+
+    setLoading(true)
+    setMessage('Saving tire pressure log...')
+
+    try {
+      const document = tireLogPhotoFile
+        ? await uploadVehicleDocument(dashboard.vehicle.id, tireLogPhotoFile, 'Tire pressure readings photo')
+        : null
+
+      await api.post<TirePressureLog>(`/api/vehicles/${dashboard.vehicle.id}/tire-pressure/logs`, {
+        measuredAt: new Date().toISOString(),
+        frontLeftPsi: tireLogForm.frontLeftPsi ? Number(tireLogForm.frontLeftPsi) : null,
+        frontRightPsi: tireLogForm.frontRightPsi ? Number(tireLogForm.frontRightPsi) : null,
+        rearLeftPsi: tireLogForm.rearLeftPsi ? Number(tireLogForm.rearLeftPsi) : null,
+        rearRightPsi: tireLogForm.rearRightPsi ? Number(tireLogForm.rearRightPsi) : null,
+        notes: tireLogForm.notes || null,
+        photoDocumentId: document?.id ?? null,
+      })
+      await loadTirePressure(dashboard.vehicle.id)
+      setTireLogForm({ frontLeftPsi: '', frontRightPsi: '', rearLeftPsi: '', rearRightPsi: '', notes: '' })
+      setTireLogPhotoFile(null)
+      setMessage('Tire pressure log saved')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not save tire pressure log')
     } finally {
       setLoading(false)
     }
@@ -790,6 +1006,9 @@ function App() {
               <button className="primary-action" type="button" onClick={() => setShowMaintenanceForm(true)}>
                 Add Maintenance
               </button>
+              <button className="secondary-button" type="button" onClick={() => setShowTirePressurePanel(!showTirePressurePanel)}>
+                Tire Pressure
+              </button>
             </div>
             <div className="metrics">
               <div>
@@ -903,6 +1122,117 @@ function App() {
               </form>
             )}
           </div>
+
+          {showTirePressurePanel && (
+            <div className="panel tire-pressure-panel">
+              <div className="section-heading">
+                <h2>Tire Pressure</h2>
+                <p>{tirePressure.spec ? `${tirePressure.spec.frontPsi ?? '?'} / ${tirePressure.spec.rearPsi ?? '?'} PSI` : 'No factory spec saved'}</p>
+              </div>
+
+              <input
+                ref={tireSpecCameraInputRef}
+                className="hidden-input"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  event.target.value = ''
+                  if (file) readTireSpecPhoto(file)
+                }}
+              />
+              <input
+                ref={tireLogCameraInputRef}
+                className="hidden-input"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={(event) => {
+                  const file = event.target.files?.[0]
+                  event.target.value = ''
+                  if (file) readTireLogPhoto(file)
+                }}
+              />
+
+              <div className="tire-grid">
+                <form className="tire-card" onSubmit={saveTireSpec}>
+                  <div className="section-heading compact-heading">
+                    <h2>Factory Spec</h2>
+                    <button className="secondary-button" type="button" disabled={loading} onClick={() => tireSpecCameraInputRef.current?.click()}>
+                      Scan Plate
+                    </button>
+                  </div>
+                  <label>
+                    <span>Front PSI</span>
+                    <input
+                      inputMode="numeric"
+                      value={tireSpecForm.frontPsi}
+                      onChange={(event) => setTireSpecForm({ ...tireSpecForm, frontPsi: event.target.value })}
+                    />
+                  </label>
+                  <label>
+                    <span>Rear PSI</span>
+                    <input
+                      inputMode="numeric"
+                      value={tireSpecForm.rearPsi}
+                      onChange={(event) => setTireSpecForm({ ...tireSpecForm, rearPsi: event.target.value })}
+                    />
+                  </label>
+                  <label className="wide">
+                    <span>Notes</span>
+                    <textarea value={tireSpecForm.notes} onChange={(event) => setTireSpecForm({ ...tireSpecForm, notes: event.target.value })} />
+                  </label>
+                  <button type="submit" disabled={loading}>Save Spec</button>
+                </form>
+
+                <form className="tire-card" onSubmit={saveTireLog}>
+                  <div className="section-heading compact-heading">
+                    <h2>Actual Readings</h2>
+                    <button className="secondary-button" type="button" disabled={loading} onClick={() => tireLogCameraInputRef.current?.click()}>
+                      Scan Readings
+                    </button>
+                  </div>
+                  <label>
+                    <span>Front Left</span>
+                    <input inputMode="numeric" value={tireLogForm.frontLeftPsi} onChange={(event) => setTireLogForm({ ...tireLogForm, frontLeftPsi: event.target.value })} />
+                  </label>
+                  <label>
+                    <span>Front Right</span>
+                    <input inputMode="numeric" value={tireLogForm.frontRightPsi} onChange={(event) => setTireLogForm({ ...tireLogForm, frontRightPsi: event.target.value })} />
+                  </label>
+                  <label>
+                    <span>Rear Left</span>
+                    <input inputMode="numeric" value={tireLogForm.rearLeftPsi} onChange={(event) => setTireLogForm({ ...tireLogForm, rearLeftPsi: event.target.value })} />
+                  </label>
+                  <label>
+                    <span>Rear Right</span>
+                    <input inputMode="numeric" value={tireLogForm.rearRightPsi} onChange={(event) => setTireLogForm({ ...tireLogForm, rearRightPsi: event.target.value })} />
+                  </label>
+                  <label className="wide">
+                    <span>Notes</span>
+                    <textarea value={tireLogForm.notes} onChange={(event) => setTireLogForm({ ...tireLogForm, notes: event.target.value })} />
+                  </label>
+                  <button type="submit" disabled={loading}>Save Pressure Log</button>
+                </form>
+              </div>
+
+              {tirePressureInsight && <pre className="receipt-insight">{tirePressureInsight}</pre>}
+
+              <div className="record-list tire-log-list">
+                {tirePressure.recentLogs.length === 0 && <p className="empty">No tire pressure logs yet.</p>}
+                {tirePressure.recentLogs.map((log) => (
+                  <article key={log.id} className={`record tire-log status-${log.status.toLowerCase()}`}>
+                    <strong>{log.status}</strong>
+                    <span>{new Date(log.measuredAt).toLocaleString()}</span>
+                    <p>
+                      FL {log.frontLeftPsi ?? '?'} / FR {log.frontRightPsi ?? '?'} / RL {log.rearLeftPsi ?? '?'} / RR {log.rearRightPsi ?? '?'} PSI
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
 
           {showMaintenanceForm && (
           <div className="panel">

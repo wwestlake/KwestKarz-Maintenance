@@ -136,6 +136,56 @@ h2 {
   gap: 4px;
 }
 
+.tire-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tire-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  border: 1px solid #d9ded6;
+  border-radius: 8px;
+  background: #fbfcf8;
+  padding: 12px;
+}
+
+.tire-card label {
+  display: grid;
+  gap: 6px;
+}
+
+.compact-heading {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+
+.compact-heading h2 {
+  font-size: 16px;
+}
+
+.tire-log-list {
+  margin-top: 12px;
+}
+
+.tire-log {
+  border-left: 8px solid #9aa5a0;
+}
+
+.status-green {
+  border-left-color: #2f7d4f;
+}
+
+.status-yellow {
+  border-left-color: #d6a431;
+}
+
+.status-red {
+  border-left-color: #c74f35;
+}
+
 .assign-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -436,6 +486,8 @@ button:disabled {
   .lockbox-form,
   .lockbox-list,
   .lockbox-current,
+  .tire-grid,
+  .tire-card,
   .assign-row,
   .receipt-panel,
   .metrics {

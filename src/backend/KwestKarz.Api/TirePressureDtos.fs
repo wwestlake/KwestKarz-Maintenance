@@ -1,0 +1,93 @@
+namespace KwestKarz.Api
+
+open System
+open KwestKarz.Domain
+
+type TirePressureSpecResponse =
+    { VehicleId: Guid
+      FrontPsi: int option
+      RearPsi: int option
+      Notes: string option
+      PhotoDocumentId: Guid option
+      CreatedAt: DateTimeOffset
+      UpdatedAt: DateTimeOffset }
+
+module TirePressureSpecResponse =
+    let fromDomain (spec: TirePressureSpec) =
+        { VehicleId = spec.VehicleId
+          FrontPsi = spec.FrontPsi
+          RearPsi = spec.RearPsi
+          Notes = spec.Notes
+          PhotoDocumentId = spec.PhotoDocumentId
+          CreatedAt = spec.CreatedAt
+          UpdatedAt = spec.UpdatedAt }
+
+type TirePressureLogResponse =
+    { Id: Guid
+      VehicleId: Guid
+      MeasuredAt: DateTimeOffset
+      FrontLeftPsi: int option
+      FrontRightPsi: int option
+      RearLeftPsi: int option
+      RearRightPsi: int option
+      Status: string
+      Notes: string option
+      PhotoDocumentId: Guid option
+      CreatedAt: DateTimeOffset }
+
+module TirePressureLogResponse =
+    let fromDomain (log: TirePressureLog) =
+        { Id = log.Id
+          VehicleId = log.VehicleId
+          MeasuredAt = log.MeasuredAt
+          FrontLeftPsi = log.FrontLeftPsi
+          FrontRightPsi = log.FrontRightPsi
+          RearLeftPsi = log.RearLeftPsi
+          RearRightPsi = log.RearRightPsi
+          Status = TirePressureStatus.toStorageValue log.Status
+          Notes = log.Notes
+          PhotoDocumentId = log.PhotoDocumentId
+          CreatedAt = log.CreatedAt }
+
+type TirePressureSnapshotResponse =
+    { Spec: TirePressureSpecResponse option
+      RecentLogs: TirePressureLogResponse array }
+
+module TirePressureSnapshotResponse =
+    let fromDomain (snapshot: TirePressureSnapshot) =
+        { Spec = snapshot.Spec |> Option.map TirePressureSpecResponse.fromDomain
+          RecentLogs = snapshot.RecentLogs |> List.map TirePressureLogResponse.fromDomain |> List.toArray }
+
+type UpsertTirePressureSpecRequest =
+    { FrontPsi: int option
+      RearPsi: int option
+      Notes: string option
+      PhotoDocumentId: Guid option }
+
+module UpsertTirePressureSpecRequest =
+    let toDomain vehicleId (request: UpsertTirePressureSpecRequest) =
+        { VehicleId = vehicleId
+          FrontPsi = request.FrontPsi
+          RearPsi = request.RearPsi
+          Notes = request.Notes
+          PhotoDocumentId = request.PhotoDocumentId }
+
+type CreateTirePressureLogRequest =
+    { MeasuredAt: DateTimeOffset option
+      FrontLeftPsi: int option
+      FrontRightPsi: int option
+      RearLeftPsi: int option
+      RearRightPsi: int option
+      Notes: string option
+      PhotoDocumentId: Guid option }
+
+module CreateTirePressureLogRequest =
+    let toDomain vehicleId (request: CreateTirePressureLogRequest) =
+        { VehicleId = vehicleId
+          MeasuredAt = request.MeasuredAt |> Option.defaultValue DateTimeOffset.UtcNow
+          FrontLeftPsi = request.FrontLeftPsi
+          FrontRightPsi = request.FrontRightPsi
+          RearLeftPsi = request.RearLeftPsi
+          RearRightPsi = request.RearRightPsi
+          Notes = request.Notes
+          PhotoDocumentId = request.PhotoDocumentId }
