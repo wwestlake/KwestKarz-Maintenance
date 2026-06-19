@@ -226,6 +226,10 @@ const tirePanelStorageKey = 'kwestkarz.showTirePressurePanel'
 const tireSpecScanPendingStorageKey = 'kwestkarz.tireSpecScanPending'
 const vinScanClientStorageKey = 'kwestkarz.vinScanClientId'
 const vinScanPendingStorageKey = 'kwestkarz.vinScanPending'
+const complianceScanPendingStorageKey = 'kwestkarz.complianceScanPending'
+const complianceScanTypeStorageKey = 'kwestkarz.complianceScanType'
+const complianceScanVehicleStorageKey = 'kwestkarz.complianceScanVehicleId'
+const complianceScanStartedStorageKey = 'kwestkarz.complianceScanStartedAt'
 
 const api = {
   async get<T>(path: string): Promise<T> {
@@ -331,6 +335,7 @@ function App() {
   const tireSpecCameraInputRef = useRef<HTMLInputElement | null>(null)
   const tireLogCameraInputRef = useRef<HTMLInputElement | null>(null)
   const vinRecoveryActiveRef = useRef(false)
+  const complianceRecoveryActiveRef = useRef(false)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [lockBoxes, setLockBoxes] = useState<LockBox[]>([])
   const [vin, setVin] = useState('')
@@ -409,6 +414,10 @@ function App() {
     if (localStorage.getItem(vinScanPendingStorageKey) === 'true') {
       recoverLatestVinScan()
     }
+
+    if (localStorage.getItem(complianceScanPendingStorageKey) === 'true') {
+      recoverLatestComplianceScan()
+    }
   }, [])
 
   useEffect(() => {
@@ -417,6 +426,10 @@ function App() {
 
       if (localStorage.getItem(vinScanPendingStorageKey) === 'true') {
         recoverLatestVinScan()
+      }
+
+      if (localStorage.getItem(complianceScanPendingStorageKey) === 'true') {
+        recoverLatestComplianceScan()
       }
 
       if (!vehicleId) return
@@ -564,6 +577,66 @@ function App() {
     })
   }
 
+  function markComplianceScanPending(recordType: string) {
+    const vehicleId = dashboard?.vehicle.id ?? localStorage.getItem(selectedVehicleStorageKey) ?? ''
+    localStorage.setItem(complianceScanPendingStorageKey, 'true')
+    localStorage.setItem(complianceScanTypeStorageKey, recordType)
+    localStorage.setItem(complianceScanVehicleStorageKey, vehicleId)
+    localStorage.setItem(complianceScanStartedStorageKey, new Date().toISOString())
+  }
+
+  function clearComplianceScanPending() {
+    localStorage.removeItem(complianceScanPendingStorageKey)
+    localStorage.removeItem(complianceScanTypeStorageKey)
+    localStorage.removeItem(complianceScanVehicleStorageKey)
+    localStorage.removeItem(complianceScanStartedStorageKey)
+  }
+
+  async function recoverLatestComplianceScan() {
+    if (complianceRecoveryActiveRef.current) return
+    complianceRecoveryActiveRef.current = true
+
+    const recordType = localStorage.getItem(complianceScanTypeStorageKey) || 'Compliance'
+    const vehicleId = localStorage.getItem(complianceScanVehicleStorageKey) || localStorage.getItem(selectedVehicleStorageKey)
+    const startedAt = Date.parse(localStorage.getItem(complianceScanStartedStorageKey) || '')
+
+    if (!vehicleId) {
+      clearComplianceScanPending()
+      complianceRecoveryActiveRef.current = false
+      return
+    }
+
+    try {
+      for (let attempt = 0; attempt < 45; attempt += 1) {
+        try {
+          setMessage(`Waiting for ${formatComplianceType(recordType)} scan result...`)
+          const nextDashboard = await api.get<Dashboard>(`/api/vehicles/${vehicleId}/dashboard`)
+          setDashboard(nextDashboard)
+          const record = nextDashboard.compliance.find((item) => item.recordType === recordType)
+          const updatedAt = Date.parse(record?.updatedAt ?? '')
+
+          if (record && (!Number.isFinite(startedAt) || updatedAt >= startedAt)) {
+            clearComplianceScanPending()
+            startEditingCompliance(record)
+            setMessage(`${formatComplianceType(record.recordType)} read. Review and save corrections if needed.`)
+            return
+          }
+        } catch {
+          // Recovery keeps polling because mobile camera uploads can finish after the page regains focus.
+        }
+
+        await wait(2000)
+      }
+
+      if (localStorage.getItem(complianceScanPendingStorageKey) === 'true') {
+        clearComplianceScanPending()
+        setMessage(`${formatComplianceType(recordType)} scan timed out. Try again closer and steady.`)
+      }
+    } finally {
+      complianceRecoveryActiveRef.current = false
+    }
+  }
+
   async function scanCompliancePhoto(file: File) {
     if (!dashboard) return
 
@@ -574,6 +647,7 @@ function App() {
       const form = new FormData()
       form.append('file', file)
       form.append('recordType', complianceScanType)
+      markComplianceScanPending(complianceScanType)
 
       const response = await fetch(`/api/vehicles/${dashboard.vehicle.id}/compliance/photo`, {
         method: 'POST',
@@ -583,10 +657,12 @@ function App() {
       if (!response.ok) throw new Error(await response.text())
 
       const scan = (await response.json()) as CompliancePhotoScanResponse
+      clearComplianceScanPending()
       await loadDashboard(dashboard.vehicle.id)
       startEditingCompliance(scan.record)
       setMessage(`${formatComplianceType(scan.record.recordType)} read. Review and save corrections if needed.`)
     } catch (error) {
+      clearComplianceScanPending()
       setMessage(error instanceof Error ? error.message : 'Could not read compliance photo')
     } finally {
       setLoading(false)
@@ -1506,6 +1582,7 @@ function App() {
                   disabled={loading}
                   onClick={() => {
                     setComplianceScanType(type)
+                    markComplianceScanPending(type)
                     complianceCameraInputRef.current?.click()
                   }}
                 >
