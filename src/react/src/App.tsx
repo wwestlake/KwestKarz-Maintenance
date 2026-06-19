@@ -187,6 +187,7 @@ const lockBoxStyles = ['Mechanical Keypad', 'Dial', 'Other']
 const lockBoxStatuses = ['Available', 'Assigned', 'Lost', 'Retired']
 const selectedVehicleStorageKey = 'kwestkarz.selectedVehicleId'
 const tirePanelStorageKey = 'kwestkarz.showTirePressurePanel'
+const tireSpecScanPendingStorageKey = 'kwestkarz.tireSpecScanPending'
 
 const api = {
   async get<T>(path: string): Promise<T> {
@@ -260,6 +261,10 @@ function firstPressures(text: string) {
     .filter((value) => value >= 15 && value <= 80)
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
 function App() {
   const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const tireSpecCameraInputRef = useRef<HTMLInputElement | null>(null)
@@ -328,6 +333,34 @@ function App() {
     refreshLockBoxes()
   }, [])
 
+  useEffect(() => {
+    function refreshAfterCameraReturn() {
+      const vehicleId = localStorage.getItem(selectedVehicleStorageKey)
+      if (!vehicleId) return
+
+      if (localStorage.getItem(tirePanelStorageKey) === 'true') {
+        setShowTirePressurePanel(true)
+        loadTirePressure(vehicleId)
+      }
+
+      if (localStorage.getItem(tireSpecScanPendingStorageKey) === 'true') {
+        pollTirePressureSpec(vehicleId)
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') refreshAfterCameraReturn()
+    }
+
+    window.addEventListener('focus', refreshAfterCameraReturn)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.removeEventListener('focus', refreshAfterCameraReturn)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
+
   async function restoreWorkspace() {
     await refreshVehicles()
 
@@ -342,6 +375,9 @@ function App() {
 
     try {
       await loadDashboard(savedVehicleId)
+      if (localStorage.getItem(tireSpecScanPendingStorageKey) === 'true') {
+        await pollTirePressureSpec(savedVehicleId)
+      }
       setMessage('Vehicle restored')
     } catch {
       localStorage.removeItem(selectedVehicleStorageKey)
@@ -387,6 +423,33 @@ function App() {
       rearRightPsi: snapshot.spec?.rearRightPsi?.toString() ?? '',
       notes: snapshot.spec?.notes ?? '',
     })
+  }
+
+  async function pollTirePressureSpec(vehicleId: string) {
+    setShowTirePressurePanel(true)
+    localStorage.setItem(tirePanelStorageKey, 'true')
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const snapshot = await api.get<TirePressureSnapshot>(`/api/vehicles/${vehicleId}/tire-pressure`)
+      setTirePressure(snapshot)
+      setTireSpecForm({
+        frontLeftPsi: snapshot.spec?.frontLeftPsi?.toString() ?? '',
+        frontRightPsi: snapshot.spec?.frontRightPsi?.toString() ?? '',
+        rearLeftPsi: snapshot.spec?.rearLeftPsi?.toString() ?? '',
+        rearRightPsi: snapshot.spec?.rearRightPsi?.toString() ?? '',
+        notes: snapshot.spec?.notes ?? '',
+      })
+
+      if (snapshot.spec) {
+        localStorage.removeItem(tireSpecScanPendingStorageKey)
+        setMessage('Tire pressure spec loaded')
+        return
+      }
+
+      await wait(1500)
+    }
+
+    setMessage('Still waiting for tire scan result. Try Scan Plate again if needed.')
   }
 
   async function uploadVehicleDocument(vehicleId: string, file: File, description: string) {
@@ -637,6 +700,7 @@ function App() {
 
     setLoading(true)
     setMessage('Reading tire placard...')
+    localStorage.setItem(tireSpecScanPendingStorageKey, 'true')
 
     try {
       const form = new FormData()
@@ -678,6 +742,7 @@ function App() {
       setTirePressureInsight(result.aiText)
       setTireSpecForm(nextSpecForm)
       setTirePressure((current) => ({ ...current, spec: result.spec }))
+      localStorage.removeItem(tireSpecScanPendingStorageKey)
       setMessage('Tire pressure spec saved. Review it before relying on it.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not read tire placard')
@@ -1244,7 +1309,17 @@ function App() {
                 <form className="tire-card" onSubmit={saveTireSpec}>
                   <div className="section-heading compact-heading">
                     <h2>Factory Spec</h2>
-                    <button className="secondary-button" type="button" disabled={loading} onClick={() => tireSpecCameraInputRef.current?.click()}>
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      disabled={loading}
+                      onClick={() => {
+                        setShowTirePressurePanel(true)
+                        localStorage.setItem(tirePanelStorageKey, 'true')
+                        localStorage.setItem(tireSpecScanPendingStorageKey, 'true')
+                        tireSpecCameraInputRef.current?.click()
+                      }}
+                    >
                       Scan Plate
                     </button>
                   </div>
