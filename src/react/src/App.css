@@ -14,6 +14,33 @@
   border-bottom: 1px solid #d9ded6;
 }
 
+.app-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 10px clamp(16px, 4vw, 40px);
+  background: #ffffff;
+  border-bottom: 1px solid #d9ded6;
+}
+
+.nav-button {
+  flex: 0 0 auto;
+  min-height: 36px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #52635b;
+  padding: 8px 10px;
+}
+
+.nav-button.selected {
+  border-color: #20343a;
+  background: #20343a;
+  color: #ffffff;
+}
+
 .eyebrow {
   margin: 0 0 4px;
   color: #667a6f;
@@ -103,6 +130,47 @@ h2 {
 .lookup-band {
   background: #20343a;
   padding: 18px clamp(16px, 4vw, 40px);
+}
+
+.area-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+}
+
+.area-panel {
+  align-self: start;
+}
+
+.workflow-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.workflow-card {
+  display: grid;
+  gap: 8px;
+  min-height: 132px;
+  margin: 16px clamp(16px, 2vw, 24px);
+  border: 1px solid #d9ded6;
+  background: #ffffff;
+  color: #172026;
+  text-align: left;
+  align-content: start;
+}
+
+.workflow-card:hover {
+  border-color: #bdc7bb;
+  background: #fbfcf8;
+}
+
+.workflow-card strong {
+  font-size: 18px;
+}
+
+.workflow-card span {
+  color: #65736d;
+  font-size: 14px;
+  font-weight: 500;
 }
 
 .lookup-form {
@@ -636,6 +704,8 @@ button:disabled {
 
   .lookup-row,
   .dashboard-grid,
+  .area-grid,
+  .workflow-grid,
   .vehicle-form,
   .maintenance-form,
   .lockbox-form,

@@ -166,6 +166,28 @@ type CreateVehicleForm = {
   notes: string
 }
 
+type AppArea = 'home' | 'inventory' | 'workflows' | 'maintenance' | 'compliance' | 'lockboxes' | 'settings'
+
+const appAreas: { id: AppArea; label: string }[] = [
+  { id: 'home', label: 'Home' },
+  { id: 'inventory', label: 'Inventory' },
+  { id: 'workflows', label: 'Workflows' },
+  { id: 'maintenance', label: 'Maintenance' },
+  { id: 'compliance', label: 'Compliance' },
+  { id: 'lockboxes', label: 'Lock Boxes' },
+  { id: 'settings', label: 'Settings' },
+]
+
+const areaTitles: Record<AppArea, string> = {
+  home: 'Today',
+  inventory: 'Inventory',
+  workflows: 'Workflows',
+  maintenance: 'Maintenance',
+  compliance: 'Compliance',
+  lockboxes: 'Lock Boxes',
+  settings: 'Settings',
+}
+
 const emptyVehicleForm: CreateVehicleForm = {
   vin: '',
   year: '',
@@ -380,6 +402,7 @@ function getVinScanClientId() {
 }
 
 function App() {
+  const [activeArea, setActiveArea] = useState<AppArea>('home')
   const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const complianceCameraInputRef = useRef<HTMLInputElement | null>(null)
   const complianceFormRef = useRef<HTMLFormElement | null>(null)
@@ -832,6 +855,7 @@ function App() {
   }
 
   async function openVehicle(vehicle: Vehicle) {
+    setActiveArea('inventory')
     setLoading(true)
     setMessage('Loading vehicle...')
     setDecoded(null)
@@ -850,6 +874,7 @@ function App() {
   }
 
   function showFleet() {
+    setActiveArea('inventory')
     setDashboard(null)
     setDecoded(null)
     setVin('')
@@ -1354,10 +1379,22 @@ function App() {
       <header className="topbar">
         <div>
           <p className="eyebrow">KwestKarz Maintenance</p>
-          <h1>Vehicle Workbench</h1>
+          <h1>{areaTitles[activeArea]}</h1>
         </div>
         <span className={loading ? 'status busy' : 'status'}>{message}</span>
       </header>
+      <nav className="app-nav" aria-label="Main areas">
+        {appAreas.map((area) => (
+          <button
+            key={area.id}
+            className={activeArea === area.id ? 'nav-button selected' : 'nav-button'}
+            type="button"
+            onClick={() => setActiveArea(area.id)}
+          >
+            {area.label}
+          </button>
+        ))}
+      </nav>
       {workingMessage && (
         <div className="working-overlay" role="status" aria-live="polite">
           <span className="spinner" aria-hidden="true" />
@@ -1365,6 +1402,218 @@ function App() {
         </div>
       )}
 
+      {activeArea === 'home' && (
+        <section className="area-grid">
+          <div className="panel area-panel">
+            <div className="section-heading">
+              <h2>Fleet Snapshot</h2>
+              <p>{vehicles.length} vehicles</p>
+            </div>
+            <div className="metrics">
+              <div>
+                <span>Active</span>
+                <strong>{vehicles.filter((vehicle) => vehicle.status === 'Active').length}</strong>
+              </div>
+              <div>
+                <span>Lock Boxes</span>
+                <strong>{lockBoxes.length}</strong>
+              </div>
+              <div>
+                <span>Available Boxes</span>
+                <strong>{lockBoxes.filter((box) => box.status === 'Available' && !box.currentVehicleId).length}</strong>
+              </div>
+            </div>
+            <div className="quick-actions">
+              <button className="primary-action" type="button" onClick={() => setActiveArea('workflows')}>
+                Start Workflow
+              </button>
+              <button className="secondary-button" type="button" onClick={() => setActiveArea('inventory')}>
+                Open Inventory
+              </button>
+            </div>
+          </div>
+
+          <div className="panel area-panel">
+            <div className="section-heading">
+              <h2>Recent Vehicles</h2>
+              <p>{vehicles.slice(0, 4).length}</p>
+            </div>
+            <div className="vehicle-list">
+              {vehicles.slice(0, 4).map((vehicle) => {
+                const title = [vehicle.fleetPositionNumber, vehicle.year, vehicle.make, vehicle.model]
+                  .filter(Boolean)
+                  .join(' ')
+
+                return (
+                  <button key={vehicle.id} className="vehicle-list-item" type="button" onClick={() => openVehicle(vehicle)}>
+                    <span>{title || vehicle.vin}</span>
+                    <small>
+                      {vehicle.vin} - {vehicle.currentOdometer?.toLocaleString() ?? 'No miles'} - {vehicle.status}
+                    </small>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {activeArea === 'workflows' && (
+        <section className="area-grid workflow-grid">
+          {[
+            ['Add Vehicle', 'VIN, plate, registration, insurance, lock box'],
+            ['Pre-Rental Inspection', 'Photos, mileage, fuel, tires, damage'],
+            ['Post-Rental Inspection', 'Return condition, mileage, fuel, issues'],
+            ['Maintenance Intake', 'Receipt, service type, due dates, tire pressure'],
+            ['Damage Review', 'Photos, notes, repair status, documents'],
+            ['Compliance Renewal', 'Registration, insurance, plate verification'],
+          ].map(([title, detail]) => (
+            <button key={title} className="workflow-card" type="button">
+              <strong>{title}</strong>
+              <span>{detail}</span>
+            </button>
+          ))}
+        </section>
+      )}
+
+      {activeArea === 'maintenance' && (
+        <section className="panel area-panel">
+          <div className="section-heading">
+            <h2>Maintenance</h2>
+            <button className="primary-action" type="button" onClick={() => setActiveArea('inventory')}>
+              Open Vehicle
+            </button>
+          </div>
+          <div className="record-list">
+            {vehicles.map((vehicle) => (
+              <button key={vehicle.id} className="vehicle-list-item" type="button" onClick={() => openVehicle(vehicle)}>
+                <span>{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || vehicle.vin}</span>
+                <small>{vehicle.currentOdometer?.toLocaleString() ?? 'No miles'} - {vehicle.status}</small>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {activeArea === 'compliance' && (
+        <section className="panel area-panel">
+          <div className="section-heading">
+            <h2>Compliance</h2>
+            <p>{vehicles.length} vehicles</p>
+          </div>
+          <div className="record-list">
+            {vehicles.map((vehicle) => (
+              <button key={vehicle.id} className="vehicle-list-item" type="button" onClick={() => openVehicle(vehicle)}>
+                <span>{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || vehicle.vin}</span>
+                <small>{vehicle.licensePlate ? `${vehicle.licensePlateState ?? ''} ${vehicle.licensePlate}` : vehicle.vin}</small>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {activeArea === 'lockboxes' && (
+        <section className="panel area-panel">
+          <div className="section-heading">
+            <h2>Lock Boxes</h2>
+            <p>{lockBoxes.length} boxes</p>
+          </div>
+          <div className="lockbox-list">
+            {lockBoxes.map((lockBox) => (
+              <article key={lockBox.id} className="lockbox-card">
+                <div>
+                  <strong>Box {lockBox.boxNumber}</strong>
+                  <span>{lockBox.style} - {lockBox.status}</span>
+                  <p>Combo: {lockBox.combo || 'Not set'}</p>
+                  <p>{lockBox.currentVehicleLabel ? `Assigned to ${lockBox.currentVehicleLabel}` : 'Unassigned'}</p>
+                </div>
+                <button className="secondary-button" type="button" onClick={() => startEditingLockBox(lockBox)}>
+                  Edit
+                </button>
+              </article>
+            ))}
+          </div>
+          {editingLockBoxId && (
+            <form className="lockbox-form" onSubmit={saveLockBox}>
+              <label>
+                <span>Serial #</span>
+                <input
+                  value={lockBoxForm.serialNumber}
+                  onChange={(event) => setLockBoxForm({ ...lockBoxForm, serialNumber: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Combo</span>
+                <input
+                  value={lockBoxForm.combo}
+                  onChange={(event) => setLockBoxForm({ ...lockBoxForm, combo: event.target.value })}
+                />
+              </label>
+              <label>
+                <span>Style</span>
+                <select
+                  value={lockBoxForm.style}
+                  onChange={(event) => setLockBoxForm({ ...lockBoxForm, style: event.target.value })}
+                >
+                  {lockBoxStyles.map((style) => (
+                    <option key={style} value={style}>{style}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Status</span>
+                <select
+                  value={lockBoxForm.status}
+                  onChange={(event) => setLockBoxForm({ ...lockBoxForm, status: event.target.value })}
+                >
+                  {lockBoxStatuses.map((status) => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="wide">
+                <span>Notes</span>
+                <textarea
+                  value={lockBoxForm.notes}
+                  onChange={(event) => setLockBoxForm({ ...lockBoxForm, notes: event.target.value })}
+                />
+              </label>
+              <button type="submit" disabled={loading}>Save Lock Box</button>
+              <button className="secondary-button" type="button" onClick={() => setEditingLockBoxId('')}>
+                Cancel
+              </button>
+            </form>
+          )}
+        </section>
+      )}
+
+      {activeArea === 'settings' && (
+        <section className="area-grid">
+          <div className="panel area-panel">
+            <div className="section-heading">
+              <h2>Runtime</h2>
+              <span className={loading ? 'status busy' : 'status'}>{message}</span>
+            </div>
+            <div className="metrics">
+              <div>
+                <span>Security</span>
+                <strong>LAN Dev</strong>
+              </div>
+              <div>
+                <span>AI Logs</span>
+                <strong>On</strong>
+              </div>
+              <div>
+                <span>API</span>
+                <strong>Local</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {activeArea === 'inventory' && (
+        <>
       <section className="lookup-band">
         <form className="lookup-form" onSubmit={lookupVehicle}>
           <label htmlFor="vin">VIN Lookup / Add Vehicle</label>
@@ -2196,6 +2445,8 @@ function App() {
             </div>
           </div>
         </section>
+      )}
+        </>
       )}
     </main>
   )
