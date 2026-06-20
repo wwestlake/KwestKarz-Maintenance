@@ -149,6 +149,30 @@ type TirePressureSnapshot = {
   recentLogs: TirePressureLog[]
 }
 
+type RentalInspectionPhoto = {
+  id: string
+  inspectionId: string
+  slotKey: string
+  documentId: string
+  notes?: string
+  createdAt: string
+}
+
+type RentalInspection = {
+  id: string
+  workflowId?: string
+  vehicleId: string
+  inspectionKind: string
+  odometer?: number
+  fuelLevel?: string
+  damageFound?: boolean
+  status: string
+  notes?: string
+  createdAt: string
+  updatedAt: string
+  photos: RentalInspectionPhoto[]
+}
+
 type TirePressureSpecScanResponse = {
   spec: TirePressureSpec
   aiText: string
@@ -267,6 +291,17 @@ const maintenanceTypes = [
 const lockBoxStyles = ['Mechanical Keypad', 'Dial', 'Other']
 const lockBoxStatuses = ['Available', 'Assigned', 'Lost', 'Retired']
 const complianceTypes = ['Registration', 'Insurance', 'LicensePlate']
+const rentalInspectionPhotoSlots = [
+  ['front', 'Front'],
+  ['rear', 'Rear'],
+  ['driverSide', 'Driver Side'],
+  ['passengerSide', 'Passenger Side'],
+  ['frontInterior', 'Front Interior'],
+  ['rearInterior', 'Rear Interior'],
+  ['trunkCargo', 'Trunk / Cargo'],
+  ['odometerDashboard', 'Odometer / Dash'],
+  ['damage', 'Damage Close-up'],
+] as const
 const activeAreaStorageKey = 'kwestkarz.activeArea'
 const selectedWorkflowStorageKey = 'kwestkarz.selectedWorkflowId'
 const selectedWorkflowStepStorageKey = 'kwestkarz.selectedWorkflowStepKey'
@@ -575,6 +610,15 @@ function App() {
   })
   const [tireLogPhotoFile, setTireLogPhotoFile] = useState<File | null>(null)
   const [tirePressureInsight, setTirePressureInsight] = useState('')
+  const [rentalInspection, setRentalInspection] = useState<RentalInspection | null>(null)
+  const [rentalInspectionForm, setRentalInspectionForm] = useState({
+    inspectionKind: 'Pre',
+    odometer: '',
+    fuelLevel: '',
+    damageFound: '',
+    notes: '',
+  })
+  const [rentalInspectionPhotoFiles, setRentalInspectionPhotoFiles] = useState<Record<string, File | null>>({})
   const [message, setMessage] = useState('Ready')
   const [workingMessage, setWorkingMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -677,6 +721,18 @@ function App() {
       }, 0)
     }
   }, [activeArea, selectedWorkflowStep])
+
+  useEffect(() => {
+    if (selectedWorkflow?.workflowType !== 'RentalInspection') {
+      return
+    }
+
+    loadRentalInspection(selectedWorkflow).catch((error) => {
+      setMessage(error instanceof Error ? error.message : 'Could not load rental inspection')
+    })
+    // Rental inspection is loaded when a rental workflow becomes active; saves refresh it explicitly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedWorkflow?.id])
 
   useEffect(() => {
     if (isAddVehicleVinStep && !vin.trim() && localStorage.getItem(vinScanPendingStorageKey) === 'true') {
@@ -820,6 +876,25 @@ function App() {
     setDashboard(nextDashboard)
     setSelectedLockBoxId('')
     await loadTirePressure(vehicleId)
+  }
+
+  function applyRentalInspectionForm(inspection: RentalInspection) {
+    setRentalInspection(inspection)
+    setRentalInspectionForm({
+      inspectionKind: inspection.inspectionKind,
+      odometer: inspection.odometer?.toString() ?? '',
+      fuelLevel: inspection.fuelLevel ?? '',
+      damageFound: inspection.damageFound === undefined ? '' : inspection.damageFound ? 'true' : 'false',
+      notes: inspection.notes ?? '',
+    })
+  }
+
+  async function loadRentalInspection(workflow = selectedWorkflow) {
+    if (!workflow || workflow.workflowType !== 'RentalInspection') return null
+
+    const inspection = await api.get<RentalInspection>(`/api/workflows/${workflow.id}/rental-inspection`)
+    applyRentalInspectionForm(inspection)
+    return inspection
   }
 
   async function loadTirePressure(vehicleId: string) {
@@ -2154,6 +2229,90 @@ function App() {
     }
   }
 
+  async function saveRentalInspectionDetails(advance = false) {
+    if (!selectedWorkflow || selectedWorkflow.workflowType !== 'RentalInspection') return
+
+    setLoading(true)
+    setMessage('Saving inspection details...')
+
+    try {
+      const inspection = await api.put<RentalInspection>(`/api/workflows/${selectedWorkflow.id}/rental-inspection`, {
+        vehicleId: dashboard?.vehicle.id ?? null,
+        inspectionKind: rentalInspectionForm.inspectionKind || rentalInspectionKind,
+        odometer: rentalInspectionForm.odometer ? Number(rentalInspectionForm.odometer) : null,
+        fuelLevel: rentalInspectionForm.fuelLevel || null,
+        damageFound: rentalInspectionForm.damageFound === '' ? null : rentalInspectionForm.damageFound === 'true',
+        status: advance ? 'NeedsReview' : 'Draft',
+        notes: rentalInspectionForm.notes || null,
+      })
+      applyRentalInspectionForm(inspection)
+      const workflow = await api.get<WorkflowInstance>(`/api/workflows/${selectedWorkflow.id}`)
+      setWorkflows((current) => current.map((item) => (item.id === workflow.id ? workflow : item)))
+      if (advance && selectedWorkflowStep) {
+        const completedWorkflow = await api.put<WorkflowInstance>(`/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}`, {
+          status: 'Complete',
+          makeCurrent: true,
+          data: {
+            ...(selectedWorkflowStep.data ?? {}),
+            inspectionId: inspection.id,
+            vehicleId: inspection.vehicleId,
+            notes: rentalInspectionForm.notes,
+          },
+        })
+        const advancedWorkflow = await advanceWorkflowFromStep(completedWorkflow, selectedWorkflowStep.stepKey)
+        setWorkflows((current) => current.map((item) => (item.id === advancedWorkflow.id ? advancedWorkflow : item)))
+        selectWorkflow(advancedWorkflow)
+        setMessage('Inspection details saved. Moved to next task.')
+      } else {
+        selectWorkflow(workflow)
+        setMessage('Inspection details saved')
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not save inspection details')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function uploadRentalInspectionPhoto(slotKey: string) {
+    if (!selectedWorkflow || selectedWorkflow.workflowType !== 'RentalInspection') return
+    const file = rentalInspectionPhotoFiles[slotKey]
+    if (!file) {
+      setMessage('Choose a photo before uploading.')
+      return
+    }
+
+    setLoading(true)
+    setMessage('Uploading inspection photo...')
+
+    try {
+      if (!rentalInspection) {
+        await saveRentalInspectionDetails(false)
+      }
+
+      const form = new FormData()
+      form.append('file', file)
+      form.append('notes', rentalInspectionForm.notes)
+
+      const response = await fetch(`/api/workflows/${selectedWorkflow.id}/rental-inspection/photos/${slotKey}`, {
+        method: 'POST',
+        body: form,
+      })
+
+      if (!response.ok) throw new Error(await response.text())
+      const inspection = (await response.json()) as RentalInspection
+      applyRentalInspectionForm(inspection)
+      setRentalInspectionPhotoFiles((current) => ({ ...current, [slotKey]: null }))
+      await refreshWorkflows()
+      if (dashboard) await loadDashboard(dashboard.vehicle.id)
+      setMessage('Inspection photo saved')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not upload inspection photo')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function continueAddVehicleVin() {
     if (!selectedWorkflow || !selectedWorkflowStep) return
     const nextVin = vin.trim().toUpperCase()
@@ -2850,6 +3009,134 @@ function App() {
             </div>
             <p className="context">{dashboard.aiContextSummary}</p>
           </div>
+
+          {selectedWorkflow?.workflowType === 'RentalInspection' && (
+            <div className="panel rental-inspection-panel">
+              <div className="section-heading">
+                <div>
+                  <h2>Rental Inspection</h2>
+                  <p>
+                    {selectedWorkflowStep
+                      ? `Step ${selectedWorkflowStepIndex + 1} of ${selectedWorkflow.steps.length}: ${selectedWorkflowStep.title}`
+                      : selectedWorkflow.title}
+                  </p>
+                </div>
+                <button className="secondary-button" type="button" disabled={loading} onClick={() => setActiveArea('workflows')}>
+                  View Flow
+                </button>
+              </div>
+              {workingIndicator}
+              <div className="workflow-guidance rental-guidance">
+                <div>
+                  <span>Current instruction</span>
+                  <strong>
+                    {selectedWorkflowStep?.stepKey === 'inspectionKind' && 'Confirm whether this is pre-trip, post-trip, or both close together.'}
+                    {selectedWorkflowStep?.stepKey === 'vehicle' && 'Confirm this inspection is attached to the correct vehicle before entering condition details.'}
+                    {selectedWorkflowStep?.stepKey === 'odometerFuel' && 'Record the odometer and fuel/charge level, then save and continue.'}
+                    {selectedWorkflowStep?.stepKey === 'photos' && 'Capture the required condition photos. Retake any slot by choosing a new photo and uploading again.'}
+                    {selectedWorkflowStep?.stepKey === 'tires' && 'Open tire pressure and save an actual tire reading log.'}
+                    {selectedWorkflowStep?.stepKey === 'damage' && 'Mark whether damage was found and attach a close-up photo if needed.'}
+                    {selectedWorkflowStep?.stepKey === 'review' && 'Review the inspection, then complete the workflow when the steps look right.'}
+                    {!selectedWorkflowStep && 'Continue the rental inspection from the workflow list.'}
+                  </strong>
+                </div>
+              </div>
+              <form className="rental-inspection-form compact" onSubmit={(event) => {
+                event.preventDefault()
+                saveRentalInspectionDetails(selectedWorkflowStep?.stepKey === 'odometerFuel')
+              }}>
+                <label>
+                  <span>Inspection Type</span>
+                  <select
+                    value={rentalInspectionForm.inspectionKind}
+                    onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, inspectionKind: event.target.value })}
+                  >
+                    <option value="Pre">Pre</option>
+                    <option value="Post">Post</option>
+                    <option value="Both">Both</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Odometer</span>
+                  <input
+                    inputMode="numeric"
+                    value={rentalInspectionForm.odometer}
+                    onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, odometer: event.target.value.replace(/\D/g, '') })}
+                  />
+                </label>
+                <label>
+                  <span>Fuel / Charge</span>
+                  <input
+                    value={rentalInspectionForm.fuelLevel}
+                    placeholder="Full, 7/8, 62%, etc."
+                    onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, fuelLevel: event.target.value })}
+                  />
+                </label>
+                <label>
+                  <span>Damage Found</span>
+                  <select
+                    value={rentalInspectionForm.damageFound}
+                    onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, damageFound: event.target.value })}
+                  >
+                    <option value="">Not checked</option>
+                    <option value="false">No visible damage</option>
+                    <option value="true">Damage found</option>
+                  </select>
+                </label>
+                <label className="wide">
+                  <span>Inspection Notes</span>
+                  <textarea
+                    value={rentalInspectionForm.notes}
+                    onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, notes: event.target.value })}
+                  />
+                </label>
+                <div className="form-actions wide">
+                  <button type="submit" disabled={loading}>Save Inspection</button>
+                  <button className="secondary-button" type="button" disabled={loading} onClick={() => saveRentalInspectionDetails(true)}>
+                    Save + Continue
+                  </button>
+                </div>
+              </form>
+
+              <div className="inspection-photo-grid">
+                {rentalInspectionPhotoSlots.map(([slotKey, label]) => {
+                  const savedPhoto = rentalInspection?.photos.find((photo) => photo.slotKey === slotKey)
+                  return (
+                    <div key={slotKey} className={savedPhoto ? 'inspection-photo-slot complete' : 'inspection-photo-slot'}>
+                      <div>
+                        <strong>{label}</strong>
+                        <span>{savedPhoto ? 'Saved' : 'Needed'}</span>
+                      </div>
+                      {savedPhoto && (
+                        <a href={`/api/documents/${savedPhoto.documentId}/content`} target="_blank" rel="noreferrer">
+                          View
+                        </a>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={(event) =>
+                          setRentalInspectionPhotoFiles({
+                            ...rentalInspectionPhotoFiles,
+                            [slotKey]: event.target.files?.[0] ?? null,
+                          })
+                        }
+                      />
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        disabled={loading || !rentalInspectionPhotoFiles[slotKey]}
+                        onClick={() => uploadRentalInspectionPhoto(slotKey)}
+                      >
+                        {savedPhoto ? 'Replace Photo' : 'Upload Photo'}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="panel">
             <div className="section-heading">

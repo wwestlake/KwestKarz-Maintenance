@@ -512,6 +512,76 @@ h2 {
   gap: 8px;
 }
 
+.rental-inspection-panel {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 14px;
+}
+
+.rental-guidance {
+  background: #fbfcf8;
+}
+
+.rental-inspection-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.rental-inspection-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.rental-inspection-form .wide,
+.form-actions.wide {
+  grid-column: 1 / -1;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inspection-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.inspection-photo-slot {
+  display: grid;
+  gap: 8px;
+  border: 1px solid #d9ded6;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.inspection-photo-slot.complete {
+  border-color: #9fbea6;
+  background: #f3f8f1;
+}
+
+.inspection-photo-slot div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.inspection-photo-slot span {
+  color: #65736d;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.inspection-photo-slot input {
+  width: 100%;
+}
+
 .compact-workflow-grid {
   margin-top: 10px;
 }
@@ -1063,6 +1133,8 @@ button:disabled {
   .lockbox-current,
   .tire-grid,
   .tire-card,
+  .rental-inspection-form,
+  .inspection-photo-grid,
   .assign-row,
   .receipt-panel,
   .metrics {

@@ -231,6 +231,7 @@ module Program =
         DocumentEndpoints.mapDocumentEndpoints app |> ignore
         AIEndpoints.mapAIEndpoints app |> ignore
         WorkflowEndpoints.mapWorkflowEndpoints app |> ignore
+        RentalInspectionEndpoints.mapRentalInspectionEndpoints app |> ignore
 
         app.Run()
 

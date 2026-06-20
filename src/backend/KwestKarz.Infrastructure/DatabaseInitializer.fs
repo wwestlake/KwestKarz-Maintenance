@@ -354,6 +354,48 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
 
                 create index if not exists ix_workflow_events_workflow
                     on kwestkarzbusinessdata.workflow_events(workflow_id, created_at desc);
+
+                create table if not exists kwestkarzbusinessdata.rental_inspections (
+                    id uuid primary key,
+                    workflow_id uuid null references kwestkarzbusinessdata.workflow_instances(id) on delete set null,
+                    vehicle_id uuid not null references kwestkarzbusinessdata.vehicles(id) on delete cascade,
+                    inspection_kind text not null,
+                    odometer integer null,
+                    fuel_level text null,
+                    damage_found boolean null,
+                    status text not null,
+                    notes text null,
+                    created_at timestamptz not null,
+                    updated_at timestamptz not null,
+                    constraint rental_inspections_kind_check check (
+                        inspection_kind in ('Pre', 'Post', 'Both')
+                    ),
+                    constraint rental_inspections_status_check check (
+                        status in ('Draft', 'NeedsReview', 'Complete')
+                    )
+                );
+
+                create unique index if not exists ux_rental_inspections_workflow
+                    on kwestkarzbusinessdata.rental_inspections(workflow_id)
+                    where workflow_id is not null;
+
+                create index if not exists ix_rental_inspections_vehicle
+                    on kwestkarzbusinessdata.rental_inspections(vehicle_id, updated_at desc);
+
+                create table if not exists kwestkarzbusinessdata.rental_inspection_photos (
+                    id uuid primary key,
+                    inspection_id uuid not null references kwestkarzbusinessdata.rental_inspections(id) on delete cascade,
+                    slot_key text not null,
+                    document_id uuid not null references kwestkarzbusinessdata.documents(id) on delete cascade,
+                    notes text null,
+                    created_at timestamptz not null,
+                    constraint rental_inspection_photos_slot_check check (
+                        slot_key in ('front', 'rear', 'driverSide', 'passengerSide', 'frontInterior', 'rearInterior', 'trunkCargo', 'odometerDashboard', 'damage')
+                    )
+                );
+
+                create unique index if not exists ux_rental_inspection_photos_slot
+                    on kwestkarzbusinessdata.rental_inspection_photos(inspection_id, slot_key);
                 """
 
             use! connection = dataSource.OpenConnectionAsync(cancellationToken)
