@@ -219,6 +219,20 @@ h2 {
   gap: 6px;
 }
 
+.workflow-action-panel {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #d9ded6;
+  border-radius: 8px;
+  background: #fbfcf8;
+  padding: 12px;
+}
+
+.workflow-action-panel label {
+  display: grid;
+  gap: 6px;
+}
+
 .workflow-actions {
   display: flex;
   flex-wrap: wrap;

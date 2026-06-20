@@ -453,6 +453,7 @@ function App() {
   const [obd2ReportFile, setObd2ReportFile] = useState<File | null>(null)
   const [obd2ReportInsight, setObd2ReportInsight] = useState('')
   const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
+  const workflowVinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const complianceCameraInputRef = useRef<HTMLInputElement | null>(null)
   const complianceFormRef = useRef<HTMLFormElement | null>(null)
   const tireSpecCameraInputRef = useRef<HTMLInputElement | null>(null)
@@ -787,6 +788,14 @@ function App() {
     if (vinCameraInputRef.current) {
       vinCameraInputRef.current.value = ''
       vinCameraInputRef.current.click()
+    }
+  }
+
+  function openWorkflowVinCamera() {
+    markVinScanPending()
+    if (workflowVinCameraInputRef.current) {
+      workflowVinCameraInputRef.current.value = ''
+      workflowVinCameraInputRef.current.click()
     }
   }
 
@@ -1517,6 +1526,43 @@ function App() {
     }
   }
 
+  async function continueAddVehicleVin() {
+    if (!selectedWorkflow || !selectedWorkflowStep) return
+    const nextVin = vin.trim().toUpperCase()
+
+    if (nextVin.length < 11) {
+      setMessage('Enter or scan a VIN first.')
+      return
+    }
+
+    setLoading(true)
+    setMessage('Saving VIN and opening inventory...')
+
+    try {
+      const workflow = await api.put<WorkflowInstance>(
+        `/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}`,
+        {
+          status: 'Complete',
+          makeCurrent: true,
+          data: {
+            ...(selectedWorkflowStep.data ?? {}),
+            vin: nextVin,
+            notes: workflowStepNotes,
+          },
+        },
+      )
+      setWorkflows((current) => current.map((item) => (item.id === workflow.id ? workflow : item)))
+      setSelectedWorkflowId(workflow.id)
+      setSelectedWorkflowStepKey(selectedWorkflowStep.stepKey)
+      setActiveArea('inventory')
+      await lookupVehicleByVin(nextVin)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not continue Add Vehicle workflow')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function uploadObd2Report() {
     if (!selectedWorkflow || !selectedWorkflowStep || !obd2ReportFile) return
 
@@ -1754,6 +1800,43 @@ function App() {
                           placeholder="Save anything learned on this step. Fields and scanners will plug in here as we build each workflow."
                         />
                       </label>
+                      {selectedWorkflow.workflowType === 'AddVehicle' && selectedWorkflowStep.stepKey === 'vin' && (
+                        <div className="workflow-action-panel">
+                          <input
+                            ref={workflowVinCameraInputRef}
+                            className="hidden-input"
+                            type="file"
+                            accept="image/*"
+                            capture="environment"
+                            onChange={(event) => {
+                              const file = event.target.files?.[0]
+                              event.target.value = ''
+                              if (file) {
+                                setActiveArea('inventory')
+                                scanVinFromPhoto(file)
+                              }
+                            }}
+                          />
+                          <label>
+                            <span>VIN</span>
+                            <input
+                              value={vin}
+                              onChange={(event) => setVin(event.target.value.toUpperCase())}
+                              placeholder="Scan or enter VIN"
+                              autoCapitalize="characters"
+                            />
+                          </label>
+                          <div className="workflow-actions">
+                            <button className="secondary-button" type="button" disabled={loading} onClick={openWorkflowVinCamera}>
+                              Scan VIN
+                            </button>
+                            <button type="button" disabled={loading || vin.trim().length < 11} onClick={continueAddVehicleVin}>
+                              Find / Create Vehicle
+                            </button>
+                          </div>
+                          <p className="context">This opens Inventory with either the existing vehicle or the decoded create form.</p>
+                        </div>
+                      )}
                       {selectedWorkflowStep.stepKey === 'obd2Scan' && (
                         <div className="receipt-panel">
                           <label>
