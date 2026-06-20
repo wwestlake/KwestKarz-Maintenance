@@ -396,6 +396,52 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
 
                 create unique index if not exists ux_rental_inspection_photos_slot
                     on kwestkarzbusinessdata.rental_inspection_photos(inspection_id, slot_key);
+
+                create table if not exists kwestkarzbusinessdata.turo_trip_earning_imports (
+                    id uuid primary key,
+                    original_file_name text not null,
+                    imported_at timestamptz not null,
+                    row_count integer not null,
+                    inserted_count integer not null,
+                    updated_count integer not null,
+                    skipped_count integer not null,
+                    notes text null
+                );
+
+                create table if not exists kwestkarzbusinessdata.turo_trip_earnings (
+                    id uuid primary key,
+                    reservation_id text not null unique,
+                    vehicle_id uuid null references kwestkarzbusinessdata.vehicles(id) on delete set null,
+                    import_id uuid not null references kwestkarzbusinessdata.turo_trip_earning_imports(id) on delete cascade,
+                    guest text null,
+                    vehicle_label text null,
+                    vehicle_name text null,
+                    turo_vehicle_id text null,
+                    vin varchar(17) null,
+                    trip_start timestamptz null,
+                    trip_end timestamptz null,
+                    pickup_location text null,
+                    return_location text null,
+                    trip_status text null,
+                    check_in_odometer integer null,
+                    check_out_odometer integer null,
+                    distance_traveled integer null,
+                    trip_days integer null,
+                    trip_price numeric(12, 2) null,
+                    total_earnings numeric(12, 2) null,
+                    raw_data jsonb not null default '{}'::jsonb,
+                    created_at timestamptz not null,
+                    updated_at timestamptz not null
+                );
+
+                create index if not exists ix_turo_trip_earnings_vehicle
+                    on kwestkarzbusinessdata.turo_trip_earnings(vehicle_id, trip_end desc);
+
+                create index if not exists ix_turo_trip_earnings_vin
+                    on kwestkarzbusinessdata.turo_trip_earnings(vin, trip_end desc);
+
+                create index if not exists ix_turo_trip_earnings_status
+                    on kwestkarzbusinessdata.turo_trip_earnings(trip_status);
                 """
 
             use! connection = dataSource.OpenConnectionAsync(cancellationToken)

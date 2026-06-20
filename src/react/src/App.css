@@ -582,6 +582,49 @@ h2 {
   width: 100%;
 }
 
+.wide-panel {
+  grid-column: 1 / -1;
+}
+
+.import-form {
+  display: grid;
+  gap: 12px;
+}
+
+.import-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.import-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  margin: 12px 0;
+  border: 1px solid #d9ded6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.import-summary div {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border-right: 1px solid #d9ded6;
+  background: #fbfcf8;
+}
+
+.import-summary div:last-child {
+  border-right: none;
+}
+
+.import-summary span {
+  color: #65736d;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .compact-workflow-grid {
   margin-top: 10px;
 }
@@ -1135,6 +1178,7 @@ button:disabled {
   .tire-card,
   .rental-inspection-form,
   .inspection-photo-grid,
+  .import-summary,
   .assign-row,
   .receipt-panel,
   .metrics {

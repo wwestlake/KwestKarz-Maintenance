@@ -173,6 +173,41 @@ type RentalInspection = {
   photos: RentalInspectionPhoto[]
 }
 
+type TuroTripImportVehicleSummary = {
+  vin?: string
+  vehicleId?: string
+  vehicleName?: string
+  turoVehicleId?: string
+  importedTrips: number
+  latestOdometer?: number
+  importedMiles: number
+}
+
+type TuroTripImportResponse = {
+  importId: string
+  originalFileName: string
+  rowCount: number
+  insertedCount: number
+  updatedCount: number
+  skippedCount: number
+  vehicleMatches: number
+  vehicleSummaries: TuroTripImportVehicleSummary[]
+}
+
+type TuroMaintenanceSignal = {
+  vehicleId?: string
+  vin?: string
+  vehicleLabel: string
+  importedTrips: number
+  completedTrips: number
+  importedMiles: number
+  latestTripEnd?: string
+  latestImportedOdometer?: number
+  latestMaintenanceOdometer?: number
+  milesSinceLatestMaintenance?: number
+  suggestedActions: string[]
+}
+
 type TirePressureSpecScanResponse = {
   spec: TirePressureSpec
   aiText: string
@@ -619,6 +654,9 @@ function App() {
     notes: '',
   })
   const [rentalInspectionPhotoFiles, setRentalInspectionPhotoFiles] = useState<Record<string, File | null>>({})
+  const [turoImportFile, setTuroImportFile] = useState<File | null>(null)
+  const [turoImportResult, setTuroImportResult] = useState<TuroTripImportResponse | null>(null)
+  const [turoMaintenanceSignals, setTuroMaintenanceSignals] = useState<TuroMaintenanceSignal[]>([])
   const [message, setMessage] = useState('Ready')
   const [workingMessage, setWorkingMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -702,6 +740,13 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem(activeAreaStorageKey, activeArea)
+  }, [activeArea])
+
+  useEffect(() => {
+    if (activeArea === 'settings') {
+      loadTuroMaintenanceSignals()
+    }
+    // Settings refreshes data-import signals when opened.
   }, [activeArea])
 
   useEffect(() => {
@@ -2313,6 +2358,46 @@ function App() {
     }
   }
 
+  async function loadTuroMaintenanceSignals() {
+    try {
+      const signals = await api.get<TuroMaintenanceSignal[]>('/api/imports/turo-trip-earnings/maintenance-signals')
+      setTuroMaintenanceSignals(signals)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not load Turo maintenance signals')
+    }
+  }
+
+  async function importTuroTripEarnings(event: FormEvent) {
+    event.preventDefault()
+    if (!turoImportFile) {
+      setMessage('Choose the Turo trip earnings CSV first.')
+      return
+    }
+
+    setLoading(true)
+    setMessage('Importing Turo trips...')
+
+    try {
+      const form = new FormData()
+      form.append('file', turoImportFile)
+      const response = await fetch('/api/imports/turo-trip-earnings', {
+        method: 'POST',
+        body: form,
+      })
+      if (!response.ok) throw new Error(await response.text())
+      const result = (await response.json()) as TuroTripImportResponse
+      setTuroImportResult(result)
+      setTuroImportFile(null)
+      await refreshVehicles()
+      await loadTuroMaintenanceSignals()
+      setMessage(`Imported ${result.rowCount} rows: ${result.insertedCount} new, ${result.updatedCount} updated`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not import Turo trips')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function continueAddVehicleVin() {
     if (!selectedWorkflow || !selectedWorkflowStep) return
     const nextVin = vin.trim().toUpperCase()
@@ -2758,6 +2843,95 @@ function App() {
                 <span>API</span>
                 <strong>Local</strong>
               </div>
+            </div>
+          </div>
+          <div className="panel area-panel">
+            <div className="section-heading">
+              <div>
+                <h2>Turo Trip Import</h2>
+                <p>Reservation ID is used to update existing rows instead of duplicating them.</p>
+              </div>
+            </div>
+            <form className="import-form" onSubmit={importTuroTripEarnings}>
+              <label>
+                <span>Trip earnings CSV</span>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={(event) => setTuroImportFile(event.target.files?.[0] ?? null)}
+                />
+              </label>
+              <button type="submit" disabled={loading || !turoImportFile}>Import Trips</button>
+            </form>
+            {turoImportResult && (
+              <div className="import-summary">
+                <div>
+                  <span>Rows</span>
+                  <strong>{turoImportResult.rowCount}</strong>
+                </div>
+                <div>
+                  <span>New</span>
+                  <strong>{turoImportResult.insertedCount}</strong>
+                </div>
+                <div>
+                  <span>Updated</span>
+                  <strong>{turoImportResult.updatedCount}</strong>
+                </div>
+                <div>
+                  <span>Vehicle Matches</span>
+                  <strong>{turoImportResult.vehicleMatches}</strong>
+                </div>
+              </div>
+            )}
+            {turoImportResult && (
+              <div className="record-list">
+                {turoImportResult.vehicleSummaries.slice(0, 8).map((summary) => (
+                  <article key={`${summary.vin}-${summary.turoVehicleId}`} className="record">
+                    <strong>{summary.vehicleName ?? summary.vin ?? 'Unknown vehicle'}</strong>
+                    <span>{summary.vin ?? 'No VIN'} - {summary.importedTrips} trips</span>
+                    <p>
+                      {summary.importedMiles.toLocaleString()} imported miles
+                      {summary.latestOdometer ? ` - latest odometer ${summary.latestOdometer.toLocaleString()}` : ''}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="panel area-panel wide-panel">
+            <div className="section-heading">
+              <div>
+                <h2>Maintenance Signals From Turo</h2>
+                <p>{turoMaintenanceSignals.length} vehicles with imported trip history</p>
+              </div>
+              <button className="secondary-button" type="button" disabled={loading} onClick={loadTuroMaintenanceSignals}>
+                Refresh
+              </button>
+            </div>
+            <div className="record-list">
+              {turoMaintenanceSignals.length === 0 && <p className="empty">Import Turo trip earnings to generate maintenance signals.</p>}
+              {turoMaintenanceSignals.map((signal) => (
+                <article key={`${signal.vehicleId ?? signal.vin}`} className="record">
+                  <div className="record-heading">
+                    <strong>{signal.vehicleLabel}</strong>
+                    <span>{signal.completedTrips} completed trips</span>
+                  </div>
+                  <p>
+                    {signal.importedMiles.toLocaleString()} imported miles
+                    {signal.latestImportedOdometer ? ` - latest odometer ${signal.latestImportedOdometer.toLocaleString()}` : ''}
+                    {signal.milesSinceLatestMaintenance !== undefined ? ` - ${signal.milesSinceLatestMaintenance.toLocaleString()} miles since latest maintenance` : ''}
+                  </p>
+                  <div className="match-list">
+                    {signal.suggestedActions.length === 0 ? (
+                      <span className="status-chip good">No predicted action yet</span>
+                    ) : (
+                      signal.suggestedActions.map((action) => (
+                        <span key={action} className="status-chip warning">{action}</span>
+                      ))
+                    )}
+                  </div>
+                </article>
+              ))}
             </div>
           </div>
         </section>

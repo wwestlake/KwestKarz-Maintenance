@@ -232,6 +232,7 @@ module Program =
         AIEndpoints.mapAIEndpoints app |> ignore
         WorkflowEndpoints.mapWorkflowEndpoints app |> ignore
         RentalInspectionEndpoints.mapRentalInspectionEndpoints app |> ignore
+        TuroImportEndpoints.mapTuroImportEndpoints app |> ignore
 
         app.Run()
 
