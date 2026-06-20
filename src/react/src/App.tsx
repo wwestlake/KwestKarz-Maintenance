@@ -290,12 +290,16 @@ const maintenanceTypes = [
 const lockBoxStyles = ['Mechanical Keypad', 'Dial', 'Other']
 const lockBoxStatuses = ['Available', 'Assigned', 'Lost', 'Retired']
 const complianceTypes = ['Registration', 'Insurance', 'LicensePlate']
+const activeAreaStorageKey = 'kwestkarz.activeArea'
+const selectedWorkflowStorageKey = 'kwestkarz.selectedWorkflowId'
+const selectedWorkflowStepStorageKey = 'kwestkarz.selectedWorkflowStepKey'
 const selectedVehicleStorageKey = 'kwestkarz.selectedVehicleId'
 const tirePanelStorageKey = 'kwestkarz.showTirePressurePanel'
 const tireSpecScanPendingStorageKey = 'kwestkarz.tireSpecScanPending'
 const vinScanClientStorageKey = 'kwestkarz.vinScanClientId'
 const vinScanPendingStorageKey = 'kwestkarz.vinScanPending'
 const vinScanStartedStorageKey = 'kwestkarz.vinScanStartedAt'
+const vinScanTargetStorageKey = 'kwestkarz.vinScanTarget'
 const complianceScanPendingStorageKey = 'kwestkarz.complianceScanPending'
 const complianceScanTypeStorageKey = 'kwestkarz.complianceScanType'
 const complianceScanVehicleStorageKey = 'kwestkarz.complianceScanVehicleId'
@@ -444,8 +448,13 @@ function getVinScanClientId() {
   return next
 }
 
+function getStoredActiveArea(): AppArea {
+  const stored = localStorage.getItem(activeAreaStorageKey)
+  return appAreas.some((area) => area.id === stored) ? (stored as AppArea) : 'home'
+}
+
 function App() {
-  const [activeArea, setActiveArea] = useState<AppArea>('home')
+  const [activeArea, setActiveArea] = useState<AppArea>(getStoredActiveArea)
   const [workflows, setWorkflows] = useState<WorkflowInstance[]>([])
   const [selectedWorkflowId, setSelectedWorkflowId] = useState('')
   const [selectedWorkflowStepKey, setSelectedWorkflowStepKey] = useState('')
@@ -454,6 +463,7 @@ function App() {
   const [obd2ReportInsight, setObd2ReportInsight] = useState('')
   const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const workflowVinCameraInputRef = useRef<HTMLInputElement | null>(null)
+  const workflowEditorRef = useRef<HTMLDivElement | null>(null)
   const complianceCameraInputRef = useRef<HTMLInputElement | null>(null)
   const complianceFormRef = useRef<HTMLFormElement | null>(null)
   const tireSpecCameraInputRef = useRef<HTMLInputElement | null>(null)
@@ -576,6 +586,20 @@ function App() {
   }, [])
 
   useEffect(() => {
+    localStorage.setItem(activeAreaStorageKey, activeArea)
+  }, [activeArea])
+
+  useEffect(() => {
+    if (selectedWorkflowId) localStorage.setItem(selectedWorkflowStorageKey, selectedWorkflowId)
+    else localStorage.removeItem(selectedWorkflowStorageKey)
+  }, [selectedWorkflowId])
+
+  useEffect(() => {
+    if (selectedWorkflowStepKey) localStorage.setItem(selectedWorkflowStepStorageKey, selectedWorkflowStepKey)
+    else localStorage.removeItem(selectedWorkflowStepStorageKey)
+  }, [selectedWorkflowStepKey])
+
+  useEffect(() => {
     function refreshAfterCameraReturn() {
       const vehicleId = localStorage.getItem(selectedVehicleStorageKey)
 
@@ -663,9 +687,20 @@ function App() {
     try {
       const nextWorkflows = await api.get<WorkflowInstance[]>('/api/workflows?includeCompleted=false')
       setWorkflows(nextWorkflows)
-      if (!selectedWorkflowId && nextWorkflows.length > 0) {
-        setSelectedWorkflowId(nextWorkflows[0].id)
-        setSelectedWorkflowStepKey(nextWorkflows[0].currentStepKey)
+      const savedWorkflowId = localStorage.getItem(selectedWorkflowStorageKey)
+      const savedStepKey = localStorage.getItem(selectedWorkflowStepStorageKey)
+      const workflowToSelect =
+        nextWorkflows.find((workflow) => workflow.id === savedWorkflowId) ??
+        nextWorkflows.find((workflow) => workflow.id === selectedWorkflowId) ??
+        nextWorkflows[0]
+
+      if (workflowToSelect) {
+        const stepKey =
+          workflowToSelect.steps.some((step) => step.stepKey === savedStepKey)
+            ? savedStepKey!
+            : workflowToSelect.currentStepKey
+        setSelectedWorkflowId(workflowToSelect.id)
+        setSelectedWorkflowStepKey(stepKey)
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not load workflows')
@@ -781,10 +816,12 @@ function App() {
   function clearVinScanPending() {
     localStorage.removeItem(vinScanPendingStorageKey)
     localStorage.removeItem(vinScanStartedStorageKey)
+    localStorage.removeItem(vinScanTargetStorageKey)
   }
 
   function openVinCamera() {
     markVinScanPending()
+    localStorage.setItem(vinScanTargetStorageKey, 'inventory')
     if (vinCameraInputRef.current) {
       vinCameraInputRef.current.value = ''
       vinCameraInputRef.current.click()
@@ -793,6 +830,7 @@ function App() {
 
   function openWorkflowVinCamera() {
     markVinScanPending()
+    localStorage.setItem(vinScanTargetStorageKey, 'addVehicleWorkflow')
     if (workflowVinCameraInputRef.current) {
       workflowVinCameraInputRef.current.value = ''
       workflowVinCameraInputRef.current.click()
@@ -979,12 +1017,16 @@ function App() {
   }
 
   async function applyScannedVin(scannedVin: string) {
+    const scanTarget = localStorage.getItem(vinScanTargetStorageKey)
     clearVinScanPending()
     setWorkingMessage('')
     setVin(scannedVin)
     setMessage(`VIN read: ${scannedVin}`)
 
     try {
+      if (scanTarget === 'addVehicleWorkflow' || scanTarget === 'inventory') {
+        setActiveArea('inventory')
+      }
       await lookupVehicleByVin(scannedVin)
     } catch (error) {
       setMessage(error instanceof Error ? `VIN read, but lookup failed: ${error.message}` : 'VIN read, but lookup failed')
@@ -1467,6 +1509,9 @@ function App() {
     setWorkflowStepNotes(notes)
     setObd2ReportFile(null)
     setObd2ReportInsight(typeof step?.data?.aiText === 'string' ? step.data.aiText : '')
+    window.setTimeout(() => {
+      workflowEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
   }
 
   function selectWorkflowStep(step: WorkflowStep) {
@@ -1474,6 +1519,9 @@ function App() {
     setWorkflowStepNotes(typeof step.data?.notes === 'string' ? step.data.notes : '')
     setObd2ReportFile(null)
     setObd2ReportInsight(typeof step.data?.aiText === 'string' ? step.data.aiText : '')
+    window.setTimeout(() => {
+      workflowEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 0)
   }
 
   async function startWorkflow(workflowType: string) {
@@ -1787,7 +1835,7 @@ function App() {
                   </div>
 
                   {selectedWorkflowStep && (
-                    <div className="workflow-editor">
+                    <div ref={workflowEditorRef} className="workflow-editor">
                       <div className="section-heading compact-heading">
                         <h2>{selectedWorkflowStep.title}</h2>
                         <p>{selectedWorkflowStep.status}</p>
@@ -1812,7 +1860,6 @@ function App() {
                               const file = event.target.files?.[0]
                               event.target.value = ''
                               if (file) {
-                                setActiveArea('inventory')
                                 scanVinFromPhoto(file)
                               }
                             }}
