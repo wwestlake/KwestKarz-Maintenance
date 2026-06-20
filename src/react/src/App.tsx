@@ -2652,8 +2652,13 @@ function App() {
 
           <div className="panel area-panel">
             <div className="section-heading">
-              <h2>Recent Vehicles</h2>
-              <p>{vehicles.slice(0, 4).length}</p>
+              <div>
+                <h2>Fleet Preview</h2>
+                <p>Showing {Math.min(vehicles.length, 4)} of {vehicles.length}</p>
+              </div>
+              <button className="secondary-button" type="button" onClick={() => setActiveArea('inventory')}>
+                Open Inventory
+              </button>
             </div>
             <div className="vehicle-list">
               {vehicles.slice(0, 4).map((vehicle) => {
