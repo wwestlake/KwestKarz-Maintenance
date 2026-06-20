@@ -1029,7 +1029,7 @@ function App() {
     const workflowId = selectedWorkflowId || localStorage.getItem(selectedWorkflowStorageKey)
     const stepKey = selectedWorkflowStepKey || localStorage.getItem(selectedWorkflowStepStorageKey) || 'vin'
 
-    if (!workflowId || stepKey !== 'vin') return
+    if (!workflowId || stepKey !== 'vin') return false
 
     let workflow = await api.put<WorkflowInstance>(`/api/workflows/${workflowId}/steps/${stepKey}`, {
       status: 'Complete',
@@ -1043,6 +1043,7 @@ function App() {
     setWorkflows((current) => current.map((item) => (item.id === workflow.id ? workflow : item)))
     setSelectedWorkflowId(workflow.id)
     setSelectedWorkflowStepKey(workflow.currentStepKey)
+    return true
   }
 
   async function applyScannedVin(scannedVin: string) {
@@ -1055,7 +1056,14 @@ function App() {
     try {
       if (scanTarget === 'addVehicleWorkflow' || scanTarget === 'inventory') {
         if (scanTarget === 'addVehicleWorkflow') {
-          await saveAddVehicleWorkflowVin(scannedVin)
+          try {
+            await saveAddVehicleWorkflowVin(scannedVin)
+          } catch {
+            localStorage.removeItem(selectedWorkflowStorageKey)
+            localStorage.removeItem(selectedWorkflowStepStorageKey)
+            setSelectedWorkflowId('')
+            setSelectedWorkflowStepKey('')
+          }
         }
         setActiveArea('inventory')
       }
@@ -1102,6 +1110,12 @@ function App() {
     } finally {
       vinRecoveryActiveRef.current = false
     }
+  }
+
+  async function recoverVinScanNow() {
+    markVinScanPending()
+    localStorage.setItem(vinScanTargetStorageKey, isAddVehicleVinStep ? 'addVehicleWorkflow' : 'inventory')
+    await recoverLatestVinScan()
   }
 
   async function lookupVehicleByVin(vinToLookup: string) {
@@ -1566,6 +1580,10 @@ function App() {
   async function startWorkflow(workflowType: string) {
     setLoading(true)
     setMessage('Starting workflow...')
+    localStorage.removeItem(selectedWorkflowStorageKey)
+    localStorage.removeItem(selectedWorkflowStepStorageKey)
+    setSelectedWorkflowId('')
+    setSelectedWorkflowStepKey('')
 
     try {
       const workflow = await api.post<WorkflowInstance>('/api/workflows', {
@@ -1901,6 +1919,9 @@ function App() {
                           <div className="workflow-actions">
                             <button className="secondary-button" type="button" disabled={loading} onClick={openWorkflowVinCamera}>
                               Scan VIN
+                            </button>
+                            <button className="secondary-button" type="button" disabled={loading} onClick={recoverVinScanNow}>
+                              Use Last Scan
                             </button>
                             <button type="button" disabled={loading || vin.trim().length < 11} onClick={continueAddVehicleVin}>
                               Find / Create Vehicle
