@@ -195,17 +195,17 @@ type TuroTripImportResponse = {
 }
 
 type TuroMaintenanceSignal = {
-  vehicleId?: string
-  vin?: string
-  vehicleLabel: string
-  importedTrips: number
-  completedTrips: number
-  importedMiles: number
-  latestTripEnd?: string
-  latestImportedOdometer?: number
-  latestMaintenanceOdometer?: number
-  milesSinceLatestMaintenance?: number
-  suggestedActions: string[]
+  vehicleId?: string | null
+  vin?: string | null
+  vehicleLabel?: string | null
+  importedTrips?: number | null
+  completedTrips?: number | null
+  importedMiles?: number | null
+  latestTripEnd?: string | null
+  latestImportedOdometer?: number | null
+  latestMaintenanceOdometer?: number | null
+  milesSinceLatestMaintenance?: number | null
+  suggestedActions?: string[] | null
 }
 
 type TirePressureSpecScanResponse = {
@@ -2915,28 +2915,35 @@ function App() {
             </div>
             <div className="record-list">
               {turoMaintenanceSignals.length === 0 && <p className="empty">Import Turo trip earnings to generate maintenance signals.</p>}
-              {turoMaintenanceSignals.map((signal) => (
-                <article key={`${signal.vehicleId ?? signal.vin}`} className="record">
-                  <div className="record-heading">
-                    <strong>{signal.vehicleLabel}</strong>
-                    <span>{signal.completedTrips} completed trips</span>
-                  </div>
-                  <p>
-                    {signal.importedMiles.toLocaleString()} imported miles
-                    {signal.latestImportedOdometer ? ` - latest odometer ${signal.latestImportedOdometer.toLocaleString()}` : ''}
-                    {signal.milesSinceLatestMaintenance !== undefined ? ` - ${signal.milesSinceLatestMaintenance.toLocaleString()} miles since latest maintenance` : ''}
-                  </p>
-                  <div className="match-list">
-                    {signal.suggestedActions.length === 0 ? (
-                      <span className="status-chip good">No predicted action yet</span>
-                    ) : (
-                      signal.suggestedActions.map((action) => (
-                        <span key={action} className="status-chip warning">{action}</span>
-                      ))
-                    )}
-                  </div>
-                </article>
-              ))}
+              {turoMaintenanceSignals.map((signal, index) => {
+                const importedMiles = signal.importedMiles ?? 0
+                const completedTrips = signal.completedTrips ?? 0
+                const suggestedActions = signal.suggestedActions ?? []
+                const key = signal.vehicleId ?? signal.vin ?? `signal-${index}`
+
+                return (
+                  <article key={key} className="record">
+                    <div className="record-heading">
+                      <strong>{signal.vehicleLabel ?? signal.vin ?? 'Unmatched Turo vehicle'}</strong>
+                      <span>{completedTrips} completed trips</span>
+                    </div>
+                    <p>
+                      {importedMiles.toLocaleString()} imported miles
+                      {signal.latestImportedOdometer ? ` - latest odometer ${signal.latestImportedOdometer.toLocaleString()}` : ''}
+                      {signal.milesSinceLatestMaintenance != null ? ` - ${signal.milesSinceLatestMaintenance.toLocaleString()} miles since latest maintenance` : ''}
+                    </p>
+                    <div className="match-list">
+                      {suggestedActions.length === 0 ? (
+                        <span className="status-chip good">No predicted action yet</span>
+                      ) : (
+                        suggestedActions.map((action) => (
+                          <span key={action} className="status-chip warning">{action}</span>
+                        ))
+                      )}
+                    </div>
+                  </article>
+                )
+              })}
             </div>
           </div>
         </section>
