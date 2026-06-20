@@ -413,6 +413,41 @@ h2 {
   gap: 6px;
 }
 
+.workflow-guidance {
+  display: grid;
+  gap: 10px;
+  border: 1px solid #c9d4cb;
+  border-left: 5px solid #c9573f;
+  border-radius: 8px;
+  background: #fffdf4;
+  padding: 12px;
+}
+
+.workflow-guidance div {
+  display: grid;
+  gap: 4px;
+}
+
+.workflow-guidance span {
+  color: #65736d;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.workflow-guidance strong {
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.workflow-guidance ul {
+  display: grid;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding-left: 18px;
+  color: #32413d;
+}
+
 .workflow-card-with-control {
   align-content: start;
 }
@@ -436,6 +471,45 @@ h2 {
   margin-top: 18px;
   padding-top: 14px;
   border-top: 1px solid #d9ded6;
+}
+
+.workflow-context-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 14px clamp(16px, 4vw, 40px) 0;
+  border: 1px solid #c9d4cb;
+  border-left: 5px solid #c9573f;
+  border-radius: 8px;
+  background: #fffdf4;
+  padding: 12px;
+}
+
+.workflow-context-banner div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.workflow-context-banner span {
+  color: #65736d;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.workflow-context-banner strong {
+  font-size: 16px;
+}
+
+.workflow-context-banner p {
+  color: #32413d;
+}
+
+.workflow-context-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .compact-workflow-grid {
@@ -1017,5 +1091,15 @@ button:disabled {
   .heading-actions {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .workflow-context-banner {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .workflow-context-actions {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 }

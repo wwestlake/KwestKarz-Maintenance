@@ -42,6 +42,170 @@ function currentStepTitle(workflow: WorkflowInstance) {
   return workflow.steps.find((step) => step.stepKey === workflow.currentStepKey)?.title ?? workflow.currentStepKey
 }
 
+function inspectionKind(workflow: WorkflowInstance) {
+  const kind = workflow.steps
+    .map((step) => step.data?.inspectionKind)
+    .find((value): value is string => typeof value === 'string' && value.length > 0)
+
+  return kind ?? ''
+}
+
+function stepGuidance(workflow: WorkflowInstance, step: WorkflowStep) {
+  const kind = inspectionKind(workflow)
+  const rentalInspectionLabel = kind ? `${kind.toLowerCase()} rental inspection` : 'rental inspection'
+  const shared: Record<string, { summary: string; action: string; done: string; checklist: string[] }> = {
+    vehicle: {
+      summary: 'Pick the vehicle this workflow belongs to and make sure the dashboard is open.',
+      action: 'Open the vehicle record.',
+      done: 'The correct vehicle is selected before you record inspection or maintenance details.',
+      checklist: ['Confirm VIN or fleet vehicle', 'Confirm odometer if visible', 'Check plate/lock box context'],
+    },
+    photos: {
+      summary: `Capture the photos needed for this ${rentalInspectionLabel}.`,
+      action: 'Open the vehicle and attach photos.',
+      done: 'Photos are attached or notes explain why a photo was skipped.',
+      checklist: ['Front, rear, left, right', 'Interior and trunk/cargo area', 'Dashboard/odometer', 'Any damage or unusual condition'],
+    },
+    tires: {
+      summary: 'Record tire pressures and compare them to the saved factory spec.',
+      action: 'Open the tire pressure panel.',
+      done: 'A tire pressure log exists or notes explain why it was skipped.',
+      checklist: ['Front left', 'Front right', 'Rear left', 'Rear right', 'Flag anything low or high'],
+    },
+    damage: {
+      summary: 'Look for new or existing damage and document it clearly.',
+      action: 'Open the vehicle record and add photos/notes.',
+      done: 'Damage is either documented or marked as no visible damage.',
+      checklist: ['Walk around exterior', 'Check wheels/tires/glass', 'Check interior', 'Photo close-ups and context shots'],
+    },
+    review: {
+      summary: 'Review the workflow before closing it.',
+      action: 'Check every step and mark the workflow complete when satisfied.',
+      done: 'Required steps are complete, skipped with notes, or marked for review.',
+      checklist: ['Resolve missing required items', 'Read notes', 'Confirm vehicle context', 'Complete or continue later'],
+    },
+  }
+
+  if (workflow.workflowType === 'AddVehicle') {
+    const map: Record<string, { summary: string; action: string; done: string; checklist: string[] }> = {
+      vin: {
+        summary: 'Start by scanning or entering the VIN so the app can find or create the vehicle.',
+        action: 'Scan VIN or type it, then find/create the vehicle.',
+        done: 'The vehicle record exists and is open.',
+        checklist: ['Dashboard VIN or door-jamb VIN', 'Confirm decoded year/make/model', 'Correct bad OCR before saving'],
+      },
+      vehicleBasics: {
+        summary: 'Fill in the vehicle basics that VIN decode cannot know.',
+        action: 'Open vehicle details.',
+        done: 'Color, plate, odometer, fleet number, and notes are saved where known.',
+        checklist: ['Color', 'Current odometer', 'Plate number/state', 'Fleet position number'],
+      },
+      licensePlate: {
+        summary: 'Capture the plate and registration tab so the app can cross-check plate/state.',
+        action: 'Scan the license plate.',
+        done: 'Plate number, state, and visible tab info are saved or corrected.',
+        checklist: ['Plate number', 'State', 'Month/year tab', 'Photo attached'],
+      },
+      registration: {
+        summary: 'Scan the registration document and verify VIN, plate, state, and expiration.',
+        action: 'Scan registration.',
+        done: 'Registration record is saved and the checks look right.',
+        checklist: ['VIN', 'Plate/state', 'Expiration date', 'Photo attached'],
+      },
+      insurance: {
+        summary: 'Scan the insurance card and verify policy/provider/VIN/expiration.',
+        action: 'Scan insurance.',
+        done: 'Insurance record is saved. Missing plate is okay when the card does not show one.',
+        checklist: ['Provider', 'Policy number', 'VIN if shown', 'Expiration date'],
+      },
+      lockBox: {
+        summary: 'Assign a lock box to the car and confirm the combo is available.',
+        action: 'Open lock box assignment.',
+        done: 'A lock box is assigned or notes explain why not.',
+        checklist: ['Box number', 'Combo', 'Style', 'Assignment notes'],
+      },
+      photosOdometer: {
+        summary: 'Attach starter photos and capture the initial odometer.',
+        action: 'Open vehicle photos/odometer area.',
+        done: 'Starter photos and odometer are recorded.',
+        checklist: ['Odometer', 'Exterior overview', 'Interior overview', 'Any notable condition'],
+      },
+    }
+
+    return map[step.stepKey] ?? shared[step.stepKey] ?? shared.review
+  }
+
+  if (workflow.workflowType === 'RentalInspection') {
+    const map: Record<string, { summary: string; action: string; done: string; checklist: string[] }> = {
+      inspectionKind: {
+        summary: `This inspection is marked ${kind || 'Pre/Post/Both'}. Confirm whether it is before a trip, after a trip, or both close together.`,
+        action: 'Open the vehicle and confirm inspection context.',
+        done: 'Inspection kind is correct and notes mention anything unusual about timing.',
+        checklist: ['Pre means before handoff', 'Post means after return', 'Both means close enough to combine', 'Note any timing exception'],
+      },
+      odometerFuel: {
+        summary: 'Record mileage and fuel/charge level at inspection time.',
+        action: 'Open the vehicle record.',
+        done: 'Odometer and fuel/charge status are recorded in notes or vehicle details.',
+        checklist: ['Odometer photo', 'Fuel/charge level', 'Warning lights', 'Dashboard condition'],
+      },
+    }
+
+    return map[step.stepKey] ?? shared[step.stepKey] ?? shared.review
+  }
+
+  if (workflow.workflowType === 'TechnicalCheck') {
+    const map: Record<string, { summary: string; action: string; done: string; checklist: string[] }> = {
+      returnIntake: {
+        summary: 'Start the technical check with the vehicle context and customer-return notes.',
+        action: 'Open the vehicle and review current condition.',
+        done: 'Vehicle is selected and any reported issue is captured.',
+        checklist: ['Vehicle selected', 'Reported issue noted', 'Mileage noted', 'Photos if useful'],
+      },
+      underHood: {
+        summary: 'Inspect obvious under-hood issues before scanning electronics.',
+        action: 'Add notes/photos on the vehicle.',
+        done: 'Under-hood check is noted or marked clear.',
+        checklist: ['Leaks', 'Belts/hoses', 'Oil/coolant visual', 'Loose or damaged parts'],
+      },
+      fluids: {
+        summary: 'Check serviceable fluids and note anything low, dirty, or leaking.',
+        action: 'Add notes/photos on the vehicle.',
+        done: 'Fluid condition is recorded or marked clear.',
+        checklist: ['Oil', 'Coolant', 'Brake fluid', 'Washer fluid', 'Transmission if applicable'],
+      },
+      batteryCharging: {
+        summary: 'Check battery/charging symptoms and record any test result available.',
+        action: 'Add notes/photos on the vehicle.',
+        done: 'Battery/charging status is noted.',
+        checklist: ['Battery age/condition', 'Terminals', 'Charging warning light', 'Voltage/test result if available'],
+      },
+      obd2Scan: {
+        summary: 'Upload the RepairSolutions2/Innova PDF report so AI can summarize codes and recommended actions.',
+        action: 'Upload OBD2 PDF.',
+        done: 'OBD2 report is uploaded and reviewed.',
+        checklist: ['Connect scanner', 'Generate PDF', 'Upload PDF', 'Review AI summary'],
+      },
+      idleRoadCheck: {
+        summary: 'Run the car enough to notice idle, driveability, braking, steering, and warning-light issues.',
+        action: 'Record notes in this workflow.',
+        done: 'Road/idle check is marked clear or issues are described.',
+        checklist: ['Idle quality', 'Acceleration', 'Braking', 'Steering', 'No new warning lights'],
+      },
+      issues: {
+        summary: 'Collect any problems found and decide whether they become maintenance or damage work.',
+        action: 'Record notes and mark needs review if needed.',
+        done: 'Issues are either cleared, logged, or marked for review.',
+        checklist: ['Maintenance issue', 'Damage issue', 'Safety issue', 'Next action'],
+      },
+    }
+
+    return map[step.stepKey] ?? shared[step.stepKey] ?? shared.review
+  }
+
+  return shared[step.stepKey] ?? shared.review
+}
+
 export function WorkflowDashboard({
   workflowCatalog,
   activeWorkflows,
@@ -76,6 +240,8 @@ export function WorkflowDashboard({
   saveWorkflowStep,
   updateWorkflowStatus,
 }: WorkflowDashboardProps) {
+  const guidance = selectedWorkflow && selectedWorkflowStep ? stepGuidance(selectedWorkflow, selectedWorkflowStep) : null
+
   return (
     <>
       <section className="area-grid">
@@ -123,7 +289,19 @@ export function WorkflowDashboard({
             <h2>{selectedWorkflow?.title ?? 'Workflow'}</h2>
             <p>{selectedWorkflow?.status ?? 'Select one'}</p>
           </div>
-          {!selectedWorkflow && <p className="empty">Start or select a workflow to continue.</p>}
+          {!selectedWorkflow && (
+            <div className="workflow-guidance">
+              <div>
+                <span>How workflows work</span>
+                <strong>Select an active workflow to review its steps. Use Continue Workflow to jump to the next task, or click a specific step to work on that item.</strong>
+              </div>
+              <ul>
+                <li>Active workflows are work in progress.</li>
+                <li>Completed workflows stay available for review.</li>
+                <li>Start New creates a fresh guided process.</li>
+              </ul>
+            </div>
+          )}
           {selectedWorkflow && (
             <>
               {selectedWorkflowStep && (
@@ -132,6 +310,27 @@ export function WorkflowDashboard({
                     <h2>{selectedWorkflowStep.title}</h2>
                     <p>{selectedWorkflowStep.status}</p>
                   </div>
+                  {guidance && (
+                    <div className="workflow-guidance">
+                      <div>
+                        <span>Current task</span>
+                        <strong>{guidance.summary}</strong>
+                      </div>
+                      <div>
+                        <span>What to do</span>
+                        <strong>{guidance.action}</strong>
+                      </div>
+                      <div>
+                        <span>Done when</span>
+                        <strong>{guidance.done}</strong>
+                      </div>
+                      <ul>
+                        {guidance.checklist.map((item) => (
+                          <li key={item}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                   <div className="workflow-actions">
                     <button className="primary-action" type="button" disabled={loading} onClick={() => activateWorkflowStep(selectedWorkflow, selectedWorkflowStep)}>
                       Continue Workflow
@@ -215,7 +414,7 @@ export function WorkflowDashboard({
               )}
 
               <div className="workflow-step-list">
-                {selectedWorkflow.steps.map((step) => (
+                {selectedWorkflow.steps.map((step, index) => (
                   <button
                     key={step.id}
                     className={selectedWorkflowStepKey === step.stepKey ? 'workflow-step selected' : 'workflow-step'}
@@ -223,7 +422,7 @@ export function WorkflowDashboard({
                     onClick={() => activateWorkflowStep(selectedWorkflow, step)}
                   >
                     <strong>{step.title}</strong>
-                    <span>{step.status}</span>
+                    <span>Step {index + 1} of {selectedWorkflow.steps.length} - {step.status}</span>
                   </button>
                 ))}
               </div>

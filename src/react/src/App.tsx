@@ -604,6 +604,9 @@ function App() {
     () => selectedWorkflow?.steps.find((step) => step.stepKey === selectedWorkflowStepKey) ?? null,
     [selectedWorkflow, selectedWorkflowStepKey],
   )
+  const selectedWorkflowStepIndex = selectedWorkflow && selectedWorkflowStep
+    ? selectedWorkflow.steps.findIndex((step) => step.stepKey === selectedWorkflowStep.stepKey)
+    : -1
   const activeWorkflows = workflows.filter((workflow) => workflow.status !== 'Complete' && workflow.status !== 'Canceled')
   const completedWorkflows = workflows.filter((workflow) => workflow.status === 'Complete')
   const selectedWorkflowStepDocumentId =
@@ -2255,6 +2258,25 @@ function App() {
           </button>
         ))}
       </nav>
+      {activeArea !== 'workflows' && selectedWorkflow && selectedWorkflowStep && (
+        <section className="workflow-context-banner" aria-label="Active workflow context">
+          <div>
+            <span>Workflow mode</span>
+            <strong>{selectedWorkflow.title}</strong>
+            <p>
+              Step {selectedWorkflowStepIndex + 1} of {selectedWorkflow.steps.length}: {selectedWorkflowStep.title}
+            </p>
+          </div>
+          <div className="workflow-context-actions">
+            <button className="secondary-button" type="button" disabled={loading} onClick={() => setActiveArea('workflows')}>
+              View Steps
+            </button>
+            <button className="secondary-button" type="button" disabled={loading} onClick={() => saveWorkflowStep('Complete')}>
+              Mark Step Done
+            </button>
+          </div>
+        </section>
+      )}
       {workingMessage && (
         <div className="working-overlay" role="status" aria-live="polite">
           <span className="spinner" aria-hidden="true" />
