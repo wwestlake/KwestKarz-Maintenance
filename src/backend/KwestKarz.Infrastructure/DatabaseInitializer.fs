@@ -300,7 +300,7 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                     completed_at timestamptz null,
                     canceled_at timestamptz null,
                     constraint workflow_instances_type_check check (
-                        workflow_type in ('AddVehicle', 'PreRentalInspection', 'PostRentalInspection', 'MaintenanceIntake', 'DamageReview', 'ComplianceRenewal', 'TechnicalCheck')
+                        workflow_type in ('AddVehicle', 'RentalInspection', 'PreRentalInspection', 'PostRentalInspection', 'MaintenanceIntake', 'DamageReview', 'ComplianceRenewal', 'TechnicalCheck')
                     ),
                     constraint workflow_instances_status_check check (
                         status in ('Draft', 'InProgress', 'Waiting', 'Complete', 'Canceled')
@@ -318,7 +318,7 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
 
                 alter table kwestkarzbusinessdata.workflow_instances
                     add constraint workflow_instances_type_check check (
-                        workflow_type in ('AddVehicle', 'PreRentalInspection', 'PostRentalInspection', 'MaintenanceIntake', 'DamageReview', 'ComplianceRenewal', 'TechnicalCheck')
+                        workflow_type in ('AddVehicle', 'RentalInspection', 'PreRentalInspection', 'PostRentalInspection', 'MaintenanceIntake', 'DamageReview', 'ComplianceRenewal', 'TechnicalCheck')
                     );
 
                 create table if not exists kwestkarzbusinessdata.workflow_steps (

@@ -15,7 +15,9 @@ open UglyToad.PdfPig
 
 module WorkflowEndpoints =
     let private workflowTypes =
-        set [ "AddVehicle"; "PreRentalInspection"; "PostRentalInspection"; "MaintenanceIntake"; "DamageReview"; "ComplianceRenewal"; "TechnicalCheck" ]
+        set [ "AddVehicle"; "RentalInspection"; "MaintenanceIntake"; "DamageReview"; "ComplianceRenewal"; "TechnicalCheck" ]
+
+    let private inspectionKinds = set [ "Pre"; "Post"; "Both" ]
 
     let private workflowStatuses = set [ "Draft"; "InProgress"; "Waiting"; "Complete"; "Canceled" ]
     let private stepStatuses = set [ "NotStarted"; "InProgress"; "NeedsReview"; "Complete"; "Skipped"; "Problem" ]
@@ -28,8 +30,7 @@ module WorkflowEndpoints =
     let private defaultTitle workflowType =
         match workflowType with
         | "AddVehicle" -> "Add Vehicle to Inventory"
-        | "PreRentalInspection" -> "Pre-Rental Inspection"
-        | "PostRentalInspection" -> "Post-Rental Inspection"
+        | "RentalInspection" -> "Rental Inspection"
         | "MaintenanceIntake" -> "Maintenance Intake"
         | "DamageReview" -> "Damage Review"
         | "ComplianceRenewal" -> "Compliance Renewal"
@@ -47,18 +48,13 @@ module WorkflowEndpoints =
                ("lockBox", "Lock Box")
                ("photosOdometer", "Photos / Odometer")
                ("review", "Review") |]
-        | "PreRentalInspection" ->
+        | "RentalInspection" ->
             [| ("vehicle", "Vehicle")
+               ("inspectionKind", "Inspection Kind")
                ("odometerFuel", "Odometer / Fuel")
                ("photos", "Photos")
                ("tires", "Tires")
                ("damage", "Damage")
-               ("review", "Review") |]
-        | "PostRentalInspection" ->
-            [| ("vehicle", "Vehicle")
-               ("returnState", "Return State")
-               ("photos", "Photos")
-               ("issues", "Issues")
                ("review", "Review") |]
         | "MaintenanceIntake" ->
             [| ("vehicle", "Vehicle")
@@ -324,12 +320,22 @@ Report text:
                 task {
                     if not (workflowTypes.Contains request.WorkflowType) then
                         return Results.BadRequest("Unsupported workflow type.")
+                    elif request.WorkflowType = "RentalInspection"
+                         && request.InspectionKind.IsSome
+                         && not (inspectionKinds.Contains request.InspectionKind.Value) then
+                        return Results.BadRequest("inspectionKind must be Pre, Post, or Both.")
                     else
                         let workflowId = Guid.NewGuid()
                         let now = DateTimeOffset.UtcNow
                         let steps = defaultSteps request.WorkflowType
                         let currentStepKey = steps |> Array.head |> fst
-                        let title = request.Title |> Option.filter (String.IsNullOrWhiteSpace >> not) |> Option.defaultValue (defaultTitle request.WorkflowType)
+                        let inspectionKind = request.InspectionKind |> Option.defaultValue "Pre"
+                        let defaultWorkflowTitle =
+                            if request.WorkflowType = "RentalInspection" then
+                                $"Rental Inspection ({inspectionKind})"
+                            else
+                                defaultTitle request.WorkflowType
+                        let title = request.Title |> Option.filter (String.IsNullOrWhiteSpace >> not) |> Option.defaultValue defaultWorkflowTitle
 
                         use! connection = dataSource.OpenConnectionAsync(httpContext.RequestAborted)
                         use! transaction = connection.BeginTransactionAsync(httpContext.RequestAborted)
@@ -366,7 +372,7 @@ Report text:
                                     insert into kwestkarzbusinessdata.workflow_steps (
                                         id, workflow_id, step_key, title, status, sort_order, data, created_at, updated_at
                                     )
-                                    values (@id, @workflow_id, @step_key, @title, @status, @sort_order, '{}'::jsonb, @created_at, @updated_at)
+                                    values (@id, @workflow_id, @step_key, @title, @status, @sort_order, @data::jsonb, @created_at, @updated_at)
                                     """,
                                     connection,
                                     transaction
@@ -378,6 +384,12 @@ Report text:
                             insertStep.Parameters.AddWithValue("title", NpgsqlDbType.Text, stepTitle) |> ignore
                             insertStep.Parameters.AddWithValue("status", NpgsqlDbType.Text, if index = 0 then "InProgress" else "NotStarted") |> ignore
                             insertStep.Parameters.AddWithValue("sort_order", NpgsqlDbType.Integer, index) |> ignore
+                            let data =
+                                if request.WorkflowType = "RentalInspection" && stepKey = "inspectionKind" then
+                                    JsonSerializer.Serialize {| inspectionKind = inspectionKind |}
+                                else
+                                    "{}"
+                            insertStep.Parameters.AddWithValue("data", NpgsqlDbType.Jsonb, data) |> ignore
                             insertStep.Parameters.AddWithValue("created_at", NpgsqlDbType.TimestampTz, now) |> ignore
                             insertStep.Parameters.AddWithValue("updated_at", NpgsqlDbType.TimestampTz, now) |> ignore
                             let! _ = insertStep.ExecuteNonQueryAsync(httpContext.RequestAborted)

@@ -30,7 +30,8 @@ type WorkflowInstanceResponse =
 type CreateWorkflowRequest =
     { WorkflowType: string
       VehicleId: Guid option
-      Title: string option }
+      Title: string option
+      InspectionKind: string option }
 
 type UpdateWorkflowStepRequest =
     { Status: string

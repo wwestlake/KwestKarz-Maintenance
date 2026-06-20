@@ -413,6 +413,18 @@ h2 {
   gap: 6px;
 }
 
+.workflow-card-with-control {
+  align-content: start;
+}
+
+.workflow-card-with-control select {
+  min-height: 42px;
+}
+
+.workflow-card-with-control button {
+  margin-top: 0;
+}
+
 .workflow-actions {
   display: flex;
   flex-wrap: wrap;

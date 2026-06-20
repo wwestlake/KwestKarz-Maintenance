@@ -16,6 +16,7 @@ type WorkflowDashboardProps = {
   isAddVehicleVinStep: boolean
   loading: boolean
   vin: string
+  rentalInspectionKind: string
   workflowStepNotes: string
   obd2ReportFile: File | null
   obd2ReportInsight: string
@@ -26,6 +27,7 @@ type WorkflowDashboardProps = {
   activateWorkflowStep: (workflow: WorkflowInstance, step: WorkflowStep) => void
   scanVinFromPhoto: (file: File) => void
   setVin: (vin: string) => void
+  setRentalInspectionKind: (kind: string) => void
   openWorkflowVinCamera: () => void
   recoverVinScanNow: () => void
   continueAddVehicleVin: () => void
@@ -53,6 +55,7 @@ export function WorkflowDashboard({
   isAddVehicleVinStep,
   loading,
   vin,
+  rentalInspectionKind,
   workflowStepNotes,
   obd2ReportFile,
   obd2ReportInsight,
@@ -63,6 +66,7 @@ export function WorkflowDashboard({
   activateWorkflowStep,
   scanVinFromPhoto,
   setVin,
+  setRentalInspectionKind,
   openWorkflowVinCamera,
   recoverVinScanNow,
   continueAddVehicleVin,
@@ -246,12 +250,27 @@ export function WorkflowDashboard({
           <p>{workflowCatalog.length} workflow types</p>
         </div>
         <div className="workflow-grid compact-workflow-grid">
-          {workflowCatalog.map(([workflowType, title, detail]) => (
-            <button key={workflowType} className="workflow-card" type="button" disabled={loading} onClick={() => startWorkflow(workflowType)}>
-              <strong>{title}</strong>
-              <span>{detail}</span>
-            </button>
-          ))}
+          {workflowCatalog.map(([workflowType, title, detail]) =>
+            workflowType === 'RentalInspection' ? (
+              <div key={workflowType} className="workflow-card workflow-card-with-control">
+                <strong>{title}</strong>
+                <span>{detail}</span>
+                <select value={rentalInspectionKind} onChange={(event) => setRentalInspectionKind(event.target.value)} disabled={loading}>
+                  <option value="Pre">Pre</option>
+                  <option value="Post">Post</option>
+                  <option value="Both">Both</option>
+                </select>
+                <button type="button" disabled={loading} onClick={() => startWorkflow(workflowType)}>
+                  Start {rentalInspectionKind}
+                </button>
+              </div>
+            ) : (
+              <button key={workflowType} className="workflow-card" type="button" disabled={loading} onClick={() => startWorkflow(workflowType)}>
+                <strong>{title}</strong>
+                <span>{detail}</span>
+              </button>
+            ),
+          )}
         </div>
       </section>
     </>

@@ -191,8 +191,7 @@ const appAreas: { id: AppArea; label: string }[] = [
 
 const workflowCatalog = [
   ['AddVehicle', 'Add Vehicle', 'VIN, plate, registration, insurance, lock box'],
-  ['PreRentalInspection', 'Pre-Rental Inspection', 'Photos, mileage, fuel, tires, damage'],
-  ['PostRentalInspection', 'Post-Rental Inspection', 'Return condition, mileage, fuel, issues'],
+  ['RentalInspection', 'Rental Inspection', 'Pre, post, or both: photos, mileage, fuel, tires, damage'],
   ['MaintenanceIntake', 'Maintenance Intake', 'Receipt, service type, due dates, tire pressure'],
   ['TechnicalCheck', 'Technical Check', 'Under hood, fluids, battery, OBD2 report, road check'],
   ['DamageReview', 'Damage Review', 'Photos, notes, repair status, documents'],
@@ -497,6 +496,7 @@ function App() {
   const [workflows, setWorkflows] = useState<WorkflowInstance[]>([])
   const [selectedWorkflowId, setSelectedWorkflowId] = useState('')
   const [selectedWorkflowStepKey, setSelectedWorkflowStepKey] = useState('')
+  const [rentalInspectionKind, setRentalInspectionKind] = useState('Pre')
   const [workflowStepNotes, setWorkflowStepNotes] = useState('')
   const [obd2ReportFile, setObd2ReportFile] = useState<File | null>(null)
   const [obd2ReportInsight, setObd2ReportInsight] = useState('')
@@ -1984,7 +1984,7 @@ function App() {
         return
       }
 
-      if (['vehicle', 'vehicleBasics', 'licensePlate', 'photos', 'photosOdometer', 'odometerFuel', 'returnState'].includes(freshStep.stepKey)) {
+      if (['vehicle', 'vehicleBasics', 'licensePlate', 'photos', 'photosOdometer', 'odometerFuel', 'returnState', 'inspectionKind'].includes(freshStep.stepKey)) {
         setActiveArea('inventory')
         await openWorkflowVehicle(freshWorkflow)
         setMessage(`${freshStep.title}: update the vehicle details here.`)
@@ -2060,7 +2060,8 @@ function App() {
       const workflow = await api.post<WorkflowInstance>('/api/workflows', {
         workflowType,
         vehicleId: dashboard?.vehicle.id ?? null,
-        title: null,
+        title: workflowType === 'RentalInspection' ? `Rental Inspection (${rentalInspectionKind})` : null,
+        inspectionKind: workflowType === 'RentalInspection' ? rentalInspectionKind : null,
       })
       setActiveArea('workflows')
       setWorkflows((current) => [workflow, ...current])
@@ -2422,6 +2423,7 @@ function App() {
           isAddVehicleVinStep={isAddVehicleVinStep}
           loading={loading}
           vin={vin}
+          rentalInspectionKind={rentalInspectionKind}
           workflowStepNotes={workflowStepNotes}
           obd2ReportFile={obd2ReportFile}
           obd2ReportInsight={obd2ReportInsight}
@@ -2432,6 +2434,7 @@ function App() {
           activateWorkflowStep={activateWorkflowStep}
           scanVinFromPhoto={scanVinFromPhoto}
           setVin={setVin}
+          setRentalInspectionKind={setRentalInspectionKind}
           openWorkflowVinCamera={openWorkflowVinCamera}
           recoverVinScanNow={recoverVinScanNow}
           continueAddVehicleVin={continueAddVehicleVin}
