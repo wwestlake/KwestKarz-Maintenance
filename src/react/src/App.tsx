@@ -563,6 +563,7 @@ function App() {
     typeof selectedWorkflowStep?.data?.documentId === 'string' ? selectedWorkflowStep.data.documentId : ''
   const selectedWorkflowStepAiText =
     typeof selectedWorkflowStep?.data?.aiText === 'string' ? selectedWorkflowStep.data.aiText : ''
+  const isAddVehicleVinStep = selectedWorkflow?.workflowType === 'AddVehicle' && selectedWorkflowStep?.stepKey === 'vin'
 
   const workingIndicator = workingMessage ? (
     <div className="working-inline" role="status" aria-live="polite">
@@ -598,6 +599,14 @@ function App() {
     if (selectedWorkflowStepKey) localStorage.setItem(selectedWorkflowStepStorageKey, selectedWorkflowStepKey)
     else localStorage.removeItem(selectedWorkflowStepStorageKey)
   }, [selectedWorkflowStepKey])
+
+  useEffect(() => {
+    if (activeArea === 'workflows' && selectedWorkflowStep) {
+      window.setTimeout(() => {
+        workflowEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 0)
+    }
+  }, [activeArea, selectedWorkflowStep?.id])
 
   useEffect(() => {
     function refreshAfterCameraReturn() {
@@ -1016,6 +1025,26 @@ function App() {
     await lookupVehicleByVin(normalizedVin)
   }
 
+  async function saveAddVehicleWorkflowVin(scannedVin: string) {
+    const workflowId = selectedWorkflowId || localStorage.getItem(selectedWorkflowStorageKey)
+    const stepKey = selectedWorkflowStepKey || localStorage.getItem(selectedWorkflowStepStorageKey) || 'vin'
+
+    if (!workflowId || stepKey !== 'vin') return
+
+    let workflow = await api.put<WorkflowInstance>(`/api/workflows/${workflowId}/steps/${stepKey}`, {
+      status: 'Complete',
+      makeCurrent: true,
+      data: {
+        vin: scannedVin,
+        notes: workflowStepNotes,
+      },
+    })
+    workflow = await advanceWorkflowFromStep(workflow, stepKey)
+    setWorkflows((current) => current.map((item) => (item.id === workflow.id ? workflow : item)))
+    setSelectedWorkflowId(workflow.id)
+    setSelectedWorkflowStepKey(workflow.currentStepKey)
+  }
+
   async function applyScannedVin(scannedVin: string) {
     const scanTarget = localStorage.getItem(vinScanTargetStorageKey)
     clearVinScanPending()
@@ -1025,6 +1054,9 @@ function App() {
 
     try {
       if (scanTarget === 'addVehicleWorkflow' || scanTarget === 'inventory') {
+        if (scanTarget === 'addVehicleWorkflow') {
+          await saveAddVehicleWorkflowVin(scannedVin)
+        }
         setActiveArea('inventory')
       }
       await lookupVehicleByVin(scannedVin)
@@ -1132,8 +1164,15 @@ function App() {
       const scannedVin = apiVin.trim().toUpperCase() || extractVin(aiText)
 
       if (!scannedVin) {
+        const scanTarget = localStorage.getItem(vinScanTargetStorageKey)
         clearVinScanPending()
         setWorkingMessage('')
+        if (scanTarget === 'addVehicleWorkflow') {
+          setActiveArea('workflows')
+          window.setTimeout(() => {
+            workflowEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }, 0)
+        }
         setMessage('No VIN found in photo. Try closer, flatter lighting, and fill the frame with the VIN.')
         return
       }
@@ -1545,6 +1584,24 @@ function App() {
     }
   }
 
+  async function advanceWorkflowFromStep(workflow: WorkflowInstance, completedStepKey: string) {
+    const completedStep = workflow.steps.find((step) => step.stepKey === completedStepKey)
+    const nextStep = workflow.steps.find((step) => step.sortOrder === (completedStep?.sortOrder ?? -1) + 1)
+
+    if (!nextStep) {
+      return api.put<WorkflowInstance>(`/api/workflows/${workflow.id}/status`, {
+        status: 'Complete',
+        currentStepKey: completedStepKey,
+      })
+    }
+
+    return api.put<WorkflowInstance>(`/api/workflows/${workflow.id}/steps/${nextStep.stepKey}`, {
+      status: nextStep.status === 'Complete' ? nextStep.status : 'InProgress',
+      makeCurrent: true,
+      data: nextStep.data ?? {},
+    })
+  }
+
   async function saveWorkflowStep(status: string) {
     if (!selectedWorkflow || !selectedWorkflowStep) return
 
@@ -1552,7 +1609,7 @@ function App() {
     setMessage('Saving workflow step...')
 
     try {
-      const workflow = await api.put<WorkflowInstance>(
+      let workflow = await api.put<WorkflowInstance>(
         `/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}`,
         {
           status,
@@ -1563,10 +1620,12 @@ function App() {
           },
         },
       )
+      if (status === 'Complete') {
+        workflow = await advanceWorkflowFromStep(workflow, selectedWorkflowStep.stepKey)
+      }
       setWorkflows((current) => current.map((item) => (item.id === workflow.id ? workflow : item)))
       selectWorkflow(workflow)
-      setSelectedWorkflowStepKey(selectedWorkflowStep.stepKey)
-      setMessage(status === 'Complete' ? 'Step marked complete' : 'Workflow step saved')
+      setMessage(status === 'Complete' ? 'Step complete. Moved to next task.' : 'Workflow step saved')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not save workflow step')
     } finally {
@@ -1587,21 +1646,7 @@ function App() {
     setMessage('Saving VIN and opening inventory...')
 
     try {
-      const workflow = await api.put<WorkflowInstance>(
-        `/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}`,
-        {
-          status: 'Complete',
-          makeCurrent: true,
-          data: {
-            ...(selectedWorkflowStep.data ?? {}),
-            vin: nextVin,
-            notes: workflowStepNotes,
-          },
-        },
-      )
-      setWorkflows((current) => current.map((item) => (item.id === workflow.id ? workflow : item)))
-      setSelectedWorkflowId(workflow.id)
-      setSelectedWorkflowStepKey(selectedWorkflowStep.stepKey)
+      await saveAddVehicleWorkflowVin(nextVin)
       setActiveArea('inventory')
       await lookupVehicleByVin(nextVin)
     } catch (error) {
@@ -1820,36 +1865,16 @@ function App() {
               {!selectedWorkflow && <p className="empty">Start or select a workflow to continue.</p>}
               {selectedWorkflow && (
                 <>
-                  <div className="workflow-step-list">
-                    {selectedWorkflow.steps.map((step) => (
-                      <button
-                        key={step.id}
-                        className={selectedWorkflowStepKey === step.stepKey ? 'workflow-step selected' : 'workflow-step'}
-                        type="button"
-                        onClick={() => selectWorkflowStep(step)}
-                      >
-                        <strong>{step.title}</strong>
-                        <span>{step.status}</span>
-                      </button>
-                    ))}
-                  </div>
-
                   {selectedWorkflowStep && (
                     <div ref={workflowEditorRef} className="workflow-editor">
                       <div className="section-heading compact-heading">
                         <h2>{selectedWorkflowStep.title}</h2>
                         <p>{selectedWorkflowStep.status}</p>
                       </div>
-                      <label>
-                        <span>Notes / draft data</span>
-                        <textarea
-                          value={workflowStepNotes}
-                          onChange={(event) => setWorkflowStepNotes(event.target.value)}
-                          placeholder="Save anything learned on this step. Fields and scanners will plug in here as we build each workflow."
-                        />
-                      </label>
-                      {selectedWorkflow.workflowType === 'AddVehicle' && selectedWorkflowStep.stepKey === 'vin' && (
+                      {isAddVehicleVinStep && (
                         <div className="workflow-action-panel">
+                          <strong>Get the VIN first.</strong>
+                          <p className="context">Scan the dashboard or door-jamb VIN. If the scan misses, type it here and continue.</p>
                           <input
                             ref={workflowVinCameraInputRef}
                             className="hidden-input"
@@ -1883,6 +1908,16 @@ function App() {
                           </div>
                           <p className="context">This opens Inventory with either the existing vehicle or the decoded create form.</p>
                         </div>
+                      )}
+                      {!isAddVehicleVinStep && (
+                        <label>
+                          <span>Notes / draft data</span>
+                          <textarea
+                            value={workflowStepNotes}
+                            onChange={(event) => setWorkflowStepNotes(event.target.value)}
+                            placeholder="Save anything learned on this step. Fields and scanners will plug in here as we build each workflow."
+                          />
+                        </label>
                       )}
                       {selectedWorkflowStep.stepKey === 'obd2Scan' && (
                         <div className="receipt-panel">
@@ -1920,6 +1955,20 @@ function App() {
                       </div>
                     </div>
                   )}
+
+                  <div className="workflow-step-list">
+                    {selectedWorkflow.steps.map((step) => (
+                      <button
+                        key={step.id}
+                        className={selectedWorkflowStepKey === step.stepKey ? 'workflow-step selected' : 'workflow-step'}
+                        type="button"
+                        onClick={() => selectWorkflowStep(step)}
+                      >
+                        <strong>{step.title}</strong>
+                        <span>{step.status}</span>
+                      </button>
+                    ))}
+                  </div>
 
                   <div className="workflow-actions">
                     <button className="secondary-button" type="button" disabled={loading} onClick={() => updateWorkflowStatus('Waiting')}>
