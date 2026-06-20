@@ -263,6 +263,31 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                 create index if not exists ix_system_logs_logged_at
                     on kwestkarzbusinessdata.system_logs(logged_at desc);
 
+                create table if not exists kwestkarzbusinessdata.scan_jobs (
+                    id uuid primary key,
+                    vehicle_id uuid null references kwestkarzbusinessdata.vehicles(id) on delete cascade,
+                    scan_type text not null,
+                    record_type text null,
+                    status text not null,
+                    message text null,
+                    document_id uuid null references kwestkarzbusinessdata.documents(id) on delete set null,
+                    result_record_id uuid null,
+                    ai_text text null,
+                    error text null,
+                    created_at timestamptz not null,
+                    updated_at timestamptz not null,
+                    completed_at timestamptz null,
+                    constraint scan_jobs_status_check check (
+                        status in ('Queued', 'Processing', 'Succeeded', 'Failed')
+                    )
+                );
+
+                create index if not exists ix_scan_jobs_vehicle
+                    on kwestkarzbusinessdata.scan_jobs(vehicle_id, created_at desc);
+
+                create index if not exists ix_scan_jobs_status
+                    on kwestkarzbusinessdata.scan_jobs(status, updated_at desc);
+
                 create table if not exists kwestkarzbusinessdata.workflow_instances (
                     id uuid primary key,
                     workflow_type text not null,

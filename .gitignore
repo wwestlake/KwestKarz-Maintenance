@@ -486,3 +486,6 @@ $RECYCLE.BIN/
 # Local application storage
 storage/
 src/backend/KwestKarz.Api/storage/
+
+# Local HTTPS development certificates
+certs/dev/

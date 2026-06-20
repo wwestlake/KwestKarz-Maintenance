@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
+import { WorkflowDashboard } from './components/WorkflowDashboard'
+import type { AppArea, GuidedCaptureConfig, Obd2ReportUploadResponse, WorkflowInstance, WorkflowStep } from './types'
 
 type Vehicle = {
   id: string
@@ -92,9 +94,20 @@ type ComplianceRecord = {
   updatedAt: string
 }
 
-type CompliancePhotoScanResponse = {
-  record: ComplianceRecord
-  aiText: string
+type PhotoScanJob = {
+  id: string
+  vehicleId?: string
+  scanType: string
+  recordType?: string
+  status: string
+  message?: string
+  documentId?: string
+  resultRecordId?: string
+  aiText?: string
+  error?: string
+  createdAt: string
+  updatedAt: string
+  completedAt?: string
 }
 
 type Dashboard = {
@@ -165,41 +178,6 @@ type CreateVehicleForm = {
   fleetPositionNumber: string
   notes: string
 }
-
-type WorkflowStep = {
-  id: string
-  workflowId: string
-  stepKey: string
-  title: string
-  status: string
-  sortOrder: number
-  data?: Record<string, unknown>
-  createdAt: string
-  updatedAt: string
-}
-
-type WorkflowInstance = {
-  id: string
-  workflowType: string
-  title: string
-  status: string
-  vehicleId?: string
-  currentStepKey: string
-  createdAt: string
-  updatedAt: string
-  completedAt?: string
-  canceledAt?: string
-  steps: WorkflowStep[]
-}
-
-type Obd2ReportUploadResponse = {
-  workflow: WorkflowInstance
-  documentId: string
-  aiText: string
-  extractedText: string
-}
-
-type AppArea = 'home' | 'inventory' | 'workflows' | 'maintenance' | 'compliance' | 'lockboxes' | 'settings'
 
 const appAreas: { id: AppArea; label: string }[] = [
   { id: 'home', label: 'Home' },
@@ -304,6 +282,7 @@ const complianceScanPendingStorageKey = 'kwestkarz.complianceScanPending'
 const complianceScanTypeStorageKey = 'kwestkarz.complianceScanType'
 const complianceScanVehicleStorageKey = 'kwestkarz.complianceScanVehicleId'
 const complianceScanStartedStorageKey = 'kwestkarz.complianceScanStartedAt'
+const complianceScanJobStorageKey = 'kwestkarz.complianceScanJobId'
 
 const api = {
   async get<T>(path: string): Promise<T> {
@@ -395,28 +374,88 @@ function normalizePlate(value?: string) {
   return value?.toUpperCase().replace(/[^A-Z0-9]/g, '') ?? ''
 }
 
+const stateCodes: Record<string, string> = {
+  ALABAMA: 'AL',
+  ALASKA: 'AK',
+  ARIZONA: 'AZ',
+  ARKANSAS: 'AR',
+  CALIFORNIA: 'CA',
+  COLORADO: 'CO',
+  CONNECTICUT: 'CT',
+  DELAWARE: 'DE',
+  FLORIDA: 'FL',
+  GEORGIA: 'GA',
+  HAWAII: 'HI',
+  IDAHO: 'ID',
+  ILLINOIS: 'IL',
+  INDIANA: 'IN',
+  IOWA: 'IA',
+  KANSAS: 'KS',
+  KENTUCKY: 'KY',
+  LOUISIANA: 'LA',
+  MAINE: 'ME',
+  MARYLAND: 'MD',
+  MASSACHUSETTS: 'MA',
+  MICHIGAN: 'MI',
+  MINNESOTA: 'MN',
+  MISSISSIPPI: 'MS',
+  MISSOURI: 'MO',
+  MONTANA: 'MT',
+  NEBRASKA: 'NE',
+  NEVADA: 'NV',
+  'NEW HAMPSHIRE': 'NH',
+  'NEW JERSEY': 'NJ',
+  'NEW MEXICO': 'NM',
+  'NEW YORK': 'NY',
+  'NORTH CAROLINA': 'NC',
+  'NORTH DAKOTA': 'ND',
+  OHIO: 'OH',
+  OKLAHOMA: 'OK',
+  OREGON: 'OR',
+  PENNSYLVANIA: 'PA',
+  'RHODE ISLAND': 'RI',
+  'SOUTH CAROLINA': 'SC',
+  'SOUTH DAKOTA': 'SD',
+  TENNESSEE: 'TN',
+  TEXAS: 'TX',
+  UTAH: 'UT',
+  VERMONT: 'VT',
+  VIRGINIA: 'VA',
+  WASHINGTON: 'WA',
+  'WEST VIRGINIA': 'WV',
+  WISCONSIN: 'WI',
+  WYOMING: 'WY',
+  'DISTRICT OF COLUMBIA': 'DC',
+}
+
+function normalizeState(value?: string) {
+  const normalized = value?.toUpperCase().replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim() ?? ''
+  if (normalized.length === 2) return normalized
+  return stateCodes[normalized] ?? normalized
+}
+
 function complianceChecks(record: ComplianceRecord, dashboard: Dashboard) {
   const issues: string[] = []
   const ok: string[] = []
   const recordPlate = normalizePlate(record.plateNumber)
   const vehiclePlate = normalizePlate(dashboard.vehicle.licensePlate)
-  const recordState = record.plateState?.toUpperCase().trim()
-  const vehicleState = dashboard.vehicle.licensePlateState?.toUpperCase().trim()
+  const recordState = normalizeState(record.plateState)
+  const vehicleState = normalizeState(dashboard.vehicle.licensePlateState)
   const recordVin = record.vin?.toUpperCase().trim()
 
   if (recordVin) {
-    if (recordVin === dashboard.vehicle.vin) ok.push('VIN matches')
-    else issues.push('VIN mismatch')
+    if (recordVin === dashboard.vehicle.vin) ok.push(`VIN matches: ${recordVin}`)
+    else issues.push(`VIN mismatch: ${recordVin} vs vehicle ${dashboard.vehicle.vin}`)
   }
 
   if (recordPlate && vehiclePlate) {
-    if (recordPlate === vehiclePlate) ok.push('Vehicle plate matches')
-    else issues.push('Vehicle plate mismatch')
+    if (recordPlate === vehiclePlate) ok.push(`Vehicle plate matches: ${record.plateNumber} vs ${dashboard.vehicle.licensePlate}`)
+    else issues.push(`Vehicle plate mismatch: ${record.plateNumber} vs vehicle ${dashboard.vehicle.licensePlate}`)
   }
 
   if (recordState && vehicleState) {
-    if (recordState === vehicleState) ok.push('State matches')
-    else issues.push('State mismatch')
+    if (recordState === vehicleState) ok.push(`State matches: ${record.plateState} vs ${dashboard.vehicle.licensePlateState}`)
+    else issues.push(`State mismatch: ${record.plateState} vs vehicle ${dashboard.vehicle.licensePlateState}`)
   }
 
   for (const other of dashboard.compliance) {
@@ -468,6 +507,8 @@ function App() {
   const complianceFormRef = useRef<HTMLFormElement | null>(null)
   const tireSpecCameraInputRef = useRef<HTMLInputElement | null>(null)
   const tireLogCameraInputRef = useRef<HTMLInputElement | null>(null)
+  const guidedVideoRef = useRef<HTMLVideoElement | null>(null)
+  const guidedCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const vinRecoveryActiveRef = useRef(false)
   const complianceRecoveryActiveRef = useRef(false)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
@@ -537,6 +578,11 @@ function App() {
   const [message, setMessage] = useState('Ready')
   const [workingMessage, setWorkingMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [guidedCapture, setGuidedCapture] = useState<GuidedCaptureConfig | null>(null)
+  const [guidedStream, setGuidedStream] = useState<MediaStream | null>(null)
+  const [guidedPhotoUrl, setGuidedPhotoUrl] = useState('')
+  const [guidedCameraError, setGuidedCameraError] = useState('')
+  const [guidedCameraStarting, setGuidedCameraStarting] = useState(false)
 
   const normalizedVin = vin.trim().toUpperCase()
 
@@ -559,6 +605,7 @@ function App() {
     [selectedWorkflow, selectedWorkflowStepKey],
   )
   const activeWorkflows = workflows.filter((workflow) => workflow.status !== 'Complete' && workflow.status !== 'Canceled')
+  const completedWorkflows = workflows.filter((workflow) => workflow.status === 'Complete')
   const selectedWorkflowStepDocumentId =
     typeof selectedWorkflowStep?.data?.documentId === 'string' ? selectedWorkflowStep.data.documentId : ''
   const selectedWorkflowStepAiText =
@@ -578,13 +625,33 @@ function App() {
     refreshWorkflows()
 
     if (localStorage.getItem(vinScanPendingStorageKey) === 'true') {
-      recoverLatestVinScan()
+      recoverLatestVinScan(true)
     }
 
     if (localStorage.getItem(complianceScanPendingStorageKey) === 'true') {
       recoverLatestComplianceScan()
     }
+    // Initial app restore should run once; recovery functions read current localStorage state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    const refreshOnReturn = () => {
+      if (document.visibilityState === 'visible') {
+        refreshWorkflows()
+      }
+    }
+
+    document.addEventListener('visibilitychange', refreshOnReturn)
+    window.addEventListener('focus', refreshWorkflows)
+
+    return () => {
+      document.removeEventListener('visibilitychange', refreshOnReturn)
+      window.removeEventListener('focus', refreshWorkflows)
+    }
+    // Workflow refresh is intentionally event-driven; selectedWorkflowId keeps latest selection fallback.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedWorkflowId])
 
   useEffect(() => {
     localStorage.setItem(activeAreaStorageKey, activeArea)
@@ -606,14 +673,38 @@ function App() {
         workflowEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }, 0)
     }
-  }, [activeArea, selectedWorkflowStep?.id])
+  }, [activeArea, selectedWorkflowStep])
+
+  useEffect(() => {
+    if (isAddVehicleVinStep && !vin.trim() && localStorage.getItem(vinScanPendingStorageKey) === 'true') {
+      recoverLatestVinScan(true)
+    }
+    // Recovery polling is guarded internally and should only respond to step/VIN changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAddVehicleVinStep, vin])
+
+  useEffect(() => {
+    if (guidedVideoRef.current && guidedStream) {
+      guidedVideoRef.current.srcObject = guidedStream
+      guidedVideoRef.current.muted = true
+      guidedVideoRef.current.playsInline = true
+      guidedVideoRef.current.play().catch(() => undefined)
+    }
+  }, [guidedStream, guidedCapture])
+
+  useEffect(() => {
+    return () => {
+      guidedStream?.getTracks().forEach((track) => track.stop())
+      if (guidedPhotoUrl) URL.revokeObjectURL(guidedPhotoUrl)
+    }
+  }, [guidedStream, guidedPhotoUrl])
 
   useEffect(() => {
     function refreshAfterCameraReturn() {
       const vehicleId = localStorage.getItem(selectedVehicleStorageKey)
 
       if (localStorage.getItem(vinScanPendingStorageKey) === 'true') {
-        recoverLatestVinScan()
+        recoverLatestVinScan(true)
       }
 
       if (localStorage.getItem(complianceScanPendingStorageKey) === 'true') {
@@ -643,6 +734,8 @@ function App() {
       window.removeEventListener('focus', refreshAfterCameraReturn)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
+    // Camera-return recovery is registered once and reads pending scan state from localStorage.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function restoreWorkspace() {
@@ -694,14 +787,15 @@ function App() {
 
   async function refreshWorkflows() {
     try {
-      const nextWorkflows = await api.get<WorkflowInstance[]>('/api/workflows?includeCompleted=false')
+      const nextWorkflows = await api.get<WorkflowInstance[]>('/api/workflows?includeCompleted=true')
       setWorkflows(nextWorkflows)
       const savedWorkflowId = localStorage.getItem(selectedWorkflowStorageKey)
       const savedStepKey = localStorage.getItem(selectedWorkflowStepStorageKey)
+      const nextActiveWorkflows = nextWorkflows.filter((workflow) => workflow.status !== 'Complete' && workflow.status !== 'Canceled')
       const workflowToSelect =
         nextWorkflows.find((workflow) => workflow.id === savedWorkflowId) ??
         nextWorkflows.find((workflow) => workflow.id === selectedWorkflowId) ??
-        nextWorkflows[0]
+        nextActiveWorkflows[0]
 
       if (workflowToSelect) {
         const stepKey =
@@ -711,8 +805,10 @@ function App() {
         setSelectedWorkflowId(workflowToSelect.id)
         setSelectedWorkflowStepKey(stepKey)
       }
+      return nextWorkflows
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not load workflows')
+      return workflows
     }
   }
 
@@ -811,6 +907,7 @@ function App() {
     localStorage.removeItem(complianceScanTypeStorageKey)
     localStorage.removeItem(complianceScanVehicleStorageKey)
     localStorage.removeItem(complianceScanStartedStorageKey)
+    localStorage.removeItem(complianceScanJobStorageKey)
   }
 
   function markVinScanPending() {
@@ -829,33 +926,185 @@ function App() {
   }
 
   function openVinCamera() {
-    markVinScanPending()
     localStorage.setItem(vinScanTargetStorageKey, 'inventory')
-    if (vinCameraInputRef.current) {
-      vinCameraInputRef.current.value = ''
-      vinCameraInputRef.current.click()
-    }
+    openGuidedCamera({
+      mode: 'vin',
+      title: 'Scan VIN',
+      instructions: 'Align the VIN inside the narrow frame. Use the dashboard plate or door jamb label.',
+      overlay: 'vin',
+    })
   }
 
   function openWorkflowVinCamera() {
-    markVinScanPending()
     localStorage.setItem(vinScanTargetStorageKey, 'addVehicleWorkflow')
-    if (workflowVinCameraInputRef.current) {
-      workflowVinCameraInputRef.current.value = ''
-      workflowVinCameraInputRef.current.click()
-    }
+    openGuidedCamera({
+      mode: 'workflowVin',
+      title: 'Scan VIN',
+      instructions: 'Align the VIN inside the narrow frame. This will continue the Add Vehicle workflow.',
+      overlay: 'vin',
+    })
   }
 
   function openComplianceCamera(recordType: string) {
     setComplianceScanType(recordType)
-    markComplianceScanPending(recordType)
-    const scanMessage = `Waiting for ${formatComplianceType(recordType)} photo...`
-    setMessage(scanMessage)
-    setWorkingMessage(scanMessage)
-    if (complianceCameraInputRef.current) {
+    openGuidedCamera({
+      mode: 'compliance',
+      recordType,
+      title: `Scan ${formatComplianceType(recordType)}`,
+      instructions: 'Align the document inside the frame. Use steady light and avoid glare.',
+      overlay: 'document',
+    })
+  }
+
+  function openNativeCapture(config: GuidedCaptureConfig) {
+    if (config.mode === 'workflowVin' && workflowVinCameraInputRef.current) {
+      workflowVinCameraInputRef.current.value = ''
+      workflowVinCameraInputRef.current.click()
+      closeGuidedCamera()
+      return
+    }
+
+    if (config.mode === 'compliance' && complianceCameraInputRef.current) {
       complianceCameraInputRef.current.value = ''
       complianceCameraInputRef.current.click()
+      closeGuidedCamera()
+      return
     }
+
+    if (vinCameraInputRef.current) {
+      vinCameraInputRef.current.value = ''
+      vinCameraInputRef.current.click()
+      closeGuidedCamera()
+    }
+  }
+
+  function stopGuidedCamera() {
+    guidedStream?.getTracks().forEach((track) => track.stop())
+    setGuidedStream(null)
+  }
+
+  function closeGuidedCamera() {
+    stopGuidedCamera()
+    if (guidedPhotoUrl) URL.revokeObjectURL(guidedPhotoUrl)
+    setGuidedPhotoUrl('')
+    setGuidedCameraError('')
+    setGuidedCameraStarting(false)
+    setGuidedCapture(null)
+  }
+
+  function cancelGuidedCamera() {
+    if (guidedCapture?.mode === 'compliance') {
+      clearComplianceScanPending()
+    } else if (guidedCapture?.mode === 'vin' || guidedCapture?.mode === 'workflowVin') {
+      clearVinScanPending()
+    }
+
+    setWorkingMessage('')
+    setLoading(false)
+    setMessage('Scan canceled')
+    closeGuidedCamera()
+  }
+
+  async function openGuidedCamera(config: GuidedCaptureConfig) {
+    if (guidedPhotoUrl) URL.revokeObjectURL(guidedPhotoUrl)
+    setGuidedCapture(config)
+    setGuidedPhotoUrl('')
+    setGuidedCameraError('')
+    setGuidedCameraStarting(true)
+    stopGuidedCamera()
+
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('Camera API is unavailable.')
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+        },
+        audio: false,
+      })
+
+      setGuidedStream(stream)
+      setGuidedCameraStarting(false)
+      window.setTimeout(() => {
+        if (guidedVideoRef.current) {
+          guidedVideoRef.current.srcObject = stream
+          guidedVideoRef.current.muted = true
+          guidedVideoRef.current.playsInline = true
+          guidedVideoRef.current.play().catch(() => undefined)
+        }
+      }, 0)
+    } catch {
+      setGuidedCameraStarting(false)
+      setGuidedCameraError('In-app camera is blocked on this browser or connection. Use the phone camera picker fallback.')
+    }
+  }
+
+  async function retakeGuidedPhoto() {
+    if (!guidedCapture) return
+    const config = guidedCapture
+    if (guidedPhotoUrl) URL.revokeObjectURL(guidedPhotoUrl)
+    setGuidedPhotoUrl('')
+    await openGuidedCamera(config)
+  }
+
+  function captureGuidedPhoto() {
+    const video = guidedVideoRef.current
+    const canvas = guidedCanvasRef.current
+    if (!video || !canvas || video.videoWidth === 0 || video.videoHeight === 0) {
+      setGuidedCameraError('Camera preview is not ready yet. If the frame stays blank, use the phone camera fallback.')
+      return
+    }
+
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const context = canvas.getContext('2d')
+    if (!context) return
+    context.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setGuidedCameraError('Could not capture photo.')
+          return
+        }
+
+        stopGuidedCamera()
+        if (guidedPhotoUrl) URL.revokeObjectURL(guidedPhotoUrl)
+        setGuidedPhotoUrl(URL.createObjectURL(blob))
+      },
+      'image/jpeg',
+      0.92,
+    )
+  }
+
+  async function useGuidedPhoto() {
+    const canvas = guidedCanvasRef.current
+    const config = guidedCapture
+    if (!canvas || !config) return
+
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          setGuidedCameraError('Could not prepare captured photo.')
+          return
+        }
+
+        const file = new File([blob], `${config.mode}-${Date.now()}.jpg`, { type: 'image/jpeg' })
+        closeGuidedCamera()
+
+        if (config.mode === 'compliance') {
+          scanCompliancePhoto(file)
+        } else {
+          scanVinFromPhoto(file)
+        }
+      },
+      'image/jpeg',
+      0.92,
+    )
   }
 
   async function recoverLatestComplianceScan() {
@@ -864,7 +1113,7 @@ function App() {
 
     const recordType = localStorage.getItem(complianceScanTypeStorageKey) || 'Compliance'
     const vehicleId = localStorage.getItem(complianceScanVehicleStorageKey) || localStorage.getItem(selectedVehicleStorageKey)
-    const startedAt = Date.parse(localStorage.getItem(complianceScanStartedStorageKey) || '')
+    const jobId = localStorage.getItem(complianceScanJobStorageKey)
 
     if (!vehicleId) {
       clearComplianceScanPending()
@@ -872,39 +1121,99 @@ function App() {
       return
     }
 
+    if (!jobId) {
+      clearComplianceScanPending()
+      setWorkingMessage('')
+      complianceRecoveryActiveRef.current = false
+      return
+    }
+
     try {
       localStorage.setItem(selectedVehicleStorageKey, vehicleId)
-      for (let attempt = 0; attempt < 45; attempt += 1) {
-        try {
-          const waitMessage = `Waiting for ${formatComplianceType(recordType)} scan result...`
-          setMessage(waitMessage)
-          setWorkingMessage(waitMessage)
-          const nextDashboard = await api.get<Dashboard>(`/api/vehicles/${vehicleId}/dashboard`)
-          setDashboard(nextDashboard)
-          const record = nextDashboard.compliance.find((item) => item.recordType === recordType)
-          const updatedAt = Date.parse(record?.updatedAt ?? '')
-
-          if (record && (!Number.isFinite(startedAt) || updatedAt >= startedAt)) {
-            clearComplianceScanPending()
-            startEditingCompliance(record)
-            setWorkingMessage('')
-            setMessage(`${formatComplianceType(record.recordType)} read. Review and save corrections if needed.`)
-            return
-          }
-        } catch {
-          // Recovery keeps polling because mobile camera uploads can finish after the page regains focus.
-        }
-
-        await wait(2000)
-      }
-
-      if (localStorage.getItem(complianceScanPendingStorageKey) === 'true') {
-        clearComplianceScanPending()
-        setWorkingMessage('')
-        setMessage(`${formatComplianceType(recordType)} scan timed out. Try again closer and steady.`)
-      }
+      await pollComplianceScanJob(vehicleId, jobId, recordType)
     } finally {
       complianceRecoveryActiveRef.current = false
+    }
+  }
+
+  async function pollComplianceScanJob(vehicleId: string, jobId: string, fallbackRecordType: string) {
+    localStorage.setItem(complianceScanPendingStorageKey, 'true')
+    localStorage.setItem(complianceScanVehicleStorageKey, vehicleId)
+    localStorage.setItem(complianceScanJobStorageKey, jobId)
+
+    for (let attempt = 0; attempt < 90; attempt += 1) {
+      const job = await api.get<PhotoScanJob>(`/api/vehicles/${vehicleId}/compliance/photo-jobs/${jobId}`)
+      const recordType = job.recordType ?? fallbackRecordType
+      const waitMessage = job.message || `Reading ${formatComplianceType(recordType)} photo...`
+      setMessage(waitMessage)
+      setWorkingMessage(waitMessage)
+
+      if (job.status === 'Succeeded') {
+        clearComplianceScanPending()
+        localStorage.setItem(selectedVehicleStorageKey, vehicleId)
+        const nextDashboard = await api.get<Dashboard>(`/api/vehicles/${vehicleId}/dashboard`)
+        setDashboard(nextDashboard)
+        const record =
+          nextDashboard.compliance.find((item) => item.id === job.resultRecordId) ??
+          nextDashboard.compliance.find((item) => item.recordType === recordType)
+
+        if (job.scanType === 'ComplianceRecheck') {
+          setWorkingMessage('')
+          setMessage('Saved compliance images rechecked. Review the updated cards.')
+        } else if (record) {
+          startEditingCompliance(record)
+          await completeMatchingWorkflowStep(record.recordType, {
+            vehicleId,
+            complianceRecordId: record.id,
+            documentId: record.documentId ?? null,
+          })
+          setWorkingMessage('')
+          setMessage(`${formatComplianceType(record.recordType)} read. Review and save corrections if needed.`)
+        } else {
+          setWorkingMessage('')
+          setMessage(`${formatComplianceType(recordType)} scan finished, but the record was not found. Refresh the vehicle.`)
+        }
+        return
+      }
+
+      if (job.status === 'Failed') {
+        clearComplianceScanPending()
+        setWorkingMessage('')
+        setMessage(job.error || `${formatComplianceType(recordType)} scan failed. Try again with a clearer photo.`)
+        return
+      }
+
+      await wait(2000)
+    }
+
+    setWorkingMessage('')
+    setMessage(`${formatComplianceType(fallbackRecordType)} scan is still running. Leave this page open or refresh to continue waiting.`)
+  }
+
+  async function recheckComplianceImages() {
+    const vehicleId = dashboard?.vehicle.id ?? localStorage.getItem(selectedVehicleStorageKey)
+    if (!vehicleId) return
+
+    setLoading(true)
+    setMessage('Queuing saved image recheck...')
+    setWorkingMessage('Queuing saved image recheck...')
+
+    try {
+      const response = await fetch(`/api/vehicles/${vehicleId}/compliance/photo-jobs/recheck`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) throw new Error(await response.text())
+
+      const job = (await response.json()) as PhotoScanJob
+      localStorage.setItem(complianceScanJobStorageKey, job.id)
+      await pollComplianceScanJob(vehicleId, job.id, 'All')
+    } catch (error) {
+      clearComplianceScanPending()
+      setWorkingMessage('')
+      setMessage(error instanceof Error ? error.message : 'Could not recheck saved images')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -931,20 +1240,16 @@ function App() {
       form.append('recordType', recordType)
       markComplianceScanPending(recordType)
 
-      const response = await fetch(`/api/vehicles/${vehicleId}/compliance/photo`, {
+      const response = await fetch(`/api/vehicles/${vehicleId}/compliance/photo-jobs`, {
         method: 'POST',
         body: form,
       })
 
       if (!response.ok) throw new Error(await response.text())
 
-      const scan = (await response.json()) as CompliancePhotoScanResponse
-      clearComplianceScanPending()
-      localStorage.setItem(selectedVehicleStorageKey, vehicleId)
-      await loadDashboard(vehicleId)
-      startEditingCompliance(scan.record)
-      setWorkingMessage('')
-      setMessage(`${formatComplianceType(scan.record.recordType)} read. Review and save corrections if needed.`)
+      const job = (await response.json()) as PhotoScanJob
+      localStorage.setItem(complianceScanJobStorageKey, job.id)
+      await pollComplianceScanJob(vehicleId, job.id, recordType)
     } catch (error) {
       clearComplianceScanPending()
       setWorkingMessage('')
@@ -957,18 +1262,24 @@ function App() {
   async function saveComplianceRecord(event: FormEvent) {
     event.preventDefault()
     if (!dashboard || !editingComplianceId) return
+    const complianceVin = complianceForm.vin.trim().toUpperCase().replace(/[^A-HJ-NPR-Z0-9]/g, '')
+
+    if (complianceVin && complianceVin.length !== 17) {
+      setMessage(`VIN must be 17 characters. Use vehicle VIN ${dashboard.vehicle.vin} if this document belongs to this car.`)
+      return
+    }
 
     setLoading(true)
     setMessage('Saving compliance details...')
 
     try {
-      await api.put<ComplianceRecord>(`/api/vehicles/${dashboard.vehicle.id}/compliance/${editingComplianceId}`, {
+      const savedRecord = await api.put<ComplianceRecord>(`/api/vehicles/${dashboard.vehicle.id}/compliance/${editingComplianceId}`, {
         provider: complianceForm.provider || null,
         policyNumber: complianceForm.policyNumber || null,
         documentNumber: complianceForm.documentNumber || null,
         plateNumber: complianceForm.plateNumber || null,
         plateState: complianceForm.plateState || null,
-        vin: complianceForm.vin || null,
+        vin: complianceVin || null,
         stickerMonth: complianceForm.stickerMonth || null,
         stickerYear: complianceForm.stickerYear ? Number(complianceForm.stickerYear) : null,
         serialNumber: complianceForm.serialNumber || null,
@@ -978,6 +1289,11 @@ function App() {
       })
       setEditingComplianceId('')
       await loadDashboard(dashboard.vehicle.id)
+      await completeMatchingWorkflowStep(savedRecord.recordType, {
+        vehicleId: dashboard.vehicle.id,
+        complianceRecordId: savedRecord.id,
+        documentId: savedRecord.documentId ?? null,
+      })
       setMessage('Compliance details saved')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not save compliance details')
@@ -1025,13 +1341,41 @@ function App() {
     await lookupVehicleByVin(normalizedVin)
   }
 
+  async function resolveAddVehicleVinWorkflow() {
+    const savedWorkflowId = localStorage.getItem(selectedWorkflowStorageKey)
+    const localWorkflow =
+      workflows.find((workflow) => workflow.id === selectedWorkflowId && workflow.workflowType === 'AddVehicle') ??
+      workflows.find((workflow) => workflow.id === savedWorkflowId && workflow.workflowType === 'AddVehicle') ??
+      workflows.find(
+        (workflow) =>
+          workflow.workflowType === 'AddVehicle' &&
+          workflow.status !== 'Complete' &&
+          workflow.status !== 'Canceled' &&
+          workflow.steps.some((step) => step.stepKey === 'vin' && step.status !== 'Complete'),
+      )
+
+    if (localWorkflow) return localWorkflow
+
+    const nextWorkflows = await api.get<WorkflowInstance[]>('/api/workflows?includeCompleted=false')
+    setWorkflows(nextWorkflows)
+    return (
+      nextWorkflows.find((workflow) => workflow.id === savedWorkflowId && workflow.workflowType === 'AddVehicle') ??
+      nextWorkflows.find(
+        (workflow) =>
+          workflow.workflowType === 'AddVehicle' &&
+          workflow.status !== 'Complete' &&
+          workflow.status !== 'Canceled' &&
+          workflow.steps.some((step) => step.stepKey === 'vin' && step.status !== 'Complete'),
+      ) ??
+      null
+    )
+  }
+
   async function saveAddVehicleWorkflowVin(scannedVin: string) {
-    const workflowId = selectedWorkflowId || localStorage.getItem(selectedWorkflowStorageKey)
-    const stepKey = selectedWorkflowStepKey || localStorage.getItem(selectedWorkflowStepStorageKey) || 'vin'
+    const workflowToUpdate = await resolveAddVehicleVinWorkflow()
+    if (!workflowToUpdate) return false
 
-    if (!workflowId || stepKey !== 'vin') return false
-
-    let workflow = await api.put<WorkflowInstance>(`/api/workflows/${workflowId}/steps/${stepKey}`, {
+    let workflow = await api.put<WorkflowInstance>(`/api/workflows/${workflowToUpdate.id}/steps/vin`, {
       status: 'Complete',
       makeCurrent: true,
       data: {
@@ -1039,7 +1383,7 @@ function App() {
         notes: workflowStepNotes,
       },
     })
-    workflow = await advanceWorkflowFromStep(workflow, stepKey)
+    workflow = await advanceWorkflowFromStep(workflow, 'vin')
     setWorkflows((current) => current.map((item) => (item.id === workflow.id ? workflow : item)))
     setSelectedWorkflowId(workflow.id)
     setSelectedWorkflowStepKey(workflow.currentStepKey)
@@ -1073,8 +1417,14 @@ function App() {
     }
   }
 
-  async function recoverLatestVinScan() {
-    if (vinRecoveryActiveRef.current) return
+  async function readLatestVinScan(clientId: string, allowAnyClient: boolean) {
+    const latest = await api.get<VinLatestScanResponse>(`/api/vin/latest-scan/${encodeURIComponent(clientId)}`)
+    if (latest.vin || !allowAnyClient) return latest
+    return api.get<VinLatestScanResponse>('/api/vin/latest-scan')
+  }
+
+  async function recoverLatestVinScan(ignoreStartedAt = false, forceRestart = false) {
+    if (vinRecoveryActiveRef.current && !forceRestart) return
     vinRecoveryActiveRef.current = true
     const clientId = getVinScanClientId()
     const startedAt = Date.parse(localStorage.getItem(vinScanStartedStorageKey) || '')
@@ -1086,10 +1436,11 @@ function App() {
             setMessage('Waiting for VIN scan result...')
             setWorkingMessage('Waiting for VIN scan result...')
           }
-          const latest = await api.get<VinLatestScanResponse>(`/api/vin/latest-scan/${encodeURIComponent(clientId)}`)
+          const latest = await readLatestVinScan(clientId, true)
           const scannedVin = latest.vin?.trim().toUpperCase()
           const loggedAt = Date.parse(latest.loggedAt ?? '')
-          const isCurrentAttempt = !Number.isFinite(startedAt) || (Number.isFinite(loggedAt) && loggedAt >= startedAt)
+          const isCurrentAttempt =
+            ignoreStartedAt || !Number.isFinite(startedAt) || (Number.isFinite(loggedAt) && loggedAt >= startedAt)
 
           if (scannedVin && isCurrentAttempt) {
             await applyScannedVin(scannedVin)
@@ -1113,9 +1464,12 @@ function App() {
   }
 
   async function recoverVinScanNow() {
-    markVinScanPending()
+    getVinScanClientId()
+    localStorage.setItem(vinScanPendingStorageKey, 'true')
     localStorage.setItem(vinScanTargetStorageKey, isAddVehicleVinStep ? 'addVehicleWorkflow' : 'inventory')
-    await recoverLatestVinScan()
+    setMessage('Checking last VIN scan...')
+    setWorkingMessage('Checking last VIN scan...')
+    await recoverLatestVinScan(true, true)
   }
 
   async function lookupVehicleByVin(vinToLookup: string) {
@@ -1229,6 +1583,27 @@ function App() {
       await loadDashboard(vehicle.id)
       await refreshVehicles()
       await refreshLockBoxes()
+      if (selectedWorkflow?.workflowType === 'AddVehicle') {
+        const stepToComplete =
+          selectedWorkflow.steps.find((step) => step.stepKey === 'vehicleBasics' && step.status !== 'Complete') ??
+          selectedWorkflow.steps.find((step) => step.stepKey === 'vin' && step.status !== 'Complete')
+
+        if (stepToComplete) {
+          let workflow = await api.put<WorkflowInstance>(`/api/workflows/${selectedWorkflow.id}/steps/${stepToComplete.stepKey}`, {
+            status: 'Complete',
+            makeCurrent: true,
+            data: {
+              ...(stepToComplete.data ?? {}),
+              vehicleId: vehicle.id,
+              vin: vehicle.vin,
+              notes: workflowStepNotes,
+            },
+          })
+          workflow = await advanceWorkflowFromStep(workflow, stepToComplete.stepKey)
+          setWorkflows((current) => current.map((item) => (item.id === workflow.id ? workflow : item)))
+          selectWorkflow(workflow)
+        }
+      }
       setMessage('Vehicle created')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not create vehicle')
@@ -1567,14 +1942,110 @@ function App() {
     }, 0)
   }
 
-  function selectWorkflowStep(step: WorkflowStep) {
-    setSelectedWorkflowStepKey(step.stepKey)
-    setWorkflowStepNotes(typeof step.data?.notes === 'string' ? step.data.notes : '')
-    setObd2ReportFile(null)
-    setObd2ReportInsight(typeof step.data?.aiText === 'string' ? step.data.aiText : '')
-    window.setTimeout(() => {
-      workflowEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }, 0)
+  function workflowVehicleId(workflow: WorkflowInstance) {
+    const stepVehicleId = workflow.steps
+      .map((step) => step.data?.vehicleId)
+      .find((value): value is string => typeof value === 'string' && value.length > 0)
+
+    return workflow.vehicleId ?? stepVehicleId ?? dashboard?.vehicle.id ?? localStorage.getItem(selectedVehicleStorageKey) ?? ''
+  }
+
+  async function openWorkflowVehicle(workflow: WorkflowInstance) {
+    const vehicleId = workflowVehicleId(workflow)
+    if (!vehicleId) {
+      setActiveArea('inventory')
+      setMessage('Choose or create the vehicle for this workflow first.')
+      return false
+    }
+
+    localStorage.setItem(selectedVehicleStorageKey, vehicleId)
+    await loadDashboard(vehicleId)
+    return true
+  }
+
+  async function activateWorkflowStep(workflow: WorkflowInstance, step: WorkflowStep) {
+    setLoading(true)
+    setMessage(`Opening ${step.title}...`)
+
+    try {
+      const freshWorkflow = await api.get<WorkflowInstance>(`/api/workflows/${workflow.id}`)
+      setWorkflows((current) => current.map((item) => (item.id === freshWorkflow.id ? freshWorkflow : item)))
+      setSelectedWorkflowId(freshWorkflow.id)
+      const freshStep = freshWorkflow.steps.find((item) => item.stepKey === step.stepKey) ?? step
+      setSelectedWorkflowStepKey(freshStep.stepKey)
+      setWorkflowStepNotes(typeof freshStep.data?.notes === 'string' ? freshStep.data.notes : '')
+      setObd2ReportFile(null)
+      setObd2ReportInsight(typeof freshStep.data?.aiText === 'string' ? freshStep.data.aiText : '')
+
+      if (freshWorkflow.workflowType === 'AddVehicle' && freshStep.stepKey === 'vin') {
+        setActiveArea('workflows')
+        window.setTimeout(openWorkflowVinCamera, 0)
+        setMessage('Scan or enter the VIN.')
+        return
+      }
+
+      if (['vehicle', 'vehicleBasics', 'licensePlate', 'photos', 'photosOdometer', 'odometerFuel', 'returnState'].includes(freshStep.stepKey)) {
+        setActiveArea('inventory')
+        await openWorkflowVehicle(freshWorkflow)
+        setMessage(`${freshStep.title}: update the vehicle details here.`)
+        return
+      }
+
+      if (['registration', 'insurance', 'plate'].includes(freshStep.stepKey)) {
+        setActiveArea('inventory')
+        const hasVehicle = await openWorkflowVehicle(freshWorkflow)
+        if (hasVehicle) {
+          const recordType = freshStep.stepKey === 'registration' ? 'Registration' : freshStep.stepKey === 'insurance' ? 'Insurance' : 'LicensePlate'
+          window.setTimeout(() => openComplianceCamera(recordType), 0)
+          setMessage(`Scan or review ${formatComplianceType(recordType)}.`)
+        }
+        return
+      }
+
+      if (freshStep.stepKey === 'lockBox') {
+        setActiveArea('inventory')
+        await openWorkflowVehicle(freshWorkflow)
+        setShowLockBoxManager(true)
+        setMessage('Assign or review the lock box for this vehicle.')
+        return
+      }
+
+      if (['service', 'receipt', 'followUp', 'repair', 'estimate'].includes(freshStep.stepKey)) {
+        setActiveArea('inventory')
+        await openWorkflowVehicle(freshWorkflow)
+        setShowMaintenanceForm(true)
+        setMessage(`${freshStep.title}: add or review maintenance details.`)
+        return
+      }
+
+      if (freshStep.stepKey === 'tires') {
+        setActiveArea('inventory')
+        await openWorkflowVehicle(freshWorkflow)
+        setShowTirePressurePanel(true)
+        localStorage.setItem(tirePanelStorageKey, 'true')
+        setMessage('Record or review tire pressure.')
+        return
+      }
+
+      if (freshStep.stepKey === 'obd2Scan') {
+        setActiveArea('workflows')
+        window.setTimeout(() => {
+          workflowEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }, 0)
+        setMessage('Upload or review the OBD2 PDF report.')
+        return
+      }
+
+      setActiveArea('workflows')
+      window.setTimeout(() => {
+        workflowEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 0)
+      setMessage(`${freshStep.title}: add notes or mark the step when done.`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not open workflow step')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function startWorkflow(workflowType: string) {
@@ -1618,6 +2089,34 @@ function App() {
       makeCurrent: true,
       data: nextStep.data ?? {},
     })
+  }
+
+  function complianceStepMatches(stepKey: string, recordType: string) {
+    return (
+      (recordType === 'Registration' && stepKey === 'registration') ||
+      (recordType === 'Insurance' && stepKey === 'insurance') ||
+      (recordType === 'LicensePlate' && (stepKey === 'plate' || stepKey === 'licensePlate'))
+    )
+  }
+
+  async function completeMatchingWorkflowStep(recordType: string, data: Record<string, unknown>) {
+    const workflow = selectedWorkflow
+    const step = selectedWorkflowStep
+    if (!workflow || !step || !complianceStepMatches(step.stepKey, recordType)) return
+
+    let updatedWorkflow = await api.put<WorkflowInstance>(`/api/workflows/${workflow.id}/steps/${step.stepKey}`, {
+      status: 'Complete',
+      makeCurrent: true,
+      data: {
+        ...(step.data ?? {}),
+        ...data,
+        notes: workflowStepNotes,
+      },
+    })
+
+    updatedWorkflow = await advanceWorkflowFromStep(updatedWorkflow, step.stepKey)
+    setWorkflows((current) => current.map((item) => (item.id === updatedWorkflow.id ? updatedWorkflow : item)))
+    selectWorkflow(updatedWorkflow)
   }
 
   async function saveWorkflowStep(status: string) {
@@ -1762,6 +2261,73 @@ function App() {
         </div>
       )}
 
+      {guidedCapture && (
+        <div className="camera-modal" role="dialog" aria-modal="true" aria-label={guidedCapture.title}>
+          <div className="camera-panel">
+            <div className="camera-heading">
+              <div>
+                <strong>{guidedCapture.title}</strong>
+                <span>{guidedCapture.instructions}</span>
+              </div>
+              <button className="secondary-button" type="button" onClick={cancelGuidedCamera}>
+                Close
+              </button>
+            </div>
+            <div className="camera-preview">
+              {guidedPhotoUrl ? (
+                <img src={guidedPhotoUrl} alt="Captured preview" />
+              ) : (
+                <>
+                  <video
+                    ref={guidedVideoRef}
+                    playsInline
+                    muted
+                    autoPlay
+                    onLoadedMetadata={(event) => event.currentTarget.play().catch(() => undefined)}
+                    onCanPlay={() => setGuidedCameraStarting(false)}
+                  />
+                  {guidedCameraStarting && (
+                    <div className="camera-wait">
+                      <span className="spinner" aria-hidden="true" />
+                      <span>Starting camera...</span>
+                    </div>
+                  )}
+                </>
+              )}
+              {!guidedPhotoUrl && <div className={`camera-frame ${guidedCapture.overlay}`} aria-hidden="true" />}
+            </div>
+            {guidedCameraError && <p className="camera-error">{guidedCameraError}</p>}
+            <canvas ref={guidedCanvasRef} className="hidden-input" />
+            <div className="camera-actions">
+              {!guidedPhotoUrl && (
+                <button className="secondary-button" type="button" onClick={() => openGuidedCamera(guidedCapture)}>
+                  Retry In-App Camera
+                </button>
+              )}
+              {!guidedPhotoUrl && !guidedCameraError && (
+                <button className="shutter-button" type="button" onClick={captureGuidedPhoto} aria-label="Take picture">
+                  <span aria-hidden="true" />
+                  Take Picture
+                </button>
+              )}
+              {guidedPhotoUrl && (
+                <>
+                  <button className="secondary-button" type="button" onClick={retakeGuidedPhoto}>
+                    Retake
+                  </button>
+                  <button type="button" onClick={useGuidedPhoto}>
+                    Use Photo
+                  </button>
+                </>
+              )}
+              <button type="button" onClick={() => openNativeCapture(guidedCapture)}>
+                Use Phone Camera
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {activeArea === 'home' && (
         <section className="area-grid">
           <div className="panel area-panel">
@@ -1843,170 +2409,38 @@ function App() {
       )}
 
       {activeArea === 'workflows' && (
-        <>
-          <section className="area-grid workflow-grid">
-            {workflowCatalog.map(([workflowType, title, detail]) => (
-              <button key={workflowType} className="workflow-card" type="button" disabled={loading} onClick={() => startWorkflow(workflowType)}>
-                <strong>{title}</strong>
-                <span>{detail}</span>
-              </button>
-            ))}
-          </section>
-
-          <section className="area-grid">
-            <div className="panel area-panel">
-              <div className="section-heading">
-                <h2>Active</h2>
-                <p>{activeWorkflows.length} workflows</p>
-              </div>
-              <div className="record-list">
-                {activeWorkflows.length === 0 && <p className="empty">No active workflows.</p>}
-                {activeWorkflows.map((workflow) => (
-                  <button
-                    key={workflow.id}
-                    className={selectedWorkflowId === workflow.id ? 'vehicle-list-item selected-row' : 'vehicle-list-item'}
-                    type="button"
-                    onClick={() => selectWorkflow(workflow)}
-                  >
-                    <span>{workflow.title}</span>
-                    <small>{workflow.status} - {workflow.steps.find((step) => step.stepKey === workflow.currentStepKey)?.title ?? workflow.currentStepKey}</small>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="panel area-panel">
-              <div className="section-heading">
-                <h2>{selectedWorkflow?.title ?? 'Workflow'}</h2>
-                <p>{selectedWorkflow?.status ?? 'Select one'}</p>
-              </div>
-              {!selectedWorkflow && <p className="empty">Start or select a workflow to continue.</p>}
-              {selectedWorkflow && (
-                <>
-                  {selectedWorkflowStep && (
-                    <div ref={workflowEditorRef} className="workflow-editor">
-                      <div className="section-heading compact-heading">
-                        <h2>{selectedWorkflowStep.title}</h2>
-                        <p>{selectedWorkflowStep.status}</p>
-                      </div>
-                      {isAddVehicleVinStep && (
-                        <div className="workflow-action-panel">
-                          <strong>Get the VIN first.</strong>
-                          <p className="context">Scan the dashboard or door-jamb VIN. If the scan misses, type it here and continue.</p>
-                          <input
-                            ref={workflowVinCameraInputRef}
-                            className="hidden-input"
-                            type="file"
-                            accept="image/*"
-                            capture="environment"
-                            onChange={(event) => {
-                              const file = event.target.files?.[0]
-                              event.target.value = ''
-                              if (file) {
-                                scanVinFromPhoto(file)
-                              }
-                            }}
-                          />
-                          <label>
-                            <span>VIN</span>
-                            <input
-                              value={vin}
-                              onChange={(event) => setVin(event.target.value.toUpperCase())}
-                              placeholder="Scan or enter VIN"
-                              autoCapitalize="characters"
-                            />
-                          </label>
-                          <div className="workflow-actions">
-                            <button className="secondary-button" type="button" disabled={loading} onClick={openWorkflowVinCamera}>
-                              Scan VIN
-                            </button>
-                            <button className="secondary-button" type="button" disabled={loading} onClick={recoverVinScanNow}>
-                              Use Last Scan
-                            </button>
-                            <button type="button" disabled={loading || vin.trim().length < 11} onClick={continueAddVehicleVin}>
-                              Find / Create Vehicle
-                            </button>
-                          </div>
-                          <p className="context">This opens Inventory with either the existing vehicle or the decoded create form.</p>
-                        </div>
-                      )}
-                      {!isAddVehicleVinStep && (
-                        <label>
-                          <span>Notes / draft data</span>
-                          <textarea
-                            value={workflowStepNotes}
-                            onChange={(event) => setWorkflowStepNotes(event.target.value)}
-                            placeholder="Save anything learned on this step. Fields and scanners will plug in here as we build each workflow."
-                          />
-                        </label>
-                      )}
-                      {selectedWorkflowStep.stepKey === 'obd2Scan' && (
-                        <div className="receipt-panel">
-                          <label>
-                            <span>RepairSolutions2 / Innova PDF</span>
-                            <input
-                              type="file"
-                              accept="application/pdf,.pdf"
-                              onChange={(event) => setObd2ReportFile(event.target.files?.[0] ?? null)}
-                            />
-                          </label>
-                          <button className="secondary-button" type="button" disabled={!obd2ReportFile || loading} onClick={uploadObd2Report}>
-                            Read OBD2 Report
-                          </button>
-                          {selectedWorkflowStepDocumentId && (
-                            <a className="secondary-button" href={`/api/documents/${selectedWorkflowStepDocumentId}/content`} target="_blank" rel="noreferrer">
-                              View PDF
-                            </a>
-                          )}
-                          {(obd2ReportInsight || selectedWorkflowStepAiText) && (
-                            <pre className="receipt-insight">{obd2ReportInsight || selectedWorkflowStepAiText}</pre>
-                          )}
-                        </div>
-                      )}
-                      <div className="workflow-actions">
-                        <button type="button" disabled={loading} onClick={() => saveWorkflowStep('InProgress')}>
-                          Save Draft
-                        </button>
-                        <button className="secondary-button" type="button" disabled={loading} onClick={() => saveWorkflowStep('NeedsReview')}>
-                          Needs Review
-                        </button>
-                        <button className="secondary-button" type="button" disabled={loading} onClick={() => saveWorkflowStep('Complete')}>
-                          Mark Complete
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="workflow-step-list">
-                    {selectedWorkflow.steps.map((step) => (
-                      <button
-                        key={step.id}
-                        className={selectedWorkflowStepKey === step.stepKey ? 'workflow-step selected' : 'workflow-step'}
-                        type="button"
-                        onClick={() => selectWorkflowStep(step)}
-                      >
-                        <strong>{step.title}</strong>
-                        <span>{step.status}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="workflow-actions">
-                    <button className="secondary-button" type="button" disabled={loading} onClick={() => updateWorkflowStatus('Waiting')}>
-                      Continue Later
-                    </button>
-                    <button className="secondary-button" type="button" disabled={loading} onClick={() => updateWorkflowStatus('Canceled')}>
-                      Cancel Workflow
-                    </button>
-                    <button className="primary-action" type="button" disabled={loading} onClick={() => updateWorkflowStatus('Complete')}>
-                      Complete Workflow
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          </section>
-        </>
+        <WorkflowDashboard
+          workflowCatalog={workflowCatalog}
+          activeWorkflows={activeWorkflows}
+          completedWorkflows={completedWorkflows}
+          selectedWorkflow={selectedWorkflow}
+          selectedWorkflowStep={selectedWorkflowStep}
+          selectedWorkflowId={selectedWorkflowId}
+          selectedWorkflowStepKey={selectedWorkflowStepKey}
+          selectedWorkflowStepDocumentId={selectedWorkflowStepDocumentId}
+          selectedWorkflowStepAiText={selectedWorkflowStepAiText}
+          isAddVehicleVinStep={isAddVehicleVinStep}
+          loading={loading}
+          vin={vin}
+          workflowStepNotes={workflowStepNotes}
+          obd2ReportFile={obd2ReportFile}
+          obd2ReportInsight={obd2ReportInsight}
+          workflowEditorRef={workflowEditorRef}
+          workflowVinCameraInputRef={workflowVinCameraInputRef}
+          startWorkflow={startWorkflow}
+          selectWorkflow={selectWorkflow}
+          activateWorkflowStep={activateWorkflowStep}
+          scanVinFromPhoto={scanVinFromPhoto}
+          setVin={setVin}
+          openWorkflowVinCamera={openWorkflowVinCamera}
+          recoverVinScanNow={recoverVinScanNow}
+          continueAddVehicleVin={continueAddVehicleVin}
+          setWorkflowStepNotes={setWorkflowStepNotes}
+          setObd2ReportFile={setObd2ReportFile}
+          uploadObd2Report={uploadObd2Report}
+          saveWorkflowStep={saveWorkflowStep}
+          updateWorkflowStatus={updateWorkflowStatus}
+        />
       )}
 
       {activeArea === 'maintenance' && (
@@ -2179,6 +2613,9 @@ function App() {
               onClick={openVinCamera}
             >
               <span aria-hidden="true">📷</span>
+            </button>
+            <button className="secondary-button" type="button" disabled={loading} onClick={recoverVinScanNow}>
+              Use Last Scan
             </button>
             <button type="submit" disabled={loading || normalizedVin.length < 11}>
               Find
@@ -2517,6 +2954,9 @@ function App() {
                   Scan {formatComplianceType(type)}
                 </button>
               ))}
+              <button className="secondary-button" type="button" disabled={loading} onClick={recheckComplianceImages}>
+                Recheck Saved Images
+              </button>
             </div>
             <div className="record-list">
               {complianceTypes.map((type) => {
@@ -2553,6 +2993,9 @@ function App() {
                           </div>
                         )}
                         <div className="record-actions">
+                          <button className="secondary-button" type="button" disabled={loading} onClick={() => openComplianceCamera(type)}>
+                            Scan Again
+                          </button>
                           {record.documentId && (
                             <a className="secondary-button" href={`/api/documents/${record.documentId}/content`} target="_blank" rel="noreferrer">
                               View Photo
@@ -2618,6 +3061,13 @@ function App() {
                     onChange={(event) => setComplianceForm({ ...complianceForm, vin: event.target.value.toUpperCase() })}
                   />
                 </label>
+                <button
+                  className="secondary-button"
+                  type="button"
+                  onClick={() => setComplianceForm({ ...complianceForm, vin: dashboard.vehicle.vin })}
+                >
+                  Use Vehicle VIN
+                </button>
                 <label>
                   <span>Tab Month</span>
                   <input

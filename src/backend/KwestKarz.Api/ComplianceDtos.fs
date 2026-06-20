@@ -27,6 +27,21 @@ type CompliancePhotoScanResponse =
     { Record: ComplianceRecordResponse
       AiText: string }
 
+type PhotoScanJobResponse =
+    { Id: Guid
+      VehicleId: Guid option
+      ScanType: string
+      RecordType: string option
+      Status: string
+      Message: string option
+      DocumentId: Guid option
+      ResultRecordId: Guid option
+      AiText: string option
+      Error: string option
+      CreatedAt: DateTimeOffset
+      UpdatedAt: DateTimeOffset
+      CompletedAt: DateTimeOffset option }
+
 type UpdateComplianceRecordRequest =
     { Provider: string option
       PolicyNumber: string option

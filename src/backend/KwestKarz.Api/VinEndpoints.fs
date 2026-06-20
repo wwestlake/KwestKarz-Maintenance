@@ -140,24 +140,31 @@ module VinEndpoints =
             return ()
         }
 
-    let private readLatestScanAsync (dataSource: NpgsqlDataSource) (clientId: string) (cancellationToken: Threading.CancellationToken) =
+    let private readLatestScanAsync (dataSource: NpgsqlDataSource) (clientId: string option) (cancellationToken: Threading.CancellationToken) =
         task {
             use! connection = dataSource.OpenConnectionAsync(cancellationToken)
+            let clientFilter =
+                match clientId with
+                | Some _ -> "and message like @client"
+                | None -> ""
+
             use command =
                 new NpgsqlCommand(
-                    """
+                    $"""
                     select logged_at, message
                     from kwestkarzbusinessdata.system_logs
                     where source = 'VinScan'
                       and logged_at > now() - interval '2 minutes'
-                      and message like @client
+                      {clientFilter}
                     order by logged_at desc
                     limit 1
                     """,
                     connection
                 )
 
-            command.Parameters.AddWithValue("client", NpgsqlDbType.Text, "Client=" + clientId + ";%") |> ignore
+            match clientId with
+            | Some value -> command.Parameters.AddWithValue("client", NpgsqlDbType.Text, "Client=" + value + ";%") |> ignore
+            | None -> ()
 
             use! reader = command.ExecuteReaderAsync(cancellationToken)
             let! hasRow = reader.ReadAsync(cancellationToken)
@@ -235,8 +242,18 @@ module VinEndpoints =
                     if String.IsNullOrWhiteSpace(clientId) then
                         return Results.BadRequest("Client id is required.")
                     else
-                        let! latest = readLatestScanAsync dataSource clientId httpContext.RequestAborted
+                        let! latest = readLatestScanAsync dataSource (Some clientId) httpContext.RequestAborted
                         return Results.Ok(latest)
+                })
+        )
+        |> ignore
+
+        group.MapGet(
+            "/latest-scan",
+            Func<NpgsqlDataSource, HttpContext, Task<IResult>>(fun dataSource httpContext ->
+                task {
+                    let! latest = readLatestScanAsync dataSource None httpContext.RequestAborted
+                    return Results.Ok(latest)
                 })
         )
         |> ignore

@@ -10,6 +10,19 @@ Mobile-first maintenance, document, and AI assistance platform for Kwest Karz.
 - `src/backend/KwestKarz.Infrastructure` - F# infrastructure integrations
 - `src/tests/KwestKarz.Tests` - F# xUnit tests
 - `src/react` - React, Vite, and TypeScript frontend
+- `src/react/src/components` - extracted React feature components
+
+## Current App Scope
+
+- Vehicle inventory with VIN decode and VIN photo scanning
+- Guided in-app camera capture over trusted local HTTPS
+- Compliance document scans for registration, insurance, and license plate photos
+- Editable AI scan results with cross-checks for VIN, plate, and state
+- Maintenance logging with receipt/document attachment support
+- Tire pressure factory spec and actual reading logs with photo-assisted entry
+- Lock box inventory, combos, styles, and vehicle assignment
+- Workflow dashboard with active/completed workflows and step-level continuation
+- OBD2 PDF upload and AI-assisted technical-check review
 
 ## Local Verification
 
@@ -37,8 +50,11 @@ npm run dev -- --host 0.0.0.0 --port 5175 --strictPort
 Local URL:
 
 ```text
-http://localhost:5175
+https://localhost:5175
+https://KwestKarz:5175
 ```
+
+For guided in-app camera access on a phone, the browser must trust the local dev CA in `certs\dev\kwestkarz-rootCA.crt` and the internal hostname `KwestKarz` must resolve to the PC's LAN IP. The Vite dev server uses `certs\dev\kwestkarz.crt` and `certs\dev\kwestkarz.key` when those files exist, and proxies `/api` to the local backend.
 
 ## Local Database
 
@@ -91,6 +107,9 @@ The backend uses the OpenAI Responses API through the server-side `IAIConnection
 
 - `GET /api/health`
 - `GET /api/vin/{vin}/decode`
+- `POST /api/vin/scan-photo`
+- `GET /api/vin/latest-scan`
+- `GET /api/vin/latest-scan/{clientId}`
 - `GET /api/vehicles`
 - `GET /api/vehicles/by-vin/{vin}`
 - `POST /api/vehicles`
@@ -99,6 +118,27 @@ The backend uses the OpenAI Responses API through the server-side `IAIConnection
 - `POST /api/vehicles/{vehicleId}/maintenance`
 - `GET /api/vehicles/{vehicleId}/documents`
 - `POST /api/vehicles/{vehicleId}/documents`
+- `GET /api/vehicles/{vehicleId}/tire-pressure`
+- `PUT /api/vehicles/{vehicleId}/tire-pressure/spec`
+- `POST /api/vehicles/{vehicleId}/tire-pressure/spec/photo`
+- `POST /api/vehicles/{vehicleId}/tire-pressure/logs`
+- `GET /api/vehicles/{vehicleId}/compliance`
+- `POST /api/vehicles/{vehicleId}/compliance/photo`
+- `POST /api/vehicles/{vehicleId}/compliance/photo-jobs`
+- `GET /api/vehicles/{vehicleId}/compliance/photo-jobs/{jobId}`
+- `POST /api/vehicles/{vehicleId}/compliance/photo-jobs/recheck`
+- `PUT /api/vehicles/{vehicleId}/compliance/{recordId}`
 - `GET /api/documents/{documentId}/content`
+- `GET /api/lock-boxes`
+- `POST /api/lock-boxes`
+- `PUT /api/lock-boxes/{lockBoxId}`
+- `POST /api/lock-boxes/{lockBoxId}/assign`
+- `POST /api/lock-boxes/{lockBoxId}/unassign`
+- `GET /api/workflows`
+- `POST /api/workflows`
+- `GET /api/workflows/{workflowId}`
+- `PUT /api/workflows/{workflowId}/steps/{stepKey}`
+- `POST /api/workflows/{workflowId}/steps/{stepKey}/obd2-report`
+- `PUT /api/workflows/{workflowId}/status`
 - `POST /api/ai/chat`
 - `POST /api/ai/interpret-image`
