@@ -1,4 +1,3 @@
-import { useRef } from 'react'
 import type { RefObject } from 'react'
 import type { GuidedCaptureConfig } from '../types'
 

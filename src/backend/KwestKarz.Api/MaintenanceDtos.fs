@@ -58,6 +58,10 @@ type MaintenanceSummaryResponse =
     { Record: MaintenanceRecordResponse
       DueStatus: string }
 
+type MaintenanceReceiptResponse =
+    { Document: DocumentResponse
+      AiText: string }
+
 type VehicleDashboardResponse =
     { Vehicle: VehicleResponse
       CurrentLockBox: LockBoxResponse option

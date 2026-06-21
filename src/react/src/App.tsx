@@ -20,7 +20,7 @@ import type {
 import { api } from './api'
 import {
   tryApplyReceiptDetails, extractVin, extractPressure, firstPressures,
-  wait, formatComplianceType, complianceClass, normalizePlate, normalizeState,
+  wait, formatComplianceType, complianceClass,
   complianceChecks,
 } from './utils'
 import { lockBoxStyles, lockBoxStatuses, complianceTypes, rentalInspectionPhotoSlots } from './constants'
@@ -1345,7 +1345,7 @@ function App() {
     setMessage('Logging maintenance...')
 
     try {
-      await api.post<MaintenanceRecord>(`/api/vehicles/${dashboard.vehicle.id}/maintenance`, {
+      const record = await api.post<MaintenanceRecord>(`/api/vehicles/${dashboard.vehicle.id}/maintenance`, {
         eventType: maintenanceForm.eventType,
         datePerformed: maintenanceForm.datePerformed,
         odometer: maintenanceForm.odometer ? Number(maintenanceForm.odometer) : null,
@@ -1359,15 +1359,16 @@ function App() {
       if (receiptFile) {
         const form = new FormData()
         form.append('file', receiptFile)
-        form.append('kind', 'Receipt')
-        form.append('description', `${maintenanceForm.eventType} receipt`)
 
-        const response = await fetch(`/api/vehicles/${dashboard.vehicle.id}/documents`, {
-          method: 'POST',
-          body: form,
-        })
+        const response = await fetch(
+          `/api/vehicles/${dashboard.vehicle.id}/maintenance/${record.id}/receipt`,
+          { method: 'POST', body: form },
+        )
 
         if (!response.ok) throw new Error(await response.text())
+
+        const receiptResult = (await response.json()) as { document: DocumentRecord; aiText: string }
+        setReceiptInsight(receiptResult.aiText)
       }
 
       await loadDashboard(dashboard.vehicle.id)
@@ -1556,7 +1557,7 @@ function App() {
         ? await uploadVehicleDocument(dashboard.vehicle.id, tireLogPhotoFile, 'Tire pressure readings photo')
         : null
 
-      await api.post<TirePressureLog>(`/api/vehicles/${dashboard.vehicle.id}/tire-pressure/logs`, {
+      await api.post(`/api/vehicles/${dashboard.vehicle.id}/tire-pressure/logs`, {
         measuredAt: new Date().toISOString(),
         frontLeftPsi: tireLogForm.frontLeftPsi ? Number(tireLogForm.frontLeftPsi) : null,
         frontRightPsi: tireLogForm.frontRightPsi ? Number(tireLogForm.frontRightPsi) : null,
@@ -3194,16 +3195,37 @@ function App() {
             </div>
             <div className="record-list">
               {dashboard.recentMaintenance.length === 0 && <p className="empty">No maintenance logged yet.</p>}
-              {dashboard.recentMaintenance.map((record) => (
-                <article key={record.id} className="record">
-                  <strong>{record.eventType}</strong>
-                  <span>{record.datePerformed}</span>
-                  <p>
-                    {record.odometer ? `${record.odometer.toLocaleString()} miles` : 'Mileage not recorded'}
-                    {record.cost ? ` - $${record.cost.toFixed(2)}` : ''}
-                  </p>
-                </article>
-              ))}
+              {dashboard.recentMaintenance.map((record) => {
+                const receipts = dashboard.documents.filter(
+                  (d) => d.ownerType === 'MaintenanceRecord' && d.ownerId === record.id && d.kind === 'Receipt',
+                )
+                return (
+                  <article key={record.id} className="record">
+                    <strong>{record.eventType}</strong>
+                    <span>{record.datePerformed}</span>
+                    <p>
+                      {record.odometer ? `${record.odometer.toLocaleString()} miles` : 'Mileage not recorded'}
+                      {record.cost ? ` - $${record.cost.toFixed(2)}` : ''}
+                    </p>
+                    {receipts.length > 0 && (
+                      <div className="match-list">
+                        {receipts.map((doc) => (
+                          <a
+                            key={doc.id}
+                            className="status-chip"
+                            href={`/api/documents/${doc.id}/content`}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Receipt
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                    {record.notes && <p className="context">{record.notes}</p>}
+                  </article>
+                )
+              })}
             </div>
           </div>
 

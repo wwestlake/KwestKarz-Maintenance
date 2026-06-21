@@ -73,6 +73,8 @@ export type MaintenanceRecord = {
 
 export type DocumentRecord = {
   id: string
+  ownerType: string
+  ownerId: string
   kind: string
   originalFileName: string
   contentType: string
