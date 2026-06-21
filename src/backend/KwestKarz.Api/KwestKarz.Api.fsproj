@@ -32,6 +32,7 @@
     <Compile Include="RentalInspectionEndpoints.fs" />
     <Compile Include="TuroImportEndpoints.fs" />
     <Compile Include="DiagnosticReportEndpoints.fs" />
+    <Compile Include="UserEndpoints.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

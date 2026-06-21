@@ -5,7 +5,6 @@ open System
 open System.Diagnostics
 open System.IO
 open System.Net.Http
-open System.Text
 open System.Threading.Tasks
 open Microsoft.AspNetCore.Authentication.JwtBearer
 open Microsoft.AspNetCore.Authorization
@@ -82,24 +81,21 @@ module Program =
         |> ignore
 
         if authEnabled then
-            let issuer = builder.Configuration.GetValue<string>("Auth:Issuer")
-            let audience = builder.Configuration.GetValue<string>("Auth:Audience")
-            let signingKey = builder.Configuration.GetValue<string>("Auth:SigningKey")
+            let projectId = builder.Configuration.GetValue<string>("Auth:FirebaseProjectId")
 
-            if String.IsNullOrWhiteSpace(signingKey) then
-                failwith "Auth:SigningKey is required when Auth:Enabled is true."
+            if String.IsNullOrWhiteSpace(projectId) then
+                failwith "Auth:FirebaseProjectId is required when Auth:Enabled is true."
 
             builder.Services
                 .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
                 .AddJwtBearer(fun options ->
+                    options.Authority <- $"https://securetoken.google.com/{projectId}"
                     options.TokenValidationParameters <-
                         TokenValidationParameters(
                             ValidateIssuer = true,
-                            ValidIssuer = issuer,
+                            ValidIssuer = $"https://securetoken.google.com/{projectId}",
                             ValidateAudience = true,
-                            ValidAudience = audience,
-                            ValidateIssuerSigningKey = true,
-                            IssuerSigningKey = SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+                            ValidAudience = projectId,
                             ValidateLifetime = true
                         )
                 )
@@ -107,9 +103,8 @@ module Program =
 
             builder.Services.AddAuthorization(fun options ->
                 options.FallbackPolicy <- AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build()
-                options.AddPolicy("Administrator", fun policy -> policy.RequireRole("Administrator") |> ignore)
-                options.AddPolicy("Operator", fun policy -> policy.RequireRole("Administrator", "Operator") |> ignore)
-                options.AddPolicy("Viewer", fun policy -> policy.RequireRole("Administrator", "Operator", "Viewer") |> ignore)
+                options.AddPolicy("Admin", fun policy -> policy.RequireRole("admin") |> ignore)
+                options.AddPolicy("Helper", fun policy -> policy.RequireRole("admin", "helper") |> ignore)
             )
             |> ignore
 
@@ -217,11 +212,49 @@ module Program =
                 :> Task))
             |> ignore
 
+        let adminPhone = builder.Configuration.GetValue<string>("Auth:AdminPhoneNumber")
+
         if authEnabled then
             app.UseAuthentication() |> ignore
             app.UseAuthorization() |> ignore
 
+            // After auth: enforce user status and inject operator name from profile
+            app.Use(Func<HttpContext, Func<Task>, Task>(fun (context: HttpContext) (next: Func<Task>) ->
+                task {
+                    let path = context.Request.Path.ToString()
+                    let isUserRegistration = path = "/api/users/me" && context.Request.Method = "POST"
+                    let isPublic = path = "/api/health" || isUserRegistration
+
+                    if isPublic || not context.User.Identity.IsAuthenticated then
+                        do! next.Invoke()
+                    else
+                        let uc = context.User.FindFirst("user_id")
+                        let uid = if isNull uc then "" else uc.Value
+                        if String.IsNullOrWhiteSpace(uid) then
+                            context.Response.StatusCode <- 401
+                        else
+                            let dataSource = context.RequestServices.GetRequiredService<NpgsqlDataSource>()
+                            let! (userOpt: UserEndpoints.UserProfile option) = UserEndpoints.findUserByUidAsync dataSource uid context.RequestAborted
+                            match userOpt with
+                            | None ->
+                                context.Response.StatusCode <- 403
+                                do! context.Response.WriteAsJsonAsync({| error = "pending"; message = "Account not yet registered. Call POST /api/users/me first." |}, context.RequestAborted)
+                            | Some user when user.Status = "pending" ->
+                                context.Response.StatusCode <- 403
+                                do! context.Response.WriteAsJsonAsync({| error = "pending"; message = "Your account is awaiting approval." |}, context.RequestAborted)
+                            | Some user when user.Status = "suspended" ->
+                                context.Response.StatusCode <- 403
+                                do! context.Response.WriteAsJsonAsync({| error = "suspended"; message = "Your account has been suspended." |}, context.RequestAborted)
+                            | Some user ->
+                                let name = user.DisplayName |> Option.defaultWith (fun () -> user.Phone)
+                                context.Request.Headers["X-Operator"] <- name
+                                do! next.Invoke()
+                }
+                :> Task))
+            |> ignore
+
         app.MapGet("/api/health", Func<string>(fun () -> "ok")) |> ignore
+        UserEndpoints.mapUserEndpoints adminPhone app |> ignore
         VinEndpoints.mapVinEndpoints app |> ignore
         VehicleEndpoints.mapVehicleEndpoints app |> ignore
         LockBoxEndpoints.mapLockBoxEndpoints app |> ignore

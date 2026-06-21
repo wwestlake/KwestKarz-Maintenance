@@ -20,6 +20,7 @@ import type {
   VinDecode, CreateVehicleForm, EditVehicleForm,
 } from './types'
 import { api } from './api'
+import { useAuth } from './AuthContext'
 import {
   tryApplyReceiptDetails, extractVin, extractPressure, firstPressures,
   wait, formatComplianceType, complianceClass,
@@ -107,6 +108,7 @@ function getStoredActiveArea(): AppArea {
 }
 
 function App() {
+  const { profile, signOut } = useAuth()
   const [activeArea, setActiveArea] = useState<AppArea>(getStoredActiveArea)
   const [workflows, setWorkflows] = useState<WorkflowInstance[]>([])
   const [selectedWorkflowId, setSelectedWorkflowId] = useState('')
@@ -2558,11 +2560,17 @@ function App() {
           </div>
           <div className="panel area-panel">
             <div className="section-heading">
-              <h2>Operator Identity</h2>
+              <h2>Account</h2>
             </div>
-            <p className="hint-text">Your name is attached to records you create. Leave blank to record anonymously.</p>
-            <div className="form-row">
-              <label htmlFor="operatorName">Your Name</label>
+            {profile && (
+              <div className="metrics">
+                <div><span>Phone</span><strong>{profile.phone}</strong></div>
+                <div><span>Role</span><strong>{profile.role}</strong></div>
+                <div><span>Status</span><strong>{profile.status}</strong></div>
+              </div>
+            )}
+            <div className="form-row" style={{ marginTop: 12 }}>
+              <label htmlFor="operatorName">Display Name</label>
               <input
                 id="operatorName"
                 type="text"
@@ -2578,6 +2586,10 @@ function App() {
                 }}
               />
             </div>
+            <p className="hint-text">Your display name is shown on records you create.</p>
+            <button className="btn-secondary" style={{ marginTop: 8 }} onClick={signOut}>
+              Sign out
+            </button>
           </div>
           <TuroImportPanel
             turoImportFile={turoImportFile}

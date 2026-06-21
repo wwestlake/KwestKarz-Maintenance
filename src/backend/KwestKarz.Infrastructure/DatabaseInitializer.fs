@@ -465,6 +465,20 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
 
                 alter table if exists kwestkarzbusinessdata.documents
                     add column if not exists created_by text null;
+
+                create table if not exists kwestkarzbusinessdata.users (
+                    id uuid primary key default gen_random_uuid(),
+                    firebase_uid text not null unique,
+                    phone text not null,
+                    display_name text null,
+                    role text not null default 'helper',
+                    status text not null default 'pending',
+                    created_at timestamptz not null default now(),
+                    updated_at timestamptz not null default now()
+                );
+
+                create index if not exists ix_users_firebase_uid
+                    on kwestkarzbusinessdata.users(firebase_uid);
                 """
 
             use! connection = dataSource.OpenConnectionAsync(cancellationToken)
