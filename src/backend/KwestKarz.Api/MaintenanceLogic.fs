@@ -151,6 +151,74 @@ module MaintenanceLogic =
     let truncate (max: int) (s: string) =
         if s.Length <= max then s else s.[..max - 1]
 
+    let richAiContext
+        (vehicle: Vehicle)
+        (maintenance: MaintenanceRecord list)
+        (nextDueItem: MaintenanceSummary option)
+        (diagnosticReports: DiagnosticReport list)
+        (documents: StoredDocument list) =
+
+        let nl = System.Environment.NewLine
+
+        let vehicleSection =
+            let year = vehicle.Year |> Option.map string |> Option.defaultValue "unknown"
+            let make = vehicle.Make |> Option.defaultValue "unknown"
+            let model = vehicle.Model |> Option.defaultValue "unknown"
+            let trim = vehicle.Trim |> Option.defaultValue ""
+            let odometer = vehicle.CurrentOdometer |> Option.map (fun o -> $"{o:N0} miles") |> Option.defaultValue "unknown"
+            let plate = vehicle.LicensePlate |> Option.defaultValue "unknown"
+            let state = vehicle.LicensePlateState |> Option.defaultValue ""
+            $"VEHICLE: {year} {make} {model} {trim} | VIN: {vehicle.Vin} | Odometer: {odometer} | Plate: {plate} {state} | Status: {VehicleStatus.toStorageValue vehicle.Status}"
+
+        let maintenanceSection =
+            if List.isEmpty maintenance then
+                "MAINTENANCE HISTORY: No records logged."
+            else
+                let rows =
+                    maintenance
+                    |> List.truncate 20
+                    |> List.map (fun r ->
+                        let odo = r.Odometer |> Option.map (fun o -> $" @ {o:N0} mi") |> Option.defaultValue ""
+                        let cost = r.Cost |> Option.map (fun c -> $" ${c:F2}") |> Option.defaultValue ""
+                        let notes = r.Notes |> Option.map (fun n -> $" — {truncate 120 n}") |> Option.defaultValue ""
+                        $"  • {r.DatePerformed} {r.EventType}{odo}{cost}{notes}")
+                    |> String.concat nl
+                $"MAINTENANCE HISTORY (most recent first):{nl}{rows}"
+
+        let dueSection =
+            match nextDueItem with
+            | None -> "NEXT DUE: Nothing scheduled."
+            | Some s ->
+                let dueDate = s.Record.NextDueDate |> Option.map string |> Option.defaultValue "—"
+                let dueOdo = s.Record.NextDueOdometer |> Option.map (fun o -> $"{o:N0} mi") |> Option.defaultValue "—"
+                let status = MaintenanceDueStatus.toStorageValue s.DueStatus
+                $"NEXT DUE: {s.Record.EventType} [{status}] — date: {dueDate}, odometer: {dueOdo}"
+
+        let obd2Section =
+            if List.isEmpty diagnosticReports then
+                "OBD2 REPORTS: None on file."
+            else
+                let rows =
+                    diagnosticReports
+                    |> List.truncate 3
+                    |> List.map (fun r ->
+                        $"  • {r.ReportedAt:u} {r.FileName}{nl}    {truncate 400 r.AiSummary}")
+                    |> String.concat nl
+                $"OBD2 DIAGNOSTIC REPORTS (most recent first):{nl}{rows}"
+
+        let documentSection =
+            if List.isEmpty documents then
+                "DOCUMENTS: None attached."
+            else
+                let rows =
+                    documents
+                    |> List.truncate 10
+                    |> List.map (fun d -> $"  • {DocumentKind.toStorageValue d.Kind}: {d.OriginalFileName} ({d.SizeBytes} bytes)")
+                    |> String.concat nl
+                $"DOCUMENTS:{nl}{rows}"
+
+        String.concat (nl + nl) [| vehicleSection; maintenanceSection; dueSection; obd2Section; documentSection |]
+
     let extractPdfText (contentBytes: byte array) =
         use stream = new MemoryStream(contentBytes)
         use document = PdfDocument.Open(stream)

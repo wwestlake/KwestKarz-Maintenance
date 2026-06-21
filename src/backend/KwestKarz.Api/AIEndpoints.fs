@@ -7,36 +7,13 @@ open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Http
 
 module AIEndpoints =
-    let private vehicleContext (vehicle: Vehicle) =
-        $"""
-        Vehicle:
-        VIN: {vehicle.Vin}
-        Year: {vehicle.Year |> Option.map string |> Option.defaultValue "unknown"}
-        Make: {vehicle.Make |> Option.defaultValue "unknown"}
-        Model: {vehicle.Model |> Option.defaultValue "unknown"}
-        Trim: {vehicle.Trim |> Option.defaultValue "unknown"}
-        Color: {vehicle.Color |> Option.defaultValue "unknown"}
-        Plate: {vehicle.LicensePlate |> Option.defaultValue "unknown"} {vehicle.LicensePlateState |> Option.defaultValue ""}
-        Status: {VehicleStatus.toStorageValue vehicle.Status}
-        Odometer: {vehicle.CurrentOdometer |> Option.map string |> Option.defaultValue "unknown"}
-        Fleet number: {vehicle.FleetPositionNumber |> Option.defaultValue "unknown"}
-        Notes: {vehicle.Notes |> Option.defaultValue ""}
-        """
-
-    let private documentContext (documents: StoredDocument list) =
-        if List.isEmpty documents then
-            "Documents: none attached."
-        else
-            documents
-            |> List.map (fun document -> $"- {DocumentKind.toStorageValue document.Kind}: {document.OriginalFileName}, {document.ContentType}, {document.SizeBytes} bytes, uploaded {document.CreatedAt:u}")
-            |> String.concat Environment.NewLine
-            |> sprintf "Documents:%s%s" Environment.NewLine
-
     let private systemInstructions =
         """
-        You are the KwestKarz maintenance assistant. Use the supplied vehicle and document metadata when present.
-        Be practical and direct. If interpreting a camera image, extract visible labels such as VIN, tire pressure,
-        paint code, emissions labels, part labels, receipt totals, and dates. State uncertainty when the image is unclear.
+        You are the KwestKarz fleet maintenance assistant. You have access to detailed vehicle records
+        including maintenance history, OBD2 diagnostic results, and attached documents.
+        Be practical and direct. Answer based on the supplied data. If interpreting a camera image,
+        extract visible labels such as VIN, tire pressure, paint code, emissions labels, part labels,
+        receipt totals, and dates. State uncertainty when the image is unclear.
         Do not invent values that are not visible or present in the supplied data.
         """
 
@@ -45,22 +22,30 @@ module AIEndpoints =
 
         group.MapPost(
             "/chat",
-            Func<AIChatRequest, IAIConnection, IVehicleRepository, IDocumentRepository, HttpContext, Threading.Tasks.Task<IResult>>(fun request ai vehicles documents httpContext ->
+            Func<AIChatRequest, IAIConnection, IVehicleRepository, IMaintenanceRepository, IDiagnosticReportRepository, IDocumentRepository, HttpContext, Threading.Tasks.Task<IResult>>(fun request ai vehicles maintenance diagnosticReports documents httpContext ->
                 task {
                     let! vehicle =
                         match request.VehicleVin with
                         | Some vin when not (String.IsNullOrWhiteSpace vin) -> vehicles.FindByVinAsync(vin, httpContext.RequestAborted)
                         | _ -> Threading.Tasks.Task.FromResult(None)
 
-                    let! relatedDocuments =
-                        match vehicle with
-                        | Some vehicle -> documents.ListForOwnerAsync(DocumentOwnerType.Vehicle, vehicle.Id, httpContext.RequestAborted)
-                        | None -> Threading.Tasks.Task.FromResult([])
-
                     let context =
                         match vehicle with
-                        | Some vehicle -> $"{vehicleContext vehicle}{Environment.NewLine}{documentContext relatedDocuments}"
                         | None -> "No specific vehicle context was provided."
+                        | Some vehicle ->
+                            // Run all lookups in parallel
+                            let maintenanceTask = maintenance.ListForVehicleAsync(vehicle.Id, httpContext.RequestAborted)
+                            let documentsTask = documents.ListForOwnerAsync(DocumentOwnerType.Vehicle, vehicle.Id, httpContext.RequestAborted)
+                            let diagnosticsTask = diagnosticReports.ListForVehicleAsync(vehicle.Id, httpContext.RequestAborted)
+                            Threading.Tasks.Task.WaitAll([| maintenanceTask :> Threading.Tasks.Task; documentsTask :> Threading.Tasks.Task; diagnosticsTask :> Threading.Tasks.Task |])
+
+                            let allMaintenance = maintenanceTask.Result
+                            let vehicleDocuments = documentsTask.Result
+                            let reports = diagnosticsTask.Result
+                            let today = DateOnly.FromDateTime(DateTime.UtcNow)
+                            let nextDue = MaintenanceLogic.nextDue today vehicle.CurrentOdometer allMaintenance
+
+                            MaintenanceLogic.richAiContext vehicle allMaintenance nextDue reports vehicleDocuments
 
                     let aiRequest =
                         { SystemInstructions = Some systemInstructions
@@ -74,7 +59,7 @@ module AIEndpoints =
 
         group.MapPost(
             "/interpret-image",
-            Func<OpenAIResponsesConnection, IVehicleRepository, HttpContext, Threading.Tasks.Task<IResult>>(fun ai vehicles httpContext ->
+            Func<OpenAIResponsesConnection, IVehicleRepository, IMaintenanceRepository, IDiagnosticReportRepository, IDocumentRepository, HttpContext, Threading.Tasks.Task<IResult>>(fun ai vehicles maintenance diagnosticReports documents httpContext ->
                 task {
                     let! form = httpContext.Request.ReadFormAsync(httpContext.RequestAborted)
                     let file = form.Files.GetFile("file")
@@ -90,6 +75,23 @@ module AIEndpoints =
                             else
                                 vehicles.FindByVinAsync(vehicleVin, httpContext.RequestAborted)
 
+                        let context =
+                            match vehicle with
+                            | None -> "No specific vehicle context was provided."
+                            | Some vehicle ->
+                                let maintenanceTask = maintenance.ListForVehicleAsync(vehicle.Id, httpContext.RequestAborted)
+                                let documentsTask = documents.ListForOwnerAsync(DocumentOwnerType.Vehicle, vehicle.Id, httpContext.RequestAborted)
+                                let diagnosticsTask = diagnosticReports.ListForVehicleAsync(vehicle.Id, httpContext.RequestAborted)
+                                Threading.Tasks.Task.WaitAll([| maintenanceTask :> Threading.Tasks.Task; documentsTask :> Threading.Tasks.Task; diagnosticsTask :> Threading.Tasks.Task |])
+
+                                let allMaintenance = maintenanceTask.Result
+                                let vehicleDocuments = documentsTask.Result
+                                let reports = diagnosticsTask.Result
+                                let today = DateOnly.FromDateTime(DateTime.UtcNow)
+                                let nextDue = MaintenanceLogic.nextDue today vehicle.CurrentOdometer allMaintenance
+
+                                MaintenanceLogic.richAiContext vehicle allMaintenance nextDue reports vehicleDocuments
+
                         use stream = file.OpenReadStream()
                         use memory = new IO.MemoryStream()
                         do! stream.CopyToAsync(memory, httpContext.RequestAborted)
@@ -99,11 +101,6 @@ module AIEndpoints =
                                 "Read this vehicle-related image and extract useful maintenance data."
                             else
                                 prompt
-
-                        let context =
-                            match vehicle with
-                            | Some vehicle -> vehicleContext vehicle
-                            | None -> "No specific vehicle context was provided."
 
                         let aiRequest =
                             { SystemInstructions = Some systemInstructions
