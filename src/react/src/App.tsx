@@ -2,251 +2,30 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import './App.css'
 import { WorkflowDashboard } from './components/WorkflowDashboard'
-import type { AppArea, GuidedCaptureConfig, Obd2ReportUploadResponse, WorkflowInstance, WorkflowStep } from './types'
+import { GuidedCameraModal } from './components/GuidedCameraModal'
+import { VehicleEditPanel } from './components/VehicleEditPanel'
+import { TuroImportPanel } from './components/TuroImportPanel'
+import { MaintenanceForm } from './components/MaintenanceForm'
+import { TirePressurePanel } from './components/TirePressurePanel'
+import type {
+  AppArea, GuidedCaptureConfig, Obd2ReportUploadResponse,
+  WorkflowInstance, WorkflowStep,
+  Vehicle, MaintenanceRecord, DocumentRecord, LockBox,
+  AIResponse, VinScanResponse, VinLatestScanResponse,
+  ComplianceRecord, PhotoScanJob, Dashboard,
+  TirePressureSpec, TirePressureSnapshot, TirePressureSpecScanResponse,
+  RentalInspection, TuroTripImportResponse, TuroMaintenanceSignal,
+  VinDecode, CreateVehicleForm, EditVehicleForm,
+} from './types'
+import { api } from './api'
+import {
+  tryApplyReceiptDetails, extractVin, extractPressure, firstPressures,
+  wait, formatComplianceType, complianceClass, normalizePlate, normalizeState,
+  complianceChecks,
+} from './utils'
+import { lockBoxStyles, lockBoxStatuses, complianceTypes, rentalInspectionPhotoSlots } from './constants'
 
-type Vehicle = {
-  id: string
-  vin: string
-  year?: number
-  make?: string
-  model?: string
-  trim?: string
-  color?: string
-  licensePlate?: string
-  licensePlateState?: string
-  status: string
-  currentOdometer?: number
-  fleetPositionNumber?: string
-  notes?: string
-}
-
-type MaintenanceRecord = {
-  id: string
-  eventType: string
-  datePerformed: string
-  odometer?: number
-  performedBy?: string
-  cost?: number
-  nextDueDate?: string
-  nextDueOdometer?: number
-  notes?: string
-}
-
-type DocumentRecord = {
-  id: string
-  kind: string
-  originalFileName: string
-  contentType: string
-  sizeBytes: number
-  description?: string
-  createdAt: string
-}
-
-type LockBox = {
-  id: string
-  boxNumber: number
-  serialNumber?: string
-  combo: string
-  style: string
-  status: string
-  notes?: string
-  currentVehicleId?: string
-  currentVehicleVin?: string
-  currentVehicleLabel?: string
-  assignedAt?: string
-}
-
-type AIResponse = {
-  text: string
-  model: string
-}
-
-type VinScanResponse = {
-  vin?: unknown
-  aiText?: unknown
-  model?: unknown
-}
-
-type VinLatestScanResponse = {
-  vin?: string
-  loggedAt?: string
-}
-
-type ComplianceRecord = {
-  id: string
-  vehicleId: string
-  recordType: string
-  provider?: string
-  policyNumber?: string
-  documentNumber?: string
-  plateNumber?: string
-  plateState?: string
-  vin?: string
-  stickerMonth?: string
-  stickerYear?: number
-  serialNumber?: string
-  effectiveDate?: string
-  expirationDate?: string
-  documentId?: string
-  notes?: string
-  dueStatus: string
-  createdAt: string
-  updatedAt: string
-}
-
-type PhotoScanJob = {
-  id: string
-  vehicleId?: string
-  scanType: string
-  recordType?: string
-  status: string
-  message?: string
-  documentId?: string
-  resultRecordId?: string
-  aiText?: string
-  error?: string
-  createdAt: string
-  updatedAt: string
-  completedAt?: string
-}
-
-type Dashboard = {
-  vehicle: Vehicle
-  currentLockBox?: LockBox
-  compliance: ComplianceRecord[]
-  documents: DocumentRecord[]
-  recentMaintenance: MaintenanceRecord[]
-  nextDue?: {
-    record: MaintenanceRecord
-    dueStatus: string
-  }
-  aiContextSummary: string
-}
-
-type TirePressureSpec = {
-  frontLeftPsi?: number
-  frontRightPsi?: number
-  rearLeftPsi?: number
-  rearRightPsi?: number
-  notes?: string
-  photoDocumentId?: string
-}
-
-type TirePressureLog = {
-  id: string
-  measuredAt: string
-  frontLeftPsi?: number
-  frontRightPsi?: number
-  rearLeftPsi?: number
-  rearRightPsi?: number
-  status: string
-  notes?: string
-  photoDocumentId?: string
-}
-
-type TirePressureSnapshot = {
-  spec?: TirePressureSpec
-  recentLogs: TirePressureLog[]
-}
-
-type RentalInspectionPhoto = {
-  id: string
-  inspectionId: string
-  slotKey: string
-  documentId: string
-  notes?: string
-  createdAt: string
-}
-
-type RentalInspection = {
-  id: string
-  workflowId?: string
-  vehicleId: string
-  inspectionKind: string
-  odometer?: number
-  fuelLevel?: string
-  damageFound?: boolean
-  status: string
-  notes?: string
-  createdAt: string
-  updatedAt: string
-  photos: RentalInspectionPhoto[]
-}
-
-type TuroTripImportVehicleSummary = {
-  vin?: string
-  vehicleId?: string
-  vehicleName?: string
-  turoVehicleId?: string
-  importedTrips: number
-  latestOdometer?: number
-  importedMiles: number
-}
-
-type TuroTripImportResponse = {
-  importId: string
-  originalFileName: string
-  rowCount: number
-  insertedCount: number
-  updatedCount: number
-  skippedCount: number
-  vehicleMatches: number
-  vehicleSummaries: TuroTripImportVehicleSummary[]
-}
-
-type TuroMaintenanceSignal = {
-  vehicleId?: string | null
-  vin?: string | null
-  vehicleLabel?: string | null
-  importedTrips?: number | null
-  completedTrips?: number | null
-  importedMiles?: number | null
-  latestTripEnd?: string | null
-  latestImportedOdometer?: number | null
-  latestMaintenanceOdometer?: number | null
-  milesSinceLatestMaintenance?: number | null
-  suggestedActions?: string[] | null
-}
-
-type TirePressureSpecScanResponse = {
-  spec: TirePressureSpec
-  aiText: string
-  photoDocumentId?: string
-}
-
-type VinDecode = {
-  vin: string
-  year?: number
-  make?: string
-  model?: string
-  trim?: string
-  bodyClass?: string
-  errorText?: string
-}
-
-type CreateVehicleForm = {
-  vin: string
-  year: string
-  make: string
-  model: string
-  trim: string
-  color: string
-  licensePlate: string
-  licensePlateState: string
-  currentOdometer: string
-  fleetPositionNumber: string
-  notes: string
-}
-
-type EditVehicleForm = {
-  color: string
-  licensePlate: string
-  licensePlateState: string
-  status: string
-  currentOdometer: string
-  fleetPositionNumber: string
-  notes: string
-}
+// ─── local constants kept in App for nav/catalog references ──────────────────
 
 const appAreas: { id: AppArea; label: string }[] = [
   { id: 'home', label: 'Home' },
@@ -291,62 +70,6 @@ const emptyVehicleForm: CreateVehicleForm = {
   notes: '',
 }
 
-const maintenanceTypes = [
-  'Oil Change',
-  'Car Wash',
-  'Full Detail',
-  'Interior Detail',
-  'Exterior Detail',
-  'Mechanical Repair',
-  'Damage Repair',
-  'Body Work',
-  'Paint / Touch Up',
-  'Tires',
-  'Tire Rotation',
-  'Tire Repair',
-  'Wheel Alignment',
-  'Brake Inspection',
-  'Brake Pads',
-  'Brake Rotors',
-  'Brake Fluid Flush',
-  'Transmission Flush',
-  'Coolant Flush',
-  'Battery',
-  'Alternator',
-  'Starter',
-  'Wipers',
-  'Air Filter',
-  'Cabin Filter',
-  'Spark Plugs',
-  'Suspension',
-  'A/C Service',
-  'Check Engine Diagnostic',
-  'OBD2 Scan',
-  'Emissions',
-  'Inspection',
-  'Registration',
-  'Recall / Dealer Service',
-  'GPS / Bouncie Install',
-  'Lock Box',
-  'Key / Fob',
-  'Roadside',
-  'Other',
-]
-
-const lockBoxStyles = ['Mechanical Keypad', 'Dial', 'Other']
-const lockBoxStatuses = ['Available', 'Assigned', 'Lost', 'Retired']
-const complianceTypes = ['Registration', 'Insurance', 'LicensePlate']
-const rentalInspectionPhotoSlots = [
-  ['front', 'Front'],
-  ['rear', 'Rear'],
-  ['driverSide', 'Driver Side'],
-  ['passengerSide', 'Passenger Side'],
-  ['frontInterior', 'Front Interior'],
-  ['rearInterior', 'Rear Interior'],
-  ['trunkCargo', 'Trunk / Cargo'],
-  ['odometerDashboard', 'Odometer / Dash'],
-  ['damage', 'Damage Close-up'],
-] as const
 const activeAreaStorageKey = 'kwestkarz.activeArea'
 const selectedWorkflowStorageKey = 'kwestkarz.selectedWorkflowId'
 const selectedWorkflowStepStorageKey = 'kwestkarz.selectedWorkflowStepKey'
@@ -363,196 +86,6 @@ const complianceScanVehicleStorageKey = 'kwestkarz.complianceScanVehicleId'
 const complianceScanStartedStorageKey = 'kwestkarz.complianceScanStartedAt'
 const complianceScanJobStorageKey = 'kwestkarz.complianceScanJobId'
 
-const api = {
-  async get<T>(path: string): Promise<T> {
-    const response = await fetch(path)
-    if (!response.ok) throw new Error(await response.text())
-    return response.json()
-  },
-  async post<T>(path: string, body: unknown): Promise<T> {
-    const response = await fetch(path, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    if (!response.ok) throw new Error(await response.text())
-    return response.json()
-  },
-  async put<T>(path: string, body: unknown): Promise<T> {
-    const response = await fetch(path, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    if (!response.ok) throw new Error(await response.text())
-    return response.json()
-  },
-}
-
-function tryApplyReceiptDetails(text: string) {
-  const costMatch = text.match(/(?:total|amount|paid|balance)\D{0,20}(\d{1,5}(?:\.\d{2})?)/i)
-  const dateMatch = text.match(/\b(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{4}-\d{2}-\d{2})\b/)
-
-  return {
-    cost: costMatch?.[1],
-    date: dateMatch?.[1],
-  }
-}
-
-function extractVin(text: string) {
-  const upper = text.toUpperCase()
-  const directMatch = upper.match(/[A-HJ-NPR-Z0-9]{17}/)
-  if (directMatch) return directMatch[0]
-
-  const compact = upper.replace(/[^A-Z0-9]/g, '')
-  return compact.match(/[A-HJ-NPR-Z0-9]{17}/)?.[0] ?? ''
-}
-
-function pressureValue(value: unknown) {
-  if (typeof value === 'number' && value >= 15 && value <= 80) return value
-  if (typeof value !== 'string') return undefined
-
-  const match = value.match(/\b([1-9]\d)\b/)
-  const number = Number(match?.[1] ?? '')
-  return number >= 15 && number <= 80 ? number : undefined
-}
-
-function extractPressure(label: string, text: string) {
-  const afterLabel = new RegExp(`(?:${label})[^0-9]{0,50}([1-9]\\d)\\s*(?:psi|psig)?`, 'i')
-  const beforeLabel = new RegExp(`([1-9]\\d)\\s*(?:psi|psig)?[^a-z0-9]{0,30}(?:${label})`, 'i')
-  return pressureValue(text.match(afterLabel)?.[1]) ?? pressureValue(text.match(beforeLabel)?.[1])
-}
-
-function firstPressures(text: string) {
-  const explicitPsi = [...text.matchAll(/\b([1-9]\d)\s*(?:psi|psig)\b/gi)]
-    .map((match) => Number(match[1]))
-    .filter((value) => value >= 15 && value <= 80)
-
-  if (explicitPsi.length > 0) return explicitPsi
-
-  return [...text.matchAll(/\b([1-9]\d)\b/g)]
-    .map((match) => Number(match[1]))
-    .filter((value) => value >= 15 && value <= 80)
-}
-
-function wait(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms))
-}
-
-function formatComplianceType(type: string) {
-  return type === 'LicensePlate' ? 'License Plate' : type
-}
-
-function complianceClass(status?: string) {
-  if (status === 'Expired') return 'status-chip danger'
-  if (status === 'Due Soon' || status === 'Missing Expiration') return 'status-chip warning'
-  return 'status-chip good'
-}
-
-function normalizePlate(value?: string) {
-  return value?.toUpperCase().replace(/[^A-Z0-9]/g, '') ?? ''
-}
-
-const stateCodes: Record<string, string> = {
-  ALABAMA: 'AL',
-  ALASKA: 'AK',
-  ARIZONA: 'AZ',
-  ARKANSAS: 'AR',
-  CALIFORNIA: 'CA',
-  COLORADO: 'CO',
-  CONNECTICUT: 'CT',
-  DELAWARE: 'DE',
-  FLORIDA: 'FL',
-  GEORGIA: 'GA',
-  HAWAII: 'HI',
-  IDAHO: 'ID',
-  ILLINOIS: 'IL',
-  INDIANA: 'IN',
-  IOWA: 'IA',
-  KANSAS: 'KS',
-  KENTUCKY: 'KY',
-  LOUISIANA: 'LA',
-  MAINE: 'ME',
-  MARYLAND: 'MD',
-  MASSACHUSETTS: 'MA',
-  MICHIGAN: 'MI',
-  MINNESOTA: 'MN',
-  MISSISSIPPI: 'MS',
-  MISSOURI: 'MO',
-  MONTANA: 'MT',
-  NEBRASKA: 'NE',
-  NEVADA: 'NV',
-  'NEW HAMPSHIRE': 'NH',
-  'NEW JERSEY': 'NJ',
-  'NEW MEXICO': 'NM',
-  'NEW YORK': 'NY',
-  'NORTH CAROLINA': 'NC',
-  'NORTH DAKOTA': 'ND',
-  OHIO: 'OH',
-  OKLAHOMA: 'OK',
-  OREGON: 'OR',
-  PENNSYLVANIA: 'PA',
-  'RHODE ISLAND': 'RI',
-  'SOUTH CAROLINA': 'SC',
-  'SOUTH DAKOTA': 'SD',
-  TENNESSEE: 'TN',
-  TEXAS: 'TX',
-  UTAH: 'UT',
-  VERMONT: 'VT',
-  VIRGINIA: 'VA',
-  WASHINGTON: 'WA',
-  'WEST VIRGINIA': 'WV',
-  WISCONSIN: 'WI',
-  WYOMING: 'WY',
-  'DISTRICT OF COLUMBIA': 'DC',
-}
-
-function normalizeState(value?: string) {
-  const normalized = value?.toUpperCase().replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim() ?? ''
-  if (normalized.length === 2) return normalized
-  return stateCodes[normalized] ?? normalized
-}
-
-function complianceChecks(record: ComplianceRecord, dashboard: Dashboard) {
-  const issues: string[] = []
-  const ok: string[] = []
-  const recordPlate = normalizePlate(record.plateNumber)
-  const vehiclePlate = normalizePlate(dashboard.vehicle.licensePlate)
-  const recordState = normalizeState(record.plateState)
-  const vehicleState = normalizeState(dashboard.vehicle.licensePlateState)
-  const recordVin = record.vin?.toUpperCase().trim()
-
-  if (recordVin) {
-    if (recordVin === dashboard.vehicle.vin) ok.push(`VIN matches: ${recordVin}`)
-    else issues.push(`VIN mismatch: ${recordVin} vs vehicle ${dashboard.vehicle.vin}`)
-  }
-
-  if (recordPlate && vehiclePlate) {
-    if (recordPlate === vehiclePlate) ok.push(`Vehicle plate matches: ${record.plateNumber} vs ${dashboard.vehicle.licensePlate}`)
-    else issues.push(`Vehicle plate mismatch: ${record.plateNumber} vs vehicle ${dashboard.vehicle.licensePlate}`)
-  }
-
-  if (recordState && vehicleState) {
-    if (recordState === vehicleState) ok.push(`State matches: ${record.plateState} vs ${dashboard.vehicle.licensePlateState}`)
-    else issues.push(`State mismatch: ${record.plateState} vs vehicle ${dashboard.vehicle.licensePlateState}`)
-  }
-
-  for (const other of dashboard.compliance) {
-    if (other.id === record.id) continue
-    const otherPlate = normalizePlate(other.plateNumber)
-    if (recordPlate && otherPlate) {
-      if (recordPlate === otherPlate) ok.push(`${formatComplianceType(other.recordType)} plate matches`)
-      else issues.push(`${formatComplianceType(other.recordType)} plate mismatch`)
-    }
-    const otherVin = other.vin?.toUpperCase().trim()
-    if (recordVin && otherVin) {
-      if (recordVin === otherVin) ok.push(`${formatComplianceType(other.recordType)} VIN matches`)
-      else issues.push(`${formatComplianceType(other.recordType)} VIN mismatch`)
-    }
-  }
-
-  return { issues: [...new Set(issues)], ok: [...new Set(ok)] }
-}
 
 function getVinScanClientId() {
   const existing = localStorage.getItem(vinScanClientStorageKey)
@@ -607,7 +140,6 @@ function App() {
     nextDueOdometer: '',
     notes: '',
   })
-  const [showMaintenanceTypes, setShowMaintenanceTypes] = useState(false)
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptInsight, setReceiptInsight] = useState('')
   const [showMaintenanceForm, setShowMaintenanceForm] = useState(false)
@@ -2594,70 +2126,21 @@ function App() {
       )}
 
       {guidedCapture && (
-        <div className="camera-modal" role="dialog" aria-modal="true" aria-label={guidedCapture.title}>
-          <div className="camera-panel">
-            <div className="camera-heading">
-              <div>
-                <strong>{guidedCapture.title}</strong>
-                <span>{guidedCapture.instructions}</span>
-              </div>
-              <button className="secondary-button" type="button" onClick={cancelGuidedCamera}>
-                Close
-              </button>
-            </div>
-            <div className="camera-preview">
-              {guidedPhotoUrl ? (
-                <img src={guidedPhotoUrl} alt="Captured preview" />
-              ) : (
-                <>
-                  <video
-                    ref={guidedVideoRef}
-                    playsInline
-                    muted
-                    autoPlay
-                    onLoadedMetadata={(event) => event.currentTarget.play().catch(() => undefined)}
-                    onCanPlay={() => setGuidedCameraStarting(false)}
-                  />
-                  {guidedCameraStarting && (
-                    <div className="camera-wait">
-                      <span className="spinner" aria-hidden="true" />
-                      <span>Starting camera...</span>
-                    </div>
-                  )}
-                </>
-              )}
-              {!guidedPhotoUrl && <div className={`camera-frame ${guidedCapture.overlay}`} aria-hidden="true" />}
-            </div>
-            {guidedCameraError && <p className="camera-error">{guidedCameraError}</p>}
-            <canvas ref={guidedCanvasRef} className="hidden-input" />
-            <div className="camera-actions">
-              {!guidedPhotoUrl && (
-                <button className="secondary-button" type="button" onClick={() => openGuidedCamera(guidedCapture)}>
-                  Retry In-App Camera
-                </button>
-              )}
-              {!guidedPhotoUrl && !guidedCameraError && (
-                <button className="shutter-button" type="button" onClick={captureGuidedPhoto} aria-label="Take picture">
-                  <span aria-hidden="true" />
-                  Take Picture
-                </button>
-              )}
-              {guidedPhotoUrl && (
-                <>
-                  <button className="secondary-button" type="button" onClick={retakeGuidedPhoto}>
-                    Retake
-                  </button>
-                  <button type="button" onClick={useGuidedPhoto}>
-                    Use Photo
-                  </button>
-                </>
-              )}
-              <button type="button" onClick={() => openNativeCapture(guidedCapture)}>
-                Use Phone Camera
-              </button>
-            </div>
-          </div>
-        </div>
+        <GuidedCameraModal
+          guidedCapture={guidedCapture}
+          guidedPhotoUrl={guidedPhotoUrl}
+          guidedCameraStarting={guidedCameraStarting}
+          guidedCameraError={guidedCameraError}
+          guidedVideoRef={guidedVideoRef}
+          guidedCanvasRef={guidedCanvasRef}
+          onCancel={cancelGuidedCamera}
+          onCapture={captureGuidedPhoto}
+          onRetake={retakeGuidedPhoto}
+          onUsePhoto={useGuidedPhoto}
+          onNativeCapture={openNativeCapture}
+          onRetryCamera={openGuidedCamera}
+          onCameraReady={() => setGuidedCameraStarting(false)}
+        />
       )}
 
       {activeArea === 'home' && (
@@ -2915,102 +2398,15 @@ function App() {
               </div>
             </div>
           </div>
-          <div className="panel area-panel">
-            <div className="section-heading">
-              <div>
-                <h2>Turo Trip Import</h2>
-                <p>Reservation ID is used to update existing rows instead of duplicating them.</p>
-              </div>
-            </div>
-            <form className="import-form" onSubmit={importTuroTripEarnings}>
-              <label>
-                <span>Trip earnings CSV</span>
-                <input
-                  type="file"
-                  accept=".csv,text/csv"
-                  onChange={(event) => setTuroImportFile(event.target.files?.[0] ?? null)}
-                />
-              </label>
-              <button type="submit" disabled={loading || !turoImportFile}>Import Trips</button>
-            </form>
-            {turoImportResult && (
-              <div className="import-summary">
-                <div>
-                  <span>Rows</span>
-                  <strong>{turoImportResult.rowCount}</strong>
-                </div>
-                <div>
-                  <span>New</span>
-                  <strong>{turoImportResult.insertedCount}</strong>
-                </div>
-                <div>
-                  <span>Updated</span>
-                  <strong>{turoImportResult.updatedCount}</strong>
-                </div>
-                <div>
-                  <span>Vehicle Matches</span>
-                  <strong>{turoImportResult.vehicleMatches}</strong>
-                </div>
-              </div>
-            )}
-            {turoImportResult && (
-              <div className="record-list">
-                {turoImportResult.vehicleSummaries.slice(0, 8).map((summary) => (
-                  <article key={`${summary.vin}-${summary.turoVehicleId}`} className="record">
-                    <strong>{summary.vehicleName ?? summary.vin ?? 'Unknown vehicle'}</strong>
-                    <span>{summary.vin ?? 'No VIN'} - {summary.importedTrips} trips</span>
-                    <p>
-                      {summary.importedMiles.toLocaleString()} imported miles
-                      {summary.latestOdometer ? ` - latest odometer ${summary.latestOdometer.toLocaleString()}` : ''}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="panel area-panel wide-panel">
-            <div className="section-heading">
-              <div>
-                <h2>Maintenance Signals From Turo</h2>
-                <p>{turoMaintenanceSignals.length} vehicles with imported trip history</p>
-              </div>
-              <button className="secondary-button" type="button" disabled={loading} onClick={loadTuroMaintenanceSignals}>
-                Refresh
-              </button>
-            </div>
-            <div className="record-list">
-              {turoMaintenanceSignals.length === 0 && <p className="empty">Import Turo trip earnings to generate maintenance signals.</p>}
-              {turoMaintenanceSignals.map((signal, index) => {
-                const importedMiles = signal.importedMiles ?? 0
-                const completedTrips = signal.completedTrips ?? 0
-                const suggestedActions = signal.suggestedActions ?? []
-                const key = signal.vehicleId ?? signal.vin ?? `signal-${index}`
-
-                return (
-                  <article key={key} className="record">
-                    <div className="record-heading">
-                      <strong>{signal.vehicleLabel ?? signal.vin ?? 'Unmatched Turo vehicle'}</strong>
-                      <span>{completedTrips} completed trips</span>
-                    </div>
-                    <p>
-                      {importedMiles.toLocaleString()} imported miles
-                      {signal.latestImportedOdometer ? ` - latest odometer ${signal.latestImportedOdometer.toLocaleString()}` : ''}
-                      {signal.milesSinceLatestMaintenance != null ? ` - ${signal.milesSinceLatestMaintenance.toLocaleString()} miles since latest maintenance` : ''}
-                    </p>
-                    <div className="match-list">
-                      {suggestedActions.length === 0 ? (
-                        <span className="status-chip good">No predicted action yet</span>
-                      ) : (
-                        suggestedActions.map((action) => (
-                          <span key={action} className="status-chip warning">{action}</span>
-                        ))
-                      )}
-                    </div>
-                  </article>
-                )
-              })}
-            </div>
-          </div>
+          <TuroImportPanel
+            turoImportFile={turoImportFile}
+            turoImportResult={turoImportResult}
+            turoMaintenanceSignals={turoMaintenanceSignals}
+            loading={loading}
+            onFileChange={setTuroImportFile}
+            onImport={importTuroTripEarnings}
+            onRefreshSignals={loadTuroMaintenanceSignals}
+          />
         </section>
       )}
 
@@ -3265,86 +2661,13 @@ function App() {
           </div>
 
           {showEditVehicle && (
-            <div className="panel">
-              <div className="section-heading">
-                <h2>Edit Vehicle</h2>
-                <button className="secondary-button" type="button" onClick={() => setShowEditVehicle(false)}>
-                  Cancel
-                </button>
-              </div>
-              <form className="vehicle-edit-form" onSubmit={saveVehicle}>
-                <label>
-                  <span>Color</span>
-                  <input
-                    value={editVehicleForm.color}
-                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, color: e.target.value })}
-                    placeholder="e.g. Silver"
-                  />
-                </label>
-                <label>
-                  <span>License Plate</span>
-                  <input
-                    value={editVehicleForm.licensePlate}
-                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, licensePlate: e.target.value.toUpperCase() })}
-                    placeholder="e.g. ABC1234"
-                  />
-                </label>
-                <label>
-                  <span>Plate State</span>
-                  <input
-                    value={editVehicleForm.licensePlateState}
-                    maxLength={2}
-                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, licensePlateState: e.target.value.toUpperCase() })}
-                    placeholder="e.g. TX"
-                  />
-                </label>
-                <label>
-                  <span>Status</span>
-                  <select
-                    value={editVehicleForm.status}
-                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, status: e.target.value })}
-                  >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
-                    <option value="In Shop">In Shop</option>
-                    <option value="Staging">Staging</option>
-                    <option value="Sold">Sold</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Odometer</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={editVehicleForm.currentOdometer}
-                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, currentOdometer: e.target.value })}
-                    placeholder="Current miles"
-                  />
-                </label>
-                <label>
-                  <span>Fleet Position</span>
-                  <input
-                    value={editVehicleForm.fleetPositionNumber}
-                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, fleetPositionNumber: e.target.value })}
-                    placeholder="e.g. 01"
-                  />
-                </label>
-                <label>
-                  <span>Notes</span>
-                  <textarea
-                    value={editVehicleForm.notes}
-                    rows={3}
-                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, notes: e.target.value })}
-                  />
-                </label>
-                <div className="form-actions">
-                  <button type="submit" disabled={loading}>Save Changes</button>
-                  <button className="secondary-button" type="button" onClick={() => setShowEditVehicle(false)}>
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
+            <VehicleEditPanel
+              form={editVehicleForm}
+              loading={loading}
+              onChange={setEditVehicleForm}
+              onSubmit={saveVehicle}
+              onCancel={() => setShowEditVehicle(false)}
+            />
           )}
 
           {selectedWorkflow?.workflowType === 'RentalInspection' && (
@@ -3771,273 +3094,41 @@ function App() {
           </div>
 
           {showTirePressurePanel && (
-            <div className="panel tire-pressure-panel">
-            <div className="section-heading">
-              <h2>Tire Pressure</h2>
-                <p>{tirePressure.spec ? `FL ${tirePressure.spec.frontLeftPsi ?? '?'} / FR ${tirePressure.spec.frontRightPsi ?? '?'} / RL ${tirePressure.spec.rearLeftPsi ?? '?'} / RR ${tirePressure.spec.rearRightPsi ?? '?'} PSI` : 'No factory spec saved'}</p>
-              </div>
-              {workingIndicator}
-
-              <input
-                ref={tireSpecCameraInputRef}
-                className="hidden-input"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  event.target.value = ''
-                  if (file) readTireSpecPhoto(file)
-                }}
-              />
-              <input
-                ref={tireLogCameraInputRef}
-                className="hidden-input"
-                type="file"
-                accept="image/*"
-                capture="environment"
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  event.target.value = ''
-                  if (file) readTireLogPhoto(file)
-                }}
-              />
-
-              <div className="tire-grid">
-                <form className="tire-card" onSubmit={saveTireSpec}>
-                  <div className="section-heading compact-heading">
-                    <h2>Factory Spec</h2>
-                    <button
-                      className="secondary-button"
-                      type="button"
-                      disabled={loading}
-                      onClick={() => {
-                        setShowTirePressurePanel(true)
-                        localStorage.setItem(tirePanelStorageKey, 'true')
-                        localStorage.setItem(tireSpecScanPendingStorageKey, 'true')
-                        tireSpecCameraInputRef.current?.click()
-                      }}
-                    >
-                      Scan Plate
-                    </button>
-                  </div>
-                  <label>
-                    <span>Front Left</span>
-                    <input
-                      inputMode="numeric"
-                      value={tireSpecForm.frontLeftPsi}
-                      onChange={(event) => setTireSpecForm({ ...tireSpecForm, frontLeftPsi: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span>Front Right</span>
-                    <input
-                      inputMode="numeric"
-                      value={tireSpecForm.frontRightPsi}
-                      onChange={(event) => setTireSpecForm({ ...tireSpecForm, frontRightPsi: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span>Rear Left</span>
-                    <input
-                      inputMode="numeric"
-                      value={tireSpecForm.rearLeftPsi}
-                      onChange={(event) => setTireSpecForm({ ...tireSpecForm, rearLeftPsi: event.target.value })}
-                    />
-                  </label>
-                  <label>
-                    <span>Rear Right</span>
-                    <input
-                      inputMode="numeric"
-                      value={tireSpecForm.rearRightPsi}
-                      onChange={(event) => setTireSpecForm({ ...tireSpecForm, rearRightPsi: event.target.value })}
-                    />
-                  </label>
-                  <label className="wide">
-                    <span>Notes</span>
-                    <textarea value={tireSpecForm.notes} onChange={(event) => setTireSpecForm({ ...tireSpecForm, notes: event.target.value })} />
-                  </label>
-                  <button type="submit" disabled={loading}>Save Spec</button>
-                </form>
-
-                <form className="tire-card" onSubmit={saveTireLog}>
-                  <div className="section-heading compact-heading">
-                    <h2>Actual Readings</h2>
-                    <button className="secondary-button" type="button" disabled={loading} onClick={() => tireLogCameraInputRef.current?.click()}>
-                      Scan Readings
-                    </button>
-                  </div>
-                  <label>
-                    <span>Front Left</span>
-                    <input inputMode="numeric" value={tireLogForm.frontLeftPsi} onChange={(event) => setTireLogForm({ ...tireLogForm, frontLeftPsi: event.target.value })} />
-                  </label>
-                  <label>
-                    <span>Front Right</span>
-                    <input inputMode="numeric" value={tireLogForm.frontRightPsi} onChange={(event) => setTireLogForm({ ...tireLogForm, frontRightPsi: event.target.value })} />
-                  </label>
-                  <label>
-                    <span>Rear Left</span>
-                    <input inputMode="numeric" value={tireLogForm.rearLeftPsi} onChange={(event) => setTireLogForm({ ...tireLogForm, rearLeftPsi: event.target.value })} />
-                  </label>
-                  <label>
-                    <span>Rear Right</span>
-                    <input inputMode="numeric" value={tireLogForm.rearRightPsi} onChange={(event) => setTireLogForm({ ...tireLogForm, rearRightPsi: event.target.value })} />
-                  </label>
-                  <label className="wide">
-                    <span>Notes</span>
-                    <textarea value={tireLogForm.notes} onChange={(event) => setTireLogForm({ ...tireLogForm, notes: event.target.value })} />
-                  </label>
-                  <button type="submit" disabled={loading}>Save Pressure Log</button>
-                </form>
-              </div>
-
-              {tirePressureInsight && (
-                <div className="wide">
-                  <p className="context">Last tire scan readout</p>
-                  <pre className="receipt-insight">{tirePressureInsight}</pre>
-                </div>
-              )}
-
-              <div className="record-list tire-log-list">
-                {tirePressure.recentLogs.length === 0 && <p className="empty">No tire pressure logs yet.</p>}
-                {tirePressure.recentLogs.map((log) => (
-                  <article key={log.id} className={`record tire-log status-${log.status.toLowerCase()}`}>
-                    <strong>{log.status}</strong>
-                    <span>{new Date(log.measuredAt).toLocaleString()}</span>
-                    <p>
-                      FL {log.frontLeftPsi ?? '?'} / FR {log.frontRightPsi ?? '?'} / RL {log.rearLeftPsi ?? '?'} / RR {log.rearRightPsi ?? '?'} PSI
-                    </p>
-                  </article>
-                ))}
-              </div>
-            </div>
+            <TirePressurePanel
+              tirePressure={tirePressure}
+              tireSpecForm={tireSpecForm}
+              tireLogForm={tireLogForm}
+              tirePressureInsight={tirePressureInsight}
+              loading={loading}
+              tireSpecCameraInputRef={tireSpecCameraInputRef}
+              tireLogCameraInputRef={tireLogCameraInputRef}
+              onSpecChange={setTireSpecForm}
+              onLogChange={setTireLogForm}
+              onSpecSubmit={saveTireSpec}
+              onLogSubmit={saveTireLog}
+              onSpecPhotoChange={readTireSpecPhoto}
+              onLogPhotoChange={readTireLogPhoto}
+              onScanSpec={() => {
+                setShowTirePressurePanel(true)
+                localStorage.setItem(tirePanelStorageKey, 'true')
+                localStorage.setItem(tireSpecScanPendingStorageKey, 'true')
+                tireSpecCameraInputRef.current?.click()
+              }}
+            />
           )}
 
           {showMaintenanceForm && (
-          <div className="panel">
-            <div className="section-heading">
-              <h2>Log Maintenance</h2>
-              <button className="secondary-button" type="button" onClick={() => setShowMaintenanceForm(false)}>
-                Cancel
-              </button>
-            </div>
-            <form className="maintenance-form" onSubmit={logMaintenance}>
-              <div className="quick-actions wide">
-                <button className="type-picker-button" type="button" onClick={() => setShowMaintenanceTypes(!showMaintenanceTypes)}>
-                  Maintenance Type
-                </button>
-                <button
-                  className={maintenanceForm.eventType === 'Oil Change' ? 'action-chip selected' : 'action-chip'}
-                  type="button"
-                  onClick={() => setMaintenanceForm({ ...maintenanceForm, eventType: 'Oil Change' })}
-                >
-                  Oil Change
-                </button>
-                <button
-                  className={maintenanceForm.eventType === 'Car Wash' ? 'action-chip selected' : 'action-chip'}
-                  type="button"
-                  onClick={() => setMaintenanceForm({ ...maintenanceForm, eventType: 'Car Wash' })}
-                >
-                  Car Wash
-                </button>
-                <button
-                  className={maintenanceForm.eventType === 'Mechanical Repair' ? 'action-chip selected' : 'action-chip'}
-                  type="button"
-                  onClick={() => setMaintenanceForm({ ...maintenanceForm, eventType: 'Mechanical Repair' })}
-                >
-                  Repair
-                </button>
-              </div>
-              {showMaintenanceTypes && (
-                <div className="type-picker wide">
-                  {maintenanceTypes.map((type) => (
-                    <button
-                      key={type}
-                      className={maintenanceForm.eventType === type ? 'type-option selected' : 'type-option'}
-                      type="button"
-                      onClick={() => {
-                        setMaintenanceForm({ ...maintenanceForm, eventType: type })
-                        setShowMaintenanceTypes(false)
-                      }}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
-              )}
-              <label>
-                <span>Event</span>
-                <input
-                  value={maintenanceForm.eventType}
-                  onChange={(event) => setMaintenanceForm({ ...maintenanceForm, eventType: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>Date</span>
-                <input
-                  type="date"
-                  value={maintenanceForm.datePerformed}
-                  onChange={(event) => setMaintenanceForm({ ...maintenanceForm, datePerformed: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>Odometer</span>
-                <input
-                  inputMode="numeric"
-                  value={maintenanceForm.odometer}
-                  onChange={(event) => setMaintenanceForm({ ...maintenanceForm, odometer: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>Cost</span>
-                <input
-                  inputMode="decimal"
-                  value={maintenanceForm.cost}
-                  onChange={(event) => setMaintenanceForm({ ...maintenanceForm, cost: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>Next Due Date</span>
-                <input
-                  type="date"
-                  value={maintenanceForm.nextDueDate}
-                  onChange={(event) => setMaintenanceForm({ ...maintenanceForm, nextDueDate: event.target.value })}
-                />
-              </label>
-              <label>
-                <span>Next Due Miles</span>
-                <input
-                  inputMode="numeric"
-                  value={maintenanceForm.nextDueOdometer}
-                  onChange={(event) => setMaintenanceForm({ ...maintenanceForm, nextDueOdometer: event.target.value })}
-                />
-              </label>
-              <label className="wide">
-                <span>Notes</span>
-                <textarea
-                  value={maintenanceForm.notes}
-                  onChange={(event) => setMaintenanceForm({ ...maintenanceForm, notes: event.target.value })}
-                />
-              </label>
-              <div className="receipt-panel wide">
-                <label>
-                  <span>Receipt / Photo</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(event) => setReceiptFile(event.target.files?.[0] ?? null)}
-                  />
-                </label>
-                <button type="button" className="secondary-button" disabled={!receiptFile || loading} onClick={readReceipt}>
-                  Read Receipt
-                </button>
-                {receiptInsight && <pre className="receipt-insight">{receiptInsight}</pre>}
-              </div>
-              <button type="submit" disabled={loading}>
-                Save Maintenance
-              </button>
-            </form>
-          </div>
+            <MaintenanceForm
+              form={maintenanceForm}
+              receiptFile={receiptFile}
+              receiptInsight={receiptInsight}
+              loading={loading}
+              onChange={setMaintenanceForm}
+              onSubmit={logMaintenance}
+              onReadReceipt={readReceipt}
+              onReceiptFileChange={setReceiptFile}
+              onCancel={() => setShowMaintenanceForm(false)}
+            />
           )}
 
           <div className="panel">
