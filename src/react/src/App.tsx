@@ -113,6 +113,11 @@ function App() {
   const [workflowStepNotes, setWorkflowStepNotes] = useState('')
   const [obd2ReportFile, setObd2ReportFile] = useState<File | null>(null)
   const [obd2ReportInsight, setObd2ReportInsight] = useState('')
+  const [workflowReceiptFile, setWorkflowReceiptFile] = useState<File | null>(null)
+  const [workflowReceiptInsight, setWorkflowReceiptInsight] = useState('')
+  const [damageEstimateAmount, setDamageEstimateAmount] = useState('')
+  const [damageEstimateVendor, setDamageEstimateVendor] = useState('')
+  const [damageRepairStatus, setDamageRepairStatus] = useState('Pending')
   const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const workflowVinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const workflowEditorRef = useRef<HTMLDivElement | null>(null)
@@ -1657,6 +1662,11 @@ function App() {
     setWorkflowStepNotes(notes)
     setObd2ReportFile(null)
     setObd2ReportInsight(typeof step?.data?.aiText === 'string' ? step.data.aiText : '')
+    setWorkflowReceiptFile(null)
+    setWorkflowReceiptInsight('')
+    setDamageEstimateAmount(typeof step?.data?.estimateAmount === 'string' ? step.data.estimateAmount : '')
+    setDamageEstimateVendor(typeof step?.data?.estimateVendor === 'string' ? step.data.estimateVendor : '')
+    setDamageRepairStatus(typeof step?.data?.repairStatus === 'string' ? step.data.repairStatus : 'Pending')
     window.setTimeout(() => {
       workflowEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 0)
@@ -1696,6 +1706,11 @@ function App() {
       setWorkflowStepNotes(typeof freshStep.data?.notes === 'string' ? freshStep.data.notes : '')
       setObd2ReportFile(null)
       setObd2ReportInsight(typeof freshStep.data?.aiText === 'string' ? freshStep.data.aiText : '')
+      setWorkflowReceiptFile(null)
+      setWorkflowReceiptInsight('')
+      setDamageEstimateAmount(typeof freshStep.data?.estimateAmount === 'string' ? freshStep.data.estimateAmount : '')
+      setDamageEstimateVendor(typeof freshStep.data?.estimateVendor === 'string' ? freshStep.data.estimateVendor : '')
+      setDamageRepairStatus(typeof freshStep.data?.repairStatus === 'string' ? freshStep.data.repairStatus : 'Pending')
 
       if (freshWorkflow.workflowType === 'AddVehicle' && freshStep.stepKey === 'vin') {
         setActiveArea('workflows')
@@ -1847,6 +1862,11 @@ function App() {
     setMessage('Saving workflow step...')
 
     try {
+      const extraStepData: Record<string, string> = {}
+      if (damageEstimateAmount) extraStepData.estimateAmount = damageEstimateAmount
+      if (damageEstimateVendor) extraStepData.estimateVendor = damageEstimateVendor
+      if (damageRepairStatus && damageRepairStatus !== 'Pending') extraStepData.repairStatus = damageRepairStatus
+
       let workflow = await api.put<WorkflowInstance>(
         `/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}`,
         {
@@ -1855,6 +1875,7 @@ function App() {
           data: {
             ...(selectedWorkflowStep.data ?? {}),
             notes: workflowStepNotes,
+            ...extraStepData,
           },
         },
       )
@@ -2047,6 +2068,31 @@ function App() {
       setMessage(error instanceof Error ? error.message : 'Could not read OBD2 report')
     } finally {
       setWorkingMessage('')
+      setLoading(false)
+    }
+  }
+
+  async function readWorkflowReceipt() {
+    if (!workflowReceiptFile) return
+
+    setLoading(true)
+    setMessage('Reading receipt...')
+
+    try {
+      const form = new FormData()
+      form.append('file', workflowReceiptFile)
+      form.append('prompt', 'Read this maintenance receipt or invoice. Extract the total cost, service date, service type, shop name, and any other relevant details. Return a clean summary.')
+
+      const response = await fetch('/api/ai/interpret-image', { method: 'POST', body: form })
+      if (!response.ok) throw new Error(await response.text())
+
+      const result = (await response.json()) as { text: string }
+      setWorkflowReceiptInsight(result.text)
+      setWorkflowStepNotes([workflowStepNotes, `Receipt readout:\n${result.text}`].filter(Boolean).join('\n\n'))
+      setMessage('Receipt read. Review and save step.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not read receipt')
+    } finally {
       setLoading(false)
     }
   }
@@ -2246,6 +2292,11 @@ function App() {
           workflowStepNotes={workflowStepNotes}
           obd2ReportFile={obd2ReportFile}
           obd2ReportInsight={obd2ReportInsight}
+          workflowReceiptFile={workflowReceiptFile}
+          workflowReceiptInsight={workflowReceiptInsight}
+          damageEstimateAmount={damageEstimateAmount}
+          damageEstimateVendor={damageEstimateVendor}
+          damageRepairStatus={damageRepairStatus}
           workflowEditorRef={workflowEditorRef}
           workflowVinCameraInputRef={workflowVinCameraInputRef}
           startWorkflow={startWorkflow}
@@ -2260,6 +2311,11 @@ function App() {
           setWorkflowStepNotes={setWorkflowStepNotes}
           setObd2ReportFile={setObd2ReportFile}
           uploadObd2Report={uploadObd2Report}
+          setWorkflowReceiptFile={setWorkflowReceiptFile}
+          readWorkflowReceipt={readWorkflowReceipt}
+          setDamageEstimateAmount={setDamageEstimateAmount}
+          setDamageEstimateVendor={setDamageEstimateVendor}
+          setDamageRepairStatus={setDamageRepairStatus}
           saveWorkflowStep={saveWorkflowStep}
           updateWorkflowStatus={updateWorkflowStatus}
         />

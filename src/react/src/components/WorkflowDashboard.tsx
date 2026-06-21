@@ -20,6 +20,11 @@ type WorkflowDashboardProps = {
   workflowStepNotes: string
   obd2ReportFile: File | null
   obd2ReportInsight: string
+  workflowReceiptFile: File | null
+  workflowReceiptInsight: string
+  damageEstimateAmount: string
+  damageEstimateVendor: string
+  damageRepairStatus: string
   workflowEditorRef: RefObject<HTMLDivElement | null>
   workflowVinCameraInputRef: RefObject<HTMLInputElement | null>
   startWorkflow: (workflowType: string) => void
@@ -34,6 +39,11 @@ type WorkflowDashboardProps = {
   setWorkflowStepNotes: (notes: string) => void
   setObd2ReportFile: (file: File | null) => void
   uploadObd2Report: () => void
+  setWorkflowReceiptFile: (file: File | null) => void
+  readWorkflowReceipt: () => void
+  setDamageEstimateAmount: (v: string) => void
+  setDamageEstimateVendor: (v: string) => void
+  setDamageRepairStatus: (v: string) => void
   saveWorkflowStep: (status: string) => void
   updateWorkflowStatus: (status: string) => void
 }
@@ -203,6 +213,75 @@ function stepGuidance(workflow: WorkflowInstance, step: WorkflowStep) {
     return map[step.stepKey] ?? shared[step.stepKey] ?? shared.review
   }
 
+  if (workflow.workflowType === 'MaintenanceIntake') {
+    const map: Record<string, { summary: string; action: string; done: string; checklist: string[] }> = {
+      service: {
+        summary: 'Log the maintenance event — type, date, mileage, cost, and who performed it.',
+        action: 'Open the vehicle and fill in the maintenance form.',
+        done: 'A maintenance record exists with type, date, and cost.',
+        checklist: ['Maintenance type', 'Date performed', 'Odometer at service', 'Cost', 'Performed by'],
+      },
+      receipt: {
+        summary: 'Upload a receipt or invoice photo and read it with AI to capture cost and date.',
+        action: 'Upload the receipt image below or scan it from the vehicle record.',
+        done: 'Receipt is uploaded and cost/date are confirmed in the maintenance record.',
+        checklist: ['Photo of receipt', 'AI read for cost/date', 'Correct any OCR errors', 'Attach to maintenance record'],
+      },
+      followUp: {
+        summary: 'Record when the next service is due — by date or mileage — so alerts can fire at the right time.',
+        action: 'Open the vehicle maintenance form and fill in next due fields.',
+        done: 'Next due date or mileage is saved on the maintenance record.',
+        checklist: ['Next due date', 'Next due mileage', 'Notes on manufacturer recommendation', 'Mark complete when set'],
+      },
+    }
+
+    return map[step.stepKey] ?? shared[step.stepKey] ?? shared.review
+  }
+
+  if (workflow.workflowType === 'DamageReview') {
+    const map: Record<string, { summary: string; action: string; done: string; checklist: string[] }> = {
+      estimate: {
+        summary: 'Record the damage estimate — amount, shop or adjuster, and who is handling it.',
+        action: 'Fill in estimate details below or open the vehicle record for full maintenance context.',
+        done: 'Estimate amount and vendor are saved. Adjuster/insurance context is noted.',
+        checklist: ['Estimate amount', 'Shop or adjuster name', 'Insurance claim if applicable', 'Photos of damage'],
+      },
+      repair: {
+        summary: 'Track repair status — in progress, complete, or deferred.',
+        action: 'Update repair status below or in the vehicle maintenance record.',
+        done: 'Repair status is recorded. Completion date is saved if repair is done.',
+        checklist: ['Repair status', 'Completion date if done', 'Deferred reason if not repaired', 'Final cost vs estimate'],
+      },
+    }
+
+    return map[step.stepKey] ?? shared[step.stepKey] ?? shared.review
+  }
+
+  if (workflow.workflowType === 'ComplianceRenewal') {
+    const map: Record<string, { summary: string; action: string; done: string; checklist: string[] }> = {
+      registration: {
+        summary: 'Scan the updated registration. Verify VIN, plate, state, and expiration match the vehicle.',
+        action: 'Open the vehicle compliance area and scan or update the registration.',
+        done: 'Registration record is saved with correct expiration and VIN.',
+        checklist: ['VIN matches vehicle', 'Plate number and state', 'Expiration date', 'Photo of document attached'],
+      },
+      insurance: {
+        summary: 'Scan the renewed insurance card. Verify policy number, provider, VIN, and expiration.',
+        action: 'Open the vehicle compliance area and scan or update the insurance card.',
+        done: 'Insurance record is saved with correct policy and expiration.',
+        checklist: ['Provider name', 'Policy number', 'VIN if shown', 'Expiration date'],
+      },
+      plate: {
+        summary: 'Update the license plate record if the plate or state changed during renewal.',
+        action: 'Open the vehicle compliance area and scan or update the plate.',
+        done: 'Plate number and state are saved and match the vehicle.',
+        checklist: ['Plate number', 'State', 'Month/year registration tab', 'Photo attached'],
+      },
+    }
+
+    return map[step.stepKey] ?? shared[step.stepKey] ?? shared.review
+  }
+
   return shared[step.stepKey] ?? shared.review
 }
 
@@ -223,6 +302,11 @@ export function WorkflowDashboard({
   workflowStepNotes,
   obd2ReportFile,
   obd2ReportInsight,
+  workflowReceiptFile,
+  workflowReceiptInsight,
+  damageEstimateAmount,
+  damageEstimateVendor,
+  damageRepairStatus,
   workflowEditorRef,
   workflowVinCameraInputRef,
   startWorkflow,
@@ -237,10 +321,18 @@ export function WorkflowDashboard({
   setWorkflowStepNotes,
   setObd2ReportFile,
   uploadObd2Report,
+  setWorkflowReceiptFile,
+  readWorkflowReceipt,
+  setDamageEstimateAmount,
+  setDamageEstimateVendor,
+  setDamageRepairStatus,
   saveWorkflowStep,
   updateWorkflowStatus,
 }: WorkflowDashboardProps) {
   const guidance = selectedWorkflow && selectedWorkflowStep ? stepGuidance(selectedWorkflow, selectedWorkflowStep) : null
+  const isMaintenanceReceiptStep = selectedWorkflow?.workflowType === 'MaintenanceIntake' && selectedWorkflowStep?.stepKey === 'receipt'
+  const isDamageEstimateStep = selectedWorkflow?.workflowType === 'DamageReview' && selectedWorkflowStep?.stepKey === 'estimate'
+  const isDamageRepairStep = selectedWorkflow?.workflowType === 'DamageReview' && selectedWorkflowStep?.stepKey === 'repair'
 
   return (
     <>
@@ -397,6 +489,65 @@ export function WorkflowDashboard({
                       {(obd2ReportInsight || selectedWorkflowStepAiText) && (
                         <pre className="receipt-insight">{obd2ReportInsight || selectedWorkflowStepAiText}</pre>
                       )}
+                    </div>
+                  )}
+                  {isMaintenanceReceiptStep && (
+                    <div className="receipt-panel">
+                      <label>
+                        <span>Receipt / Invoice Photo</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(event) => setWorkflowReceiptFile(event.target.files?.[0] ?? null)}
+                        />
+                      </label>
+                      <button
+                        className="secondary-button"
+                        type="button"
+                        disabled={!workflowReceiptFile || loading}
+                        onClick={readWorkflowReceipt}
+                      >
+                        Read Receipt
+                      </button>
+                      {workflowReceiptInsight && (
+                        <pre className="receipt-insight">{workflowReceiptInsight}</pre>
+                      )}
+                    </div>
+                  )}
+                  {isDamageEstimateStep && (
+                    <div className="workflow-action-panel">
+                      <strong>Estimate details</strong>
+                      <label>
+                        <span>Estimate Amount ($)</span>
+                        <input
+                          inputMode="decimal"
+                          value={damageEstimateAmount}
+                          onChange={(e) => setDamageEstimateAmount(e.target.value)}
+                          placeholder="0.00"
+                        />
+                      </label>
+                      <label>
+                        <span>Shop / Adjuster</span>
+                        <input
+                          value={damageEstimateVendor}
+                          onChange={(e) => setDamageEstimateVendor(e.target.value)}
+                          placeholder="Shop name or adjuster"
+                        />
+                      </label>
+                    </div>
+                  )}
+                  {isDamageRepairStep && (
+                    <div className="workflow-action-panel">
+                      <strong>Repair status</strong>
+                      <label>
+                        <span>Status</span>
+                        <select value={damageRepairStatus} onChange={(e) => setDamageRepairStatus(e.target.value)}>
+                          <option value="Pending">Pending</option>
+                          <option value="InProgress">In Progress</option>
+                          <option value="Complete">Complete</option>
+                          <option value="Deferred">Deferred</option>
+                        </select>
+                      </label>
                     </div>
                   )}
                   <div className="workflow-actions">
