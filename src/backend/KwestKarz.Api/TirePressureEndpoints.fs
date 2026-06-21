@@ -250,4 +250,14 @@ module TirePressureEndpoints =
         )
         |> ignore
 
+        app.MapGet(
+            "/api/fleet/tire-alerts",
+            Func<ITirePressureRepository, HttpContext, Task<IResult>>(fun tirePressure httpContext ->
+                task {
+                    let! entries = tirePressure.GetFleetAlertsAsync(httpContext.RequestAborted)
+                    return entries |> List.map TireFleetAlertResponse.fromDomain |> List.toArray |> Results.Ok
+                })
+        )
+        |> ignore
+
         app

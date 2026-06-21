@@ -170,6 +170,18 @@ export type Dashboard = {
     dueStatus: string
   }
   aiContextSummary: string
+  latestTireStatus?: string
+  tireLastCheckedAt?: string
+}
+
+export type TireFleetAlert = {
+  vehicleId: string
+  vin: string
+  vehicleLabel: string
+  latestStatus?: string
+  measuredAt?: string
+  psiSummary?: string
+  daysAgo?: number
 }
 
 export type TirePressureSpec = {

@@ -108,6 +108,83 @@ type PostgresTirePressureRepository(dataSource: NpgsqlDataSource) =
                 return { Spec = spec; RecentLogs = List.ofSeq logs }
             }
 
+        member _.GetLatestStatusAsync(vehicleId: Guid, cancellationToken: CancellationToken) : Task<(TirePressureStatus * DateTimeOffset) option> =
+            task {
+                use! connection = dataSource.OpenConnectionAsync(cancellationToken)
+                use command =
+                    new NpgsqlCommand(
+                        "select status, measured_at from kwestkarzbusinessdata.tire_pressure_logs where vehicle_id = @vehicle_id order by measured_at desc limit 1",
+                        connection
+                    )
+                command.Parameters.AddWithValue("vehicle_id", NpgsqlDbType.Uuid, vehicleId) |> ignore
+                use! reader = command.ExecuteReaderAsync(cancellationToken)
+                let! hasRow = reader.ReadAsync(cancellationToken)
+                if not hasRow then return None
+                else
+                    let status = reader.GetString(reader.GetOrdinal("status")) |> TirePressureStatus.fromStorageValue
+                    let measuredAt = reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("measured_at"))
+                    return Some(status, measuredAt)
+            }
+
+        member _.GetFleetAlertsAsync(cancellationToken: CancellationToken) : Task<TireFleetAlertEntry list> =
+            task {
+                use! connection = dataSource.OpenConnectionAsync(cancellationToken)
+                use command =
+                    new NpgsqlCommand(
+                        """
+                        select
+                            v.id as vehicle_id,
+                            v.vin,
+                            coalesce(
+                                v.fleet_position_number,
+                                concat_ws(' ', v.year::text, v.make, v.model)
+                            ) as vehicle_label,
+                            l.status,
+                            l.measured_at,
+                            l.front_left_psi,
+                            l.front_right_psi,
+                            l.rear_left_psi,
+                            l.rear_right_psi
+                        from kwestkarzbusinessdata.vehicles v
+                        left join lateral (
+                            select status, measured_at, front_left_psi, front_right_psi, rear_left_psi, rear_right_psi
+                            from kwestkarzbusinessdata.tire_pressure_logs
+                            where vehicle_id = v.id
+                            order by measured_at desc
+                            limit 1
+                        ) l on true
+                        where v.status != 'Retired'
+                        order by
+                            case when l.status = 'Red' then 0 when l.status = 'Yellow' then 1 else 2 end,
+                            l.measured_at asc nulls first
+                        """,
+                        connection
+                    )
+
+                use! reader = command.ExecuteReaderAsync(cancellationToken)
+                let entries = ResizeArray<TireFleetAlertEntry>()
+                let mutable keepReading = true
+
+                while keepReading do
+                    let! hasRow = reader.ReadAsync(cancellationToken)
+                    if not hasRow then keepReading <- false
+                    else
+                        let statusOrdinal = reader.GetOrdinal("status")
+                        let measuredAtOrdinal = reader.GetOrdinal("measured_at")
+                        entries.Add(
+                            { VehicleId = reader.GetGuid(reader.GetOrdinal("vehicle_id"))
+                              Vin = reader.GetString(reader.GetOrdinal("vin"))
+                              VehicleLabel = reader.GetString(reader.GetOrdinal("vehicle_label"))
+                              LatestStatus = if reader.IsDBNull(statusOrdinal) then None else Some(reader.GetString(statusOrdinal) |> TirePressureStatus.fromStorageValue)
+                              MeasuredAt = if reader.IsDBNull(measuredAtOrdinal) then None else Some(reader.GetFieldValue<DateTimeOffset>(measuredAtOrdinal))
+                              FrontLeftPsi = getOption reader "front_left_psi" reader.GetInt32
+                              FrontRightPsi = getOption reader "front_right_psi" reader.GetInt32
+                              RearLeftPsi = getOption reader "rear_left_psi" reader.GetInt32
+                              RearRightPsi = getOption reader "rear_right_psi" reader.GetInt32 })
+
+                return List.ofSeq entries
+            }
+
         member _.UpsertSpecAsync(spec: UpsertTirePressureSpec, cancellationToken: CancellationToken) : Task<TirePressureSpec> =
             task {
                 let now = DateTimeOffset.UtcNow

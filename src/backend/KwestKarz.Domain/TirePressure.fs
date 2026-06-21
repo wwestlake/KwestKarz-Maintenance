@@ -70,7 +70,20 @@ type TirePressureSnapshot =
     { Spec: TirePressureSpec option
       RecentLogs: TirePressureLog list }
 
+type TireFleetAlertEntry =
+    { VehicleId: Guid
+      Vin: string
+      VehicleLabel: string
+      LatestStatus: TirePressureStatus option
+      MeasuredAt: DateTimeOffset option
+      FrontLeftPsi: int option
+      FrontRightPsi: int option
+      RearLeftPsi: int option
+      RearRightPsi: int option }
+
 type ITirePressureRepository =
     abstract member GetSnapshotAsync: vehicleId: Guid * cancellationToken: CancellationToken -> Task<TirePressureSnapshot>
+    abstract member GetLatestStatusAsync: vehicleId: Guid * cancellationToken: CancellationToken -> Task<(TirePressureStatus * DateTimeOffset) option>
     abstract member UpsertSpecAsync: spec: UpsertTirePressureSpec * cancellationToken: CancellationToken -> Task<TirePressureSpec>
     abstract member CreateLogAsync: log: NewTirePressureLog * cancellationToken: CancellationToken -> Task<TirePressureLog>
+    abstract member GetFleetAlertsAsync: cancellationToken: CancellationToken -> Task<TireFleetAlertEntry list>

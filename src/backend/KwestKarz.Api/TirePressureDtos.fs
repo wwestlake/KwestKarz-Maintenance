@@ -104,3 +104,33 @@ type TirePressureSpecScanResponse =
     { Spec: TirePressureSpecResponse
       AiText: string
       PhotoDocumentId: Guid option }
+
+type TireFleetAlertResponse =
+    { VehicleId: Guid
+      Vin: string
+      VehicleLabel: string
+      LatestStatus: string option
+      MeasuredAt: DateTimeOffset option
+      PsiSummary: string option
+      DaysAgo: int option }
+
+module TireFleetAlertResponse =
+    let fromDomain (entry: TireFleetAlertEntry) =
+        let psiSummary =
+            match entry.FrontLeftPsi, entry.FrontRightPsi, entry.RearLeftPsi, entry.RearRightPsi with
+            | Some fl, Some fr, Some rl, Some rr -> Some $"FL {fl} / FR {fr} / RL {rl} / RR {rr}"
+            | _ ->
+                [ entry.FrontLeftPsi; entry.FrontRightPsi; entry.RearLeftPsi; entry.RearRightPsi ]
+                |> List.choose id
+                |> function
+                | [] -> None
+                | values -> Some(values |> List.map string |> String.concat " / ")
+        let daysAgo =
+            entry.MeasuredAt |> Option.map (fun d -> int (DateTimeOffset.UtcNow - d).TotalDays)
+        { VehicleId = entry.VehicleId
+          Vin = entry.Vin
+          VehicleLabel = entry.VehicleLabel
+          LatestStatus = entry.LatestStatus |> Option.map TirePressureStatus.toStorageValue
+          MeasuredAt = entry.MeasuredAt
+          PsiSummary = psiSummary
+          DaysAgo = daysAgo }

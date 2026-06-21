@@ -11,7 +11,7 @@ module DashboardEndpoints =
     let mapDashboardEndpoints (app: WebApplication) =
         app.MapGet(
             "/api/vehicles/{vehicleId:guid}/dashboard",
-            Func<Guid, IVehicleRepository, IMaintenanceRepository, IDocumentRepository, ILockBoxRepository, NpgsqlDataSource, HttpContext, Task<IResult>>(fun vehicleId vehicles maintenance documents lockBoxes dataSource httpContext ->
+            Func<Guid, IVehicleRepository, IMaintenanceRepository, IDocumentRepository, ILockBoxRepository, ITirePressureRepository, NpgsqlDataSource, HttpContext, Task<IResult>>(fun vehicleId vehicles maintenance documents lockBoxes tirePressure dataSource httpContext ->
                 task {
                     let! allVehicles = vehicles.ListAsync(httpContext.RequestAborted)
 
@@ -23,6 +23,7 @@ module DashboardEndpoints =
                         let! vehicleDocuments = documents.ListForOwnerAsync(DocumentOwnerType.Vehicle, vehicleId, httpContext.RequestAborted)
                         let! currentLockBox = lockBoxes.FindCurrentForVehicleAsync(vehicleId, httpContext.RequestAborted)
                         let! compliance = ComplianceEndpoints.listLatestAsync dataSource vehicleId httpContext.RequestAborted
+                        let! latestTire = tirePressure.GetLatestStatusAsync(vehicleId, httpContext.RequestAborted)
                         let nextDue = MaintenanceLogic.nextDue (DateOnly.FromDateTime(DateTime.UtcNow)) vehicle.CurrentOdometer allMaintenance
 
                         let response =
@@ -36,7 +37,9 @@ module DashboardEndpoints =
                                 |> Option.map (fun summary ->
                                     { Record = MaintenanceRecordResponse.fromDomain summary.Record
                                       DueStatus = MaintenanceDueStatus.toStorageValue summary.DueStatus })
-                              AiContextSummary = MaintenanceLogic.dashboardContext vehicle vehicleDocuments allMaintenance nextDue }
+                              AiContextSummary = MaintenanceLogic.dashboardContext vehicle vehicleDocuments allMaintenance nextDue
+                              LatestTireStatus = latestTire |> Option.map (fun (status, _) -> TirePressureStatus.toStorageValue status)
+                              TireLastCheckedAt = latestTire |> Option.map snd }
 
                         return Results.Ok(response)
                 })

@@ -16,7 +16,7 @@ import type {
   TirePressureSpec, TirePressureSnapshot, TirePressureSpecScanResponse,
   RentalInspection, TuroTripImportResponse, TuroMaintenanceSignal,
   TuroImportRecord, TuroTripRecord, WorkflowEvent, DiagnosticReport, ServiceSchedule,
-  InspectionReport,
+  InspectionReport, TireFleetAlert,
   VinDecode, CreateVehicleForm, EditVehicleForm,
 } from './types'
 import { api } from './api'
@@ -225,6 +225,7 @@ function App() {
   const [obd2UploadFile, setObd2UploadFile] = useState<File | null>(null)
   const [serviceSchedules, setServiceSchedules] = useState<ServiceSchedule[]>([])
   const [inspectionReport, setInspectionReport] = useState<InspectionReport | null>(null)
+  const [tireAlerts, setTireAlerts] = useState<TireFleetAlert[]>([])
   const [message, setMessage] = useState('Ready')
   const [workingMessage, setWorkingMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -277,6 +278,7 @@ function App() {
     refreshLockBoxes()
     refreshWorkflows()
     api.get<ServiceSchedule[]>('/api/maintenance/service-schedules').then(setServiceSchedules).catch(() => {})
+    api.get<TireFleetAlert[]>('/api/fleet/tire-alerts').then(setTireAlerts).catch(() => {})
 
     if (localStorage.getItem(vinScanPendingStorageKey) === 'true') {
       recoverLatestVinScan(true)
@@ -1591,6 +1593,7 @@ function App() {
         photoDocumentId: document?.id ?? null,
       })
       await loadTirePressure(dashboard.vehicle.id)
+      api.get<TireFleetAlert[]>('/api/fleet/tire-alerts').then(setTireAlerts).catch(() => {})
       setTireLogForm({ frontLeftPsi: '', frontRightPsi: '', rearLeftPsi: '', rearRightPsi: '', notes: '' })
       setTireLogPhotoFile(null)
       setMessage('Tire pressure log saved')
@@ -2678,6 +2681,33 @@ function App() {
             })}
           </div>
         </section>
+        {tireAlerts.length > 0 && (
+        <section className="panel fleet-panel">
+          <div className="section-heading">
+            <h2>Tire Pressure Alerts</h2>
+            <p>{tireAlerts.filter((a) => a.latestStatus === 'Red' || a.latestStatus === 'Yellow' || !a.measuredAt).length} need attention</p>
+          </div>
+          <div className="tire-alerts-list">
+            {tireAlerts.map((alert) => (
+              <article key={alert.vehicleId} className={`record tire-alert-row tire-alert-${(alert.latestStatus ?? 'unknown').toLowerCase()}`}>
+                <div>
+                  <strong>{alert.vehicleLabel}</strong>
+                  <span>{alert.vin}</span>
+                </div>
+                <div className="tire-alert-meta">
+                  <span className={`tire-status-chip tire-${(alert.latestStatus ?? 'unknown').toLowerCase()}`}>
+                    {alert.latestStatus ?? 'Never checked'}
+                  </span>
+                  {alert.psiSummary && <small>{alert.psiSummary} PSI</small>}
+                  {alert.daysAgo != null
+                    ? <small>{alert.daysAgo === 0 ? 'Today' : `${alert.daysAgo}d ago`}</small>
+                    : <small className="overdue">No reading</small>}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+        )}
         {showLockBoxManager && (
         <section className="panel fleet-panel">
           <div className="section-heading">
@@ -2842,7 +2872,22 @@ function App() {
                 <span>Next Due</span>
                 <strong>{dashboard.nextDue?.dueStatus ?? 'None'}</strong>
               </div>
+              <div>
+                <span>Tires</span>
+                <strong className={`tire-status-chip tire-${(dashboard.latestTireStatus ?? 'unknown').toLowerCase()}`}>
+                  {dashboard.latestTireStatus ?? 'Not checked'}
+                </strong>
+              </div>
             </div>
+            {(dashboard.latestTireStatus === 'Red' || dashboard.latestTireStatus === 'Yellow' || !dashboard.tireLastCheckedAt) && (
+              <p className="tire-alert-hint">
+                {dashboard.latestTireStatus === 'Red'
+                  ? 'Tire pressure out of range — check now.'
+                  : dashboard.latestTireStatus === 'Yellow'
+                  ? 'Tire pressure slightly off — check soon.'
+                  : 'No tire pressure readings recorded yet.'}
+              </p>
+            )}
             <p className="context">{dashboard.aiContextSummary}</p>
           </div>
 

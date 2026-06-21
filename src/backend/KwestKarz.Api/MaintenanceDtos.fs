@@ -76,4 +76,6 @@ type VehicleDashboardResponse =
       Documents: DocumentResponse array
       RecentMaintenance: MaintenanceRecordResponse array
       NextDue: MaintenanceSummaryResponse option
-      AiContextSummary: string }
+      AiContextSummary: string
+      LatestTireStatus: string option
+      TireLastCheckedAt: DateTimeOffset option }

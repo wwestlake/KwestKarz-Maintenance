@@ -906,6 +906,61 @@ h2 {
   border-left-color: #c74f35;
 }
 
+.tire-status-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.tire-green { background: #1e4d35; color: #6fcf97; }
+.tire-yellow { background: #4d3c0e; color: #f2c94c; }
+.tire-red { background: #4d1a14; color: #eb5757; }
+.tire-unknown { background: var(--panel-bg); color: var(--text-muted); }
+
+.tire-alert-hint {
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  background: #4d3c0e;
+  color: #f2c94c;
+}
+
+.tire-alerts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tire-alert-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tire-alert-green { border-left: 4px solid #2f7d4f; }
+.tire-alert-yellow { border-left: 4px solid #d6a431; }
+.tire-alert-red { border-left: 4px solid #c74f35; }
+.tire-alert-unknown { border-left: 4px solid #555; }
+
+.tire-alert-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.overdue {
+  color: #eb5757;
+  font-weight: 600;
+}
+
 .assign-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
