@@ -81,7 +81,7 @@ module UserEndpoints =
                         | None ->
                             let phoneVal = if String.IsNullOrWhiteSpace(phone) then "unknown" else phone
                             let isBootstrapAdmin = not (String.IsNullOrWhiteSpace(adminPhone)) && phoneVal = adminPhone
-                            let role = if isBootstrapAdmin then "admin" else "helper"
+                            let role = if isBootstrapAdmin then "admin" else "worker"
                             let status = if isBootstrapAdmin then "active" else "pending"
 
                             use command =
@@ -228,7 +228,7 @@ module UserEndpoints =
             "/{userId:guid}/approve",
             Func<Guid, ApproveUserRequest, NpgsqlDataSource, HttpContext, Task<IResult>>(fun userId request dataSource httpContext ->
                 task {
-                    let role = if String.IsNullOrWhiteSpace(request.Role) then "helper" else request.Role
+                    let role = if String.IsNullOrWhiteSpace(request.Role) then "worker" else request.Role
                     use! connection = dataSource.OpenConnectionAsync(httpContext.RequestAborted)
                     use command =
                         new NpgsqlCommand(

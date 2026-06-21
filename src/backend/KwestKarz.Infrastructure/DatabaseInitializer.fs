@@ -471,7 +471,7 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                     firebase_uid text not null unique,
                     phone text not null,
                     display_name text null,
-                    role text not null default 'helper',
+                    role text not null default 'worker' check (role in ('admin', 'manager', 'worker')),
                     status text not null default 'pending',
                     created_at timestamptz not null default now(),
                     updated_at timestamptz not null default now()
