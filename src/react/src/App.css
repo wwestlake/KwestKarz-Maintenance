@@ -995,7 +995,30 @@ button:disabled {
   padding: 10px;
 }
 
+.schedule-hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--surface-alt);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin: 0;
+}
+
+.schedule-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent, #1d4ed8);
+  margin-left: 6px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 .type-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   min-height: 36px;
   padding: 8px 10px;
   text-align: left;

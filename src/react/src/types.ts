@@ -272,6 +272,14 @@ export type TuroTripRecord = {
   returnLocation?: string
 }
 
+export type ServiceSchedule = {
+  eventType: string
+  mileInterval?: number
+  dayInterval?: number
+  warnMilesOut: number
+  warnDaysOut: number
+}
+
 export type DiagnosticReport = {
   id: string
   vehicleId: string

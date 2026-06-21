@@ -11,7 +11,24 @@ open Microsoft.AspNetCore.Http
 module MaintenanceEndpoints =
     let private receiptReadPrompt = "Read this maintenance receipt or invoice. Extract: vendor/shop name, total cost, service date, odometer if visible, maintenance type or service description, and any warranty notes. Return a concise plain-text summary."
 
+    let private toScheduleResponse (s: ServiceSchedule) : ServiceScheduleResponse =
+        { EventType = s.EventType
+          MileInterval = s.MileInterval
+          DayInterval = s.DayInterval
+          WarnMilesOut = s.WarnMilesOut
+          WarnDaysOut = s.WarnDaysOut }
+
     let mapMaintenanceEndpoints (app: WebApplication) =
+        app.MapGet(
+            "/api/maintenance/service-schedules",
+            Func<IResult>(fun () ->
+                MaintenanceLogic.defaultServiceSchedules
+                |> List.map toScheduleResponse
+                |> List.toArray
+                |> Results.Ok)
+        )
+        |> ignore
+
         let group = app.MapGroup("/api/vehicles/{vehicleId:guid}/maintenance")
 
         group.MapGet(

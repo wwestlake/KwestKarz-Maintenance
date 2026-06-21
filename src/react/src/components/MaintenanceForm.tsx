@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { maintenanceTypes } from '../constants'
+import type { ServiceSchedule } from '../types'
 
 type MaintenanceFormState = {
   eventType: string
@@ -18,6 +19,8 @@ type Props = {
   receiptFile: File | null
   receiptInsight: string
   loading: boolean
+  serviceSchedules: ServiceSchedule[]
+  currentOdometer?: number
   onChange: (form: MaintenanceFormState) => void
   onSubmit: (event: FormEvent) => void
   onReadReceipt: () => void
@@ -25,11 +28,19 @@ type Props = {
   onCancel: () => void
 }
 
+function addDays(days: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
 export function MaintenanceForm({
   form,
   receiptFile,
   receiptInsight,
   loading,
+  serviceSchedules,
+  currentOdometer,
   onChange,
   onSubmit,
   onReadReceipt,
@@ -37,6 +48,25 @@ export function MaintenanceForm({
   onCancel,
 }: Props) {
   const [showMaintenanceTypes, setShowMaintenanceTypes] = useState(false)
+
+  function applyType(type: string) {
+    const schedule = serviceSchedules.find(
+      (s) => s.eventType.toLowerCase() === type.toLowerCase()
+    )
+    const nextDueOdometer =
+      schedule?.mileInterval != null && currentOdometer != null
+        ? String(currentOdometer + schedule.mileInterval)
+        : form.nextDueOdometer
+    const nextDueDate =
+      schedule?.dayInterval != null ? addDays(schedule.dayInterval) : form.nextDueDate
+
+    onChange({ ...form, eventType: type, nextDueOdometer, nextDueDate })
+    setShowMaintenanceTypes(false)
+  }
+
+  const activeSchedule = serviceSchedules.find(
+    (s) => s.eventType.toLowerCase() === form.eventType.toLowerCase()
+  )
 
   return (
     <div className="panel">
@@ -56,7 +86,7 @@ export function MaintenanceForm({
               key={type}
               className={form.eventType === type ? 'action-chip selected' : 'action-chip'}
               type="button"
-              onClick={() => onChange({ ...form, eventType: type })}
+              onClick={() => applyType(type)}
             >
               {type === 'Mechanical Repair' ? 'Repair' : type}
             </button>
@@ -69,15 +99,24 @@ export function MaintenanceForm({
                 key={type}
                 className={form.eventType === type ? 'type-option selected' : 'type-option'}
                 type="button"
-                onClick={() => {
-                  onChange({ ...form, eventType: type })
-                  setShowMaintenanceTypes(false)
-                }}
+                onClick={() => applyType(type)}
               >
                 {type}
+                {serviceSchedules.some((s) => s.eventType.toLowerCase() === type.toLowerCase()) && (
+                  <span className="schedule-dot" title="Auto-fill available" />
+                )}
               </button>
             ))}
           </div>
+        )}
+        {activeSchedule && (
+          <p className="schedule-hint wide">
+            Schedule: every
+            {activeSchedule.mileInterval != null ? ` ${activeSchedule.mileInterval.toLocaleString()} mi` : ''}
+            {activeSchedule.mileInterval != null && activeSchedule.dayInterval != null ? ' /' : ''}
+            {activeSchedule.dayInterval != null ? ` ${activeSchedule.dayInterval} days` : ''}
+            {' — next due fields pre-filled'}
+          </p>
         )}
         <label>
           <span>Event</span>

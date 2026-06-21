@@ -15,7 +15,7 @@ import type {
   ComplianceRecord, PhotoScanJob, Dashboard,
   TirePressureSpec, TirePressureSnapshot, TirePressureSpecScanResponse,
   RentalInspection, TuroTripImportResponse, TuroMaintenanceSignal,
-  TuroImportRecord, TuroTripRecord, WorkflowEvent, DiagnosticReport,
+  TuroImportRecord, TuroTripRecord, WorkflowEvent, DiagnosticReport, ServiceSchedule,
   VinDecode, CreateVehicleForm, EditVehicleForm,
 } from './types'
 import { api } from './api'
@@ -221,6 +221,7 @@ function App() {
   const [showTuroTrips, setShowTuroTrips] = useState(false)
   const [diagnosticReports, setDiagnosticReports] = useState<DiagnosticReport[]>([])
   const [obd2UploadFile, setObd2UploadFile] = useState<File | null>(null)
+  const [serviceSchedules, setServiceSchedules] = useState<ServiceSchedule[]>([])
   const [message, setMessage] = useState('Ready')
   const [workingMessage, setWorkingMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -272,6 +273,7 @@ function App() {
     restoreWorkspace()
     refreshLockBoxes()
     refreshWorkflows()
+    api.get<ServiceSchedule[]>('/api/maintenance/service-schedules').then(setServiceSchedules).catch(() => {})
 
     if (localStorage.getItem(vinScanPendingStorageKey) === 'true') {
       recoverLatestVinScan(true)
@@ -3288,6 +3290,8 @@ function App() {
               receiptFile={receiptFile}
               receiptInsight={receiptInsight}
               loading={loading}
+              serviceSchedules={serviceSchedules}
+              currentOdometer={dashboard?.vehicle.currentOdometer}
               onChange={setMaintenanceForm}
               onSubmit={logMaintenance}
               onReadReceipt={readReceipt}

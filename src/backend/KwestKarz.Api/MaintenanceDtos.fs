@@ -62,6 +62,13 @@ type MaintenanceReceiptResponse =
     { Document: DocumentResponse
       AiText: string }
 
+type ServiceScheduleResponse =
+    { EventType: string
+      MileInterval: int option
+      DayInterval: int option
+      WarnMilesOut: int
+      WarnDaysOut: int }
+
 type VehicleDashboardResponse =
     { Vehicle: VehicleResponse
       CurrentLockBox: LockBoxResponse option
