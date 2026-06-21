@@ -169,25 +169,59 @@ module JobEndpoints =
                 })
         ) |> ignore
 
-        // POST /api/jobs/{id}/complete
+        // POST /api/jobs/{id}/complete — marks job done and auto-creates labor ledger entry
         group.MapPost(
             "/{jobId:guid}/complete",
             Func<Guid, NpgsqlDataSource, HttpContext, Task<IResult>>(fun jobId dataSource httpContext ->
                 task {
+                    let operator = let h = httpContext.Request.Headers["X-Operator"] in if h.Count = 0 then "unknown" else h.[0]
                     use! connection = dataSource.OpenConnectionAsync(httpContext.RequestAborted)
-                    use command =
-                        new NpgsqlCommand(
-                            """
-                            update kwestkarzbusinessdata.jobs
-                            set status = 'complete', completed_at = @now, updated_at = @now
-                            where id = @id and status = 'claimed'
-                            """,
-                            connection
-                        )
-                    command.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, jobId) |> ignore
-                    command.Parameters.AddWithValue("now", NpgsqlDbType.TimestampTz, DateTimeOffset.UtcNow) |> ignore
-                    let! rows = command.ExecuteNonQueryAsync(httpContext.RequestAborted)
-                    return if rows = 0 then Results.BadRequest("Job is not in claimed state") else Results.Ok()
+
+                    // fetch job details first
+                    use fetchCmd = new NpgsqlCommand(
+                        "select title, amount from kwestkarzbusinessdata.jobs where id = @id and status = 'claimed'",
+                        connection)
+                    fetchCmd.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, jobId) |> ignore
+                    use! reader = fetchCmd.ExecuteReaderAsync(httpContext.RequestAborted)
+                    let! hasRow = reader.ReadAsync(httpContext.RequestAborted)
+                    if not hasRow then
+                        return Results.BadRequest("Job is not in claimed state")
+                    else
+                        let jobTitle = reader.GetString(0)
+                        let jobAmount = reader.GetDecimal(1)
+                        do! reader.DisposeAsync()
+
+                        use completeCmd =
+                            new NpgsqlCommand(
+                                """
+                                update kwestkarzbusinessdata.jobs
+                                set status = 'complete', completed_at = @now, updated_at = @now
+                                where id = @id
+                                """,
+                                connection
+                            )
+                        completeCmd.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, jobId) |> ignore
+                        completeCmd.Parameters.AddWithValue("now", NpgsqlDbType.TimestampTz, DateTimeOffset.UtcNow) |> ignore
+                        let! _ = completeCmd.ExecuteNonQueryAsync(httpContext.RequestAborted)
+
+                        // auto-create labor expense entry if amount > 0
+                        if jobAmount > 0m then
+                            let! laborAccountId = LedgerEndpoints.getLaborAccountId connection httpContext.RequestAborted
+                            do! LedgerEndpoints.createEntryAsync
+                                    connection
+                                    (DateOnly.FromDateTime(DateTime.UtcNow))
+                                    $"Job completed: {jobTitle}"
+                                    laborAccountId
+                                    "expense"
+                                    jobAmount
+                                    None
+                                    (Some jobId)
+                                    None
+                                    (Some "unpaid")
+                                    operator
+                                    httpContext.RequestAborted
+
+                        return Results.Ok()
                 })
         ) |> ignore
 

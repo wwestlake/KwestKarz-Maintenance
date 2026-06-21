@@ -257,6 +257,7 @@ module Program =
         app.MapGet("/api/health", Func<string>(fun () -> "ok")) |> ignore
         UserEndpoints.mapUserEndpoints adminPhone app |> ignore
         JobEndpoints.mapJobEndpoints app |> ignore
+        LedgerEndpoints.mapLedgerEndpoints app |> ignore
         VinEndpoints.mapVinEndpoints app |> ignore
         VehicleEndpoints.mapVehicleEndpoints app |> ignore
         LockBoxEndpoints.mapLockBoxEndpoints app |> ignore

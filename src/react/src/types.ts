@@ -53,7 +53,7 @@ export type Job = {
   createdAt: string
 }
 
-export type AppArea = 'home' | 'inventory' | 'workflows' | 'maintenance' | 'compliance' | 'lockboxes' | 'jobs' | 'users' | 'settings'
+export type AppArea = 'home' | 'inventory' | 'workflows' | 'maintenance' | 'compliance' | 'lockboxes' | 'jobs' | 'ledger' | 'users' | 'settings'
 
 export type GuidedCaptureMode = 'vin' | 'workflowVin' | 'compliance'
 

@@ -496,6 +496,54 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
 
                 create index if not exists ix_jobs_status
                     on kwestkarzbusinessdata.jobs(status);
+
+                create table if not exists kwestkarzbusinessdata.accounts (
+                    id uuid primary key default gen_random_uuid(),
+                    code text not null unique,
+                    name text not null,
+                    account_type text not null check (account_type in ('income', 'expense', 'asset', 'liability', 'equity')),
+                    is_system boolean not null default false,
+                    created_at timestamptz not null default now()
+                );
+
+                insert into kwestkarzbusinessdata.accounts (code, name, account_type, is_system) values
+                    ('4000', 'Turo Rental Income',        'income',  true),
+                    ('4100', 'Other Income',              'income',  true),
+                    ('5000', 'Labor / Worker Wages',      'expense', true),
+                    ('5100', 'Maintenance & Repairs',     'expense', true),
+                    ('5200', 'Fuel',                      'expense', true),
+                    ('5300', 'Insurance',                 'expense', true),
+                    ('5400', 'Registration & Licensing',  'expense', true),
+                    ('5500', 'Cleaning & Detailing',      'expense', true),
+                    ('5600', 'Tires',                     'expense', true),
+                    ('5700', 'Parts & Supplies',          'expense', true),
+                    ('5800', 'Turo Platform Fees',        'expense', true),
+                    ('5900', 'Miscellaneous Expense',     'expense', true)
+                on conflict (code) do nothing;
+
+                create table if not exists kwestkarzbusinessdata.ledger_entries (
+                    id uuid primary key default gen_random_uuid(),
+                    entry_date date not null,
+                    description text not null,
+                    account_id uuid not null references kwestkarzbusinessdata.accounts(id),
+                    entry_type text not null check (entry_type in ('income', 'expense')),
+                    amount numeric(12,2) not null check (amount > 0),
+                    vehicle_id uuid null references kwestkarzbusinessdata.vehicles(id),
+                    job_id uuid null references kwestkarzbusinessdata.jobs(id),
+                    reference text null,
+                    payment_status text null check (payment_status in ('unpaid', 'paid')),
+                    paid_at timestamptz null,
+                    paid_by text null,
+                    created_by text not null,
+                    created_at timestamptz not null default now()
+                );
+
+                create index if not exists ix_ledger_entry_date
+                    on kwestkarzbusinessdata.ledger_entries(entry_date desc);
+
+                create index if not exists ix_ledger_job_id
+                    on kwestkarzbusinessdata.ledger_entries(job_id)
+                    where job_id is not null;
                 """
 
             use! connection = dataSource.OpenConnectionAsync(cancellationToken)

@@ -7,6 +7,7 @@ import { VehicleEditPanel } from './components/VehicleEditPanel'
 import { TuroImportPanel } from './components/TuroImportPanel'
 import { PendingApprovalsPanel } from './components/PendingApprovalsPanel'
 import { JobsPanel } from './components/JobsPanel'
+import { LedgerPanel } from './components/LedgerPanel'
 import { MaintenanceForm } from './components/MaintenanceForm'
 import { TirePressurePanel } from './components/TirePressurePanel'
 import type {
@@ -37,6 +38,7 @@ const baseAreas: { id: AppArea; label: string }[] = [
   { id: 'inventory', label: 'Inventory' },
   { id: 'workflows', label: 'Workflows' },
   { id: 'jobs', label: 'Jobs' },
+  { id: 'ledger', label: 'Ledger' },
   { id: 'maintenance', label: 'Maintenance' },
   { id: 'compliance', label: 'Compliance' },
   { id: 'lockboxes', label: 'Lock Boxes' },
@@ -57,6 +59,7 @@ const areaTitles: Record<AppArea, string> = {
   inventory: 'Inventory',
   workflows: 'Workflows',
   jobs: 'Jobs',
+  ledger: 'Ledger',
   maintenance: 'Maintenance',
   compliance: 'Compliance',
   lockboxes: 'Lock Boxes',
@@ -2547,6 +2550,8 @@ function App() {
       )}
 
       {activeArea === 'jobs' && <JobsPanel />}
+
+      {activeArea === 'ledger' && <LedgerPanel />}
 
       {activeArea === 'users' && profile?.role === 'admin' && (
         <section className="area-grid">
