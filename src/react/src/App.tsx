@@ -5,6 +5,7 @@ import { WorkflowDashboard } from './components/WorkflowDashboard'
 import { GuidedCameraModal } from './components/GuidedCameraModal'
 import { VehicleEditPanel } from './components/VehicleEditPanel'
 import { TuroImportPanel } from './components/TuroImportPanel'
+import { PendingApprovalsPanel } from './components/PendingApprovalsPanel'
 import { MaintenanceForm } from './components/MaintenanceForm'
 import { TirePressurePanel } from './components/TirePressurePanel'
 import type {
@@ -2591,6 +2592,7 @@ function App() {
               Sign out
             </button>
           </div>
+          <PendingApprovalsPanel />
           <TuroImportPanel
             turoImportFile={turoImportFile}
             turoImportResult={turoImportResult}
