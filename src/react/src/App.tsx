@@ -117,6 +117,7 @@ function App() {
   const [obd2ReportInsight, setObd2ReportInsight] = useState('')
   const [workflowReceiptFile, setWorkflowReceiptFile] = useState<File | null>(null)
   const [workflowReceiptInsight, setWorkflowReceiptInsight] = useState('')
+  const [workflowReceiptDocumentId, setWorkflowReceiptDocumentId] = useState<string | null>(null)
   const [damageEstimateAmount, setDamageEstimateAmount] = useState('')
   const [damageEstimateVendor, setDamageEstimateVendor] = useState('')
   const [damageRepairStatus, setDamageRepairStatus] = useState('Pending')
@@ -1688,6 +1689,7 @@ function App() {
     setObd2ReportInsight(typeof step?.data?.aiText === 'string' ? step.data.aiText : '')
     setWorkflowReceiptFile(null)
     setWorkflowReceiptInsight('')
+    setWorkflowReceiptDocumentId(null)
     setDamageEstimateAmount(typeof step?.data?.estimateAmount === 'string' ? step.data.estimateAmount : '')
     setDamageEstimateVendor(typeof step?.data?.estimateVendor === 'string' ? step.data.estimateVendor : '')
     setDamageRepairStatus(typeof step?.data?.repairStatus === 'string' ? step.data.repairStatus : 'Pending')
@@ -1893,6 +1895,7 @@ function App() {
       if (damageEstimateAmount) extraStepData.estimateAmount = damageEstimateAmount
       if (damageEstimateVendor) extraStepData.estimateVendor = damageEstimateVendor
       if (damageRepairStatus && damageRepairStatus !== 'Pending') extraStepData.repairStatus = damageRepairStatus
+      if (workflowReceiptDocumentId) extraStepData.receiptDocumentId = workflowReceiptDocumentId
 
       let workflow = await api.put<WorkflowInstance>(
         `/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}`,
@@ -2163,7 +2166,7 @@ function App() {
   }
 
   async function readWorkflowReceipt() {
-    if (!workflowReceiptFile) return
+    if (!workflowReceiptFile || !selectedWorkflow?.vehicleId) return
 
     setLoading(true)
     setMessage('Reading receipt...')
@@ -2171,15 +2174,18 @@ function App() {
     try {
       const form = new FormData()
       form.append('file', workflowReceiptFile)
-      form.append('prompt', 'Read this maintenance receipt or invoice. Extract the total cost, service date, service type, shop name, and any other relevant details. Return a clean summary.')
 
-      const response = await fetch('/api/ai/interpret-image', { method: 'POST', body: form })
+      const response = await fetch(
+        `/api/vehicles/${selectedWorkflow.vehicleId}/documents/receipt`,
+        { method: 'POST', body: form },
+      )
       if (!response.ok) throw new Error(await response.text())
 
-      const result = (await response.json()) as { text: string }
-      setWorkflowReceiptInsight(result.text)
-      setWorkflowStepNotes([workflowStepNotes, `Receipt readout:\n${result.text}`].filter(Boolean).join('\n\n'))
-      setMessage('Receipt read. Review and save step.')
+      const result = (await response.json()) as { document: DocumentRecord; aiText: string }
+      setWorkflowReceiptInsight(result.aiText)
+      setWorkflowReceiptDocumentId(result.document.id)
+      setWorkflowStepNotes([workflowStepNotes, `Receipt readout:\n${result.aiText}`].filter(Boolean).join('\n\n'))
+      setMessage('Receipt stored and read. Review and save step.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not read receipt')
     } finally {
@@ -2384,6 +2390,7 @@ function App() {
           obd2ReportInsight={obd2ReportInsight}
           workflowReceiptFile={workflowReceiptFile}
           workflowReceiptInsight={workflowReceiptInsight}
+          workflowReceiptDocumentId={workflowReceiptDocumentId}
           damageEstimateAmount={damageEstimateAmount}
           damageEstimateVendor={damageEstimateVendor}
           damageRepairStatus={damageRepairStatus}

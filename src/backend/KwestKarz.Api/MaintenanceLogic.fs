@@ -15,6 +15,9 @@ type ServiceSchedule =
 
 module MaintenanceLogic =
 
+    let receiptReadPrompt =
+        "Read this maintenance receipt or invoice. Extract: vendor/shop name, total cost, service date, odometer if visible, maintenance type or service description, and any warranty notes. Return a concise plain-text summary."
+
     let defaultServiceSchedules: ServiceSchedule list =
         [ { EventType = "Oil Change"; MileInterval = Some 5000; DayInterval = Some 180; WarnMilesOut = 500; WarnDaysOut = 14 }
           { EventType = "Tire Rotation"; MileInterval = Some 7500; DayInterval = None; WarnMilesOut = 500; WarnDaysOut = 0 }

@@ -22,6 +22,7 @@ type WorkflowDashboardProps = {
   obd2ReportInsight: string
   workflowReceiptFile: File | null
   workflowReceiptInsight: string
+  workflowReceiptDocumentId: string | null
   damageEstimateAmount: string
   damageEstimateVendor: string
   damageRepairStatus: string
@@ -305,6 +306,7 @@ export function WorkflowDashboard({
   obd2ReportInsight,
   workflowReceiptFile,
   workflowReceiptInsight,
+  workflowReceiptDocumentId,
   damageEstimateAmount,
   damageEstimateVendor,
   damageRepairStatus,
@@ -509,8 +511,13 @@ export function WorkflowDashboard({
                         disabled={!workflowReceiptFile || loading}
                         onClick={readWorkflowReceipt}
                       >
-                        Read Receipt
+                        Read &amp; Store Receipt
                       </button>
+                      {workflowReceiptDocumentId && (
+                        <a className="secondary-button" href={`/api/documents/${workflowReceiptDocumentId}/content`} target="_blank" rel="noreferrer">
+                          View Receipt
+                        </a>
+                      )}
                       {workflowReceiptInsight && (
                         <pre className="receipt-insight">{workflowReceiptInsight}</pre>
                       )}

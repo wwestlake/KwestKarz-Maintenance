@@ -28,6 +28,45 @@ module DocumentEndpoints =
         |> ignore
 
         vehicleDocuments.MapPost(
+            "/receipt",
+            Func<Guid, OpenAIResponsesConnection, IDocumentRepository, HttpContext, Threading.Tasks.Task<IResult>>(fun vehicleId ai documents httpContext ->
+                task {
+                    let! form = httpContext.Request.ReadFormAsync(httpContext.RequestAborted)
+                    let file = form.Files.GetFile("file")
+
+                    if isNull file || file.Length = 0L then
+                        return Results.BadRequest("A multipart form image named 'file' is required.")
+                    else
+                        use stream = file.OpenReadStream()
+                        use memory = new MemoryStream()
+                        do! stream.CopyToAsync(memory, httpContext.RequestAborted)
+                        let contentBytes = memory.ToArray()
+                        let imageBase64 = Convert.ToBase64String(contentBytes)
+
+                        let aiRequest =
+                            { SystemInstructions = Some "You are a fleet maintenance assistant reading receipts and invoices for a car rental operation."
+                              UserMessage = MaintenanceLogic.receiptReadPrompt }
+
+                        let! aiResponse = ai.CompleteWithImageAsync(aiRequest, file.ContentType, imageBase64, httpContext.RequestAborted)
+
+                        let newDocument =
+                            { OwnerType = DocumentOwnerType.Vehicle
+                              OwnerId = vehicleId
+                              Kind = DocumentKind.Receipt
+                              OriginalFileName = file.FileName
+                              ContentType = if String.IsNullOrWhiteSpace(file.ContentType) then "image/jpeg" else file.ContentType
+                              StoragePath = ""
+                              SizeBytes = int64 contentBytes.Length
+                              Description = Some aiResponse.Text
+                              ContentBytes = Some contentBytes }
+
+                        let! document = documents.CreateAsync(newDocument, httpContext.RequestAborted)
+                        return Results.Ok({ Document = DocumentResponse.fromDomain document; AiText = aiResponse.Text })
+                })
+        )
+        |> ignore
+
+        vehicleDocuments.MapPost(
             "/",
             Func<Guid, IDocumentRepository, HttpContext, Threading.Tasks.Task<IResult>>(fun vehicleId repository httpContext ->
                 task {

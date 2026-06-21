@@ -9,8 +9,6 @@ open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Http
 
 module MaintenanceEndpoints =
-    let private receiptReadPrompt = "Read this maintenance receipt or invoice. Extract: vendor/shop name, total cost, service date, odometer if visible, maintenance type or service description, and any warranty notes. Return a concise plain-text summary."
-
     let private toScheduleResponse (s: ServiceSchedule) : ServiceScheduleResponse =
         { EventType = s.EventType
           MileInterval = s.MileInterval
@@ -82,7 +80,7 @@ module MaintenanceEndpoints =
 
                         let aiRequest =
                             { SystemInstructions = Some "You are a fleet maintenance assistant reading receipts and invoices for a car rental operation."
-                              UserMessage = receiptReadPrompt }
+                              UserMessage = MaintenanceLogic.receiptReadPrompt }
 
                         let! aiResponse = ai.CompleteWithImageAsync(aiRequest, file.ContentType, imageBase64, httpContext.RequestAborted)
 
