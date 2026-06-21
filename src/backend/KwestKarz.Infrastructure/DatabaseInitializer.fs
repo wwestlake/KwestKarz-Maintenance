@@ -456,6 +456,15 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
 
                 create index if not exists ix_turo_trip_earnings_status
                     on kwestkarzbusinessdata.turo_trip_earnings(trip_status);
+
+                alter table if exists kwestkarzbusinessdata.maintenance_records
+                    add column if not exists created_by text null;
+
+                alter table if exists kwestkarzbusinessdata.workflow_events
+                    add column if not exists created_by text null;
+
+                alter table if exists kwestkarzbusinessdata.documents
+                    add column if not exists created_by text null;
                 """
 
             use! connection = dataSource.OpenConnectionAsync(cancellationToken)

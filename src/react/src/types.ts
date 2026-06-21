@@ -3,6 +3,7 @@ export type WorkflowEvent = {
   stepKey?: string
   eventType: string
   message?: string
+  createdBy?: string
   createdAt: string
 }
 
@@ -77,6 +78,7 @@ export type MaintenanceRecord = {
   nextDueDate?: string
   nextDueOdometer?: number
   notes?: string
+  createdBy?: string
 }
 
 export type DocumentRecord = {
@@ -88,6 +90,7 @@ export type DocumentRecord = {
   contentType: string
   sizeBytes: number
   description?: string
+  createdBy?: string
   createdAt: string
 }
 

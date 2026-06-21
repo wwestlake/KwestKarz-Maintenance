@@ -249,15 +249,15 @@ module WorkflowEndpoints =
             return results.ToArray()
         }
 
-    let private insertEventAsync (connection: NpgsqlConnection) workflowId stepKey eventType message data cancellationToken =
+    let private insertEventAsync (connection: NpgsqlConnection) workflowId stepKey eventType message data createdBy cancellationToken =
         task {
             use command =
                 new NpgsqlCommand(
                     """
                     insert into kwestkarzbusinessdata.workflow_events (
-                        id, workflow_id, step_key, event_type, message, data, created_at
+                        id, workflow_id, step_key, event_type, message, data, created_by, created_at
                     )
-                    values (@id, @workflow_id, @step_key, @event_type, @message, @data::jsonb, @created_at)
+                    values (@id, @workflow_id, @step_key, @event_type, @message, @data::jsonb, @created_by, @created_at)
                     """,
                     connection
                 )
@@ -268,6 +268,7 @@ module WorkflowEndpoints =
             command.Parameters.AddWithValue("event_type", NpgsqlDbType.Text, eventType) |> ignore
             command.Parameters.AddWithValue("message", NpgsqlDbType.Text, optionOrDbNull message) |> ignore
             command.Parameters.AddWithValue("data", NpgsqlDbType.Text, data) |> ignore
+            command.Parameters.AddWithValue("created_by", NpgsqlDbType.Text, optionOrDbNull createdBy) |> ignore
             command.Parameters.AddWithValue("created_at", NpgsqlDbType.TimestampTz, DateTimeOffset.UtcNow) |> ignore
             let! _ = command.ExecuteNonQueryAsync(cancellationToken)
             return ()
@@ -367,7 +368,8 @@ module WorkflowEndpoints =
                             let! _ = insertStep.ExecuteNonQueryAsync(httpContext.RequestAborted)
                             ()
 
-                        do! insertEventAsync connection workflowId None "Created" (Some title) "{}" httpContext.RequestAborted
+                        let operator = httpContext.Request.Headers.TryGetValue("X-Operator") |> (fun (ok, v) -> if ok then Some(v.ToString()) else None)
+                        do! insertEventAsync connection workflowId None "Created" (Some title) "{}" operator httpContext.RequestAborted
                         do! transaction.CommitAsync(httpContext.RequestAborted)
 
                         let! workflow = fetchWorkflowAsync dataSource workflowId httpContext.RequestAborted
@@ -437,7 +439,8 @@ module WorkflowEndpoints =
                             workflowCommand.Parameters.AddWithValue("make_current", NpgsqlDbType.Boolean, request.MakeCurrent |> Option.defaultValue true) |> ignore
                             workflowCommand.Parameters.AddWithValue("updated_at", NpgsqlDbType.TimestampTz, now) |> ignore
                             let! _ = workflowCommand.ExecuteNonQueryAsync(httpContext.RequestAborted)
-                            do! insertEventAsync connection workflowId (Some stepKey) "StepSaved" (Some request.Status) (jsonOrEmpty request.Data) httpContext.RequestAborted
+                            let operator = httpContext.Request.Headers.TryGetValue("X-Operator") |> (fun (ok, v) -> if ok then Some(v.ToString()) else None)
+                            do! insertEventAsync connection workflowId (Some stepKey) "StepSaved" (Some request.Status) (jsonOrEmpty request.Data) operator httpContext.RequestAborted
                             let! workflow = fetchWorkflowAsync dataSource workflowId httpContext.RequestAborted
                             return Results.Ok(workflow.Value)
                 })
@@ -465,6 +468,7 @@ module WorkflowEndpoints =
                             let contentBytes = memory.ToArray()
                             let pdfText = MaintenanceLogic.extractPdfText contentBytes
 
+                            let operator = httpContext.Request.Headers.TryGetValue("X-Operator") |> (fun (ok, v) -> if ok then Some(v.ToString()) else None)
                             let newDocument =
                                 { OwnerType = DocumentOwnerType.DiagnosticReport
                                   OwnerId = workflowId
@@ -474,6 +478,7 @@ module WorkflowEndpoints =
                                   StoragePath = ""
                                   SizeBytes = int64 contentBytes.Length
                                   Description = Some "OBD2 diagnostic scan report"
+                                  CreatedBy = operator
                                   ContentBytes = Some contentBytes }
 
                             let! document = documents.CreateAsync(newDocument, httpContext.RequestAborted)
@@ -501,7 +506,7 @@ module WorkflowEndpoints =
                             if rows = 0 then
                                 return Results.NotFound()
                             else
-                                do! insertEventAsync connection workflowId (Some stepKey) "Obd2ReportUploaded" (Some document.OriginalFileName) data httpContext.RequestAborted
+                                do! insertEventAsync connection workflowId (Some stepKey) "Obd2ReportUploaded" (Some document.OriginalFileName) data operator httpContext.RequestAborted
                                 let! workflow = fetchWorkflowAsync dataSource workflowId httpContext.RequestAborted
                                 match workflow.Value.VehicleId with
                                 | Some vehicleId ->
@@ -560,7 +565,8 @@ module WorkflowEndpoints =
                         if rows = 0 then
                             return Results.NotFound()
                         else
-                            do! insertEventAsync connection workflowId None "StatusChanged" (Some request.Status) "{}" httpContext.RequestAborted
+                            let operator = httpContext.Request.Headers.TryGetValue("X-Operator") |> (fun (ok, v) -> if ok then Some(v.ToString()) else None)
+                            do! insertEventAsync connection workflowId None "StatusChanged" (Some request.Status) "{}" operator httpContext.RequestAborted
                             let! workflow = fetchWorkflowAsync dataSource workflowId httpContext.RequestAborted
                             return Results.Ok(workflow.Value)
                 })
@@ -575,7 +581,7 @@ module WorkflowEndpoints =
                     use command =
                         new NpgsqlCommand(
                             """
-                            select id, step_key, event_type, message, data, created_at
+                            select id, step_key, event_type, message, data, created_by, created_at
                             from kwestkarzbusinessdata.workflow_events
                             where workflow_id = @workflow_id
                             order by created_at asc
@@ -585,7 +591,7 @@ module WorkflowEndpoints =
 
                     command.Parameters.AddWithValue("workflow_id", NpgsqlDbType.Uuid, workflowId) |> ignore
                     use! reader = command.ExecuteReaderAsync(httpContext.RequestAborted)
-                    let results = System.Collections.Generic.List<{| Id: Guid; StepKey: string option; EventType: string; Message: string option; CreatedAt: DateTimeOffset |}>()
+                    let results = System.Collections.Generic.List<{| Id: Guid; StepKey: string option; EventType: string; Message: string option; CreatedBy: string option; CreatedAt: DateTimeOffset |}>()
 
                     while! reader.ReadAsync(httpContext.RequestAborted) do
                         results.Add(
@@ -593,7 +599,8 @@ module WorkflowEndpoints =
                                StepKey = if reader.IsDBNull(1) then None else Some(reader.GetString(1))
                                EventType = reader.GetString(2)
                                Message = if reader.IsDBNull(3) then None else Some(reader.GetString(3))
-                               CreatedAt = reader.GetFieldValue<DateTimeOffset>(5) |})
+                               CreatedBy = if reader.IsDBNull(5) then None else Some(reader.GetString(5))
+                               CreatedAt = reader.GetFieldValue<DateTimeOffset>(6) |})
 
                     return Results.Ok(results.ToArray())
                 })

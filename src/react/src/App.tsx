@@ -226,6 +226,7 @@ function App() {
   const [serviceSchedules, setServiceSchedules] = useState<ServiceSchedule[]>([])
   const [inspectionReport, setInspectionReport] = useState<InspectionReport | null>(null)
   const [tireAlerts, setTireAlerts] = useState<TireFleetAlert[]>([])
+  const [operatorName, setOperatorName] = useState(() => localStorage.getItem('operatorName') ?? '')
   const [message, setMessage] = useState('Ready')
   const [workingMessage, setWorkingMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -2555,6 +2556,29 @@ function App() {
               </div>
             </div>
           </div>
+          <div className="panel area-panel">
+            <div className="section-heading">
+              <h2>Operator Identity</h2>
+            </div>
+            <p className="hint-text">Your name is attached to records you create. Leave blank to record anonymously.</p>
+            <div className="form-row">
+              <label htmlFor="operatorName">Your Name</label>
+              <input
+                id="operatorName"
+                type="text"
+                value={operatorName}
+                placeholder="e.g. Jane Smith"
+                onChange={e => {
+                  setOperatorName(e.target.value)
+                  if (e.target.value.trim()) {
+                    localStorage.setItem('operatorName', e.target.value.trim())
+                  } else {
+                    localStorage.removeItem('operatorName')
+                  }
+                }}
+              />
+            </div>
+          </div>
           <TuroImportPanel
             turoImportFile={turoImportFile}
             turoImportResult={turoImportResult}
@@ -3457,6 +3481,7 @@ function App() {
                       </div>
                     )}
                     {record.notes && <p className="context">{record.notes}</p>}
+                    {record.createdBy && <p className="audit-meta">by {record.createdBy}</p>}
                   </article>
                 )
               })}

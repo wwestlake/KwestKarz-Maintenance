@@ -304,6 +304,7 @@ module RentalInspectionEndpoints =
                                 do! stream.CopyToAsync(memory, httpContext.RequestAborted)
                                 let contentBytes = memory.ToArray()
 
+                                let operator = httpContext.Request.Headers.TryGetValue("X-Operator") |> (fun (ok, v) -> if ok then Some(v.ToString()) else None)
                                 let newDocument =
                                     { OwnerType = DocumentOwnerType.Vehicle
                                       OwnerId = inspection.VehicleId
@@ -313,6 +314,7 @@ module RentalInspectionEndpoints =
                                       StoragePath = ""
                                       SizeBytes = int64 contentBytes.Length
                                       Description = Some $"Rental inspection photo: {slotKey}"
+                                      CreatedBy = operator
                                       ContentBytes = Some contentBytes }
 
                                 let! document = documents.CreateAsync(newDocument, httpContext.RequestAborted)

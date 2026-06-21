@@ -648,6 +648,7 @@ export function WorkflowDashboard({
                 <span className={`timeline-type event-type-${event.eventType.toLowerCase()}`}>{event.eventType}</span>
                 {event.stepKey && <span className="timeline-step">{event.stepKey}</span>}
                 {event.message && <span className="timeline-message">{event.message}</span>}
+                {event.createdBy && <span className="audit-meta">by {event.createdBy}</span>}
               </li>
             ))}
           </ol>

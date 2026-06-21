@@ -46,7 +46,8 @@ module MaintenanceEndpoints =
                     if String.IsNullOrWhiteSpace(request.EventType) then
                         return Results.BadRequest("eventType is required.")
                     else
-                        let! record = repository.CreateAsync(CreateMaintenanceRecordRequest.toDomain vehicleId request, httpContext.RequestAborted)
+                        let operator = httpContext.Request.Headers.TryGetValue("X-Operator") |> (fun (ok, v) -> if ok then Some(v.ToString()) else None)
+                        let! record = repository.CreateAsync(CreateMaintenanceRecordRequest.toDomain vehicleId operator request, httpContext.RequestAborted)
                         return Results.Created($"/api/vehicles/{vehicleId}/maintenance/{record.Id}", MaintenanceRecordResponse.fromDomain record)
                 })
         )
@@ -84,6 +85,7 @@ module MaintenanceEndpoints =
 
                         let! aiResponse = ai.CompleteWithImageAsync(aiRequest, file.ContentType, imageBase64, httpContext.RequestAborted)
 
+                        let operator = httpContext.Request.Headers.TryGetValue("X-Operator") |> (fun (ok, v) -> if ok then Some(v.ToString()) else None)
                         let newDocument =
                             { OwnerType = DocumentOwnerType.MaintenanceRecord
                               OwnerId = recordId
@@ -93,6 +95,7 @@ module MaintenanceEndpoints =
                               StoragePath = ""
                               SizeBytes = int64 contentBytes.Length
                               Description = Some aiResponse.Text
+                              CreatedBy = operator
                               ContentBytes = Some contentBytes }
 
                         let! document = documents.CreateAsync(newDocument, httpContext.RequestAborted)

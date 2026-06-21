@@ -15,6 +15,7 @@ type MaintenanceRecord =
       NextDueDate: DateOnly option
       NextDueOdometer: int option
       Notes: string option
+      CreatedBy: string option
       CreatedAt: DateTimeOffset
       UpdatedAt: DateTimeOffset }
 
@@ -27,7 +28,8 @@ type NewMaintenanceRecord =
       Cost: decimal option
       NextDueDate: DateOnly option
       NextDueOdometer: int option
-      Notes: string option }
+      Notes: string option
+      CreatedBy: string option }
 
 type MaintenanceDueStatus =
     | Ok

@@ -215,6 +215,7 @@ module TirePressureEndpoints =
                                   StoragePath = ""
                                   SizeBytes = int64 contentBytes.Length
                                   Description = Some "Tire pressure placard photo"
+                                  CreatedBy = None
                                   ContentBytes = Some contentBytes }
 
                             let! document = documents.CreateAsync(newDocument, httpContext.RequestAborted)

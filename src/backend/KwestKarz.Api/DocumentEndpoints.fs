@@ -49,6 +49,7 @@ module DocumentEndpoints =
 
                         let! aiResponse = ai.CompleteWithImageAsync(aiRequest, file.ContentType, imageBase64, httpContext.RequestAborted)
 
+                        let operator = httpContext.Request.Headers.TryGetValue("X-Operator") |> (fun (ok, v) -> if ok then Some(v.ToString()) else None)
                         let newDocument =
                             { OwnerType = DocumentOwnerType.Vehicle
                               OwnerId = vehicleId
@@ -58,6 +59,7 @@ module DocumentEndpoints =
                               StoragePath = ""
                               SizeBytes = int64 contentBytes.Length
                               Description = Some aiResponse.Text
+                              CreatedBy = operator
                               ContentBytes = Some contentBytes }
 
                         let! document = documents.CreateAsync(newDocument, httpContext.RequestAborted)
@@ -83,6 +85,7 @@ module DocumentEndpoints =
                         do! stream.CopyToAsync(memory, httpContext.RequestAborted)
                         let contentBytes = memory.ToArray()
 
+                        let operator = httpContext.Request.Headers.TryGetValue("X-Operator") |> (fun (ok, v) -> if ok then Some(v.ToString()) else None)
                         let newDocument =
                             { OwnerType = DocumentOwnerType.Vehicle
                               OwnerId = vehicleId
@@ -92,6 +95,7 @@ module DocumentEndpoints =
                               StoragePath = ""
                               SizeBytes = int64 contentBytes.Length
                               Description = if String.IsNullOrWhiteSpace(description) then None else Some description
+                              CreatedBy = operator
                               ContentBytes = Some contentBytes }
 
                         let! document = repository.CreateAsync(newDocument, httpContext.RequestAborted)

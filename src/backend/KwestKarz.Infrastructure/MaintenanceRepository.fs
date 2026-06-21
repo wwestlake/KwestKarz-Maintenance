@@ -28,13 +28,14 @@ type PostgresMaintenanceRepository(dataSource: NpgsqlDataSource) =
           NextDueDate = getOption reader "next_due_date" reader.GetFieldValue<DateOnly>
           NextDueOdometer = getOption reader "next_due_odometer" reader.GetInt32
           Notes = getOption reader "notes" reader.GetString
+          CreatedBy = getOption reader "created_by" reader.GetString
           CreatedAt = reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("created_at"))
           UpdatedAt = reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("updated_at")) }
 
     let selectColumns =
         """
         id, vehicle_id, event_type, date_performed, odometer, performed_by,
-        cost, next_due_date, next_due_odometer, notes, created_at, updated_at
+        cost, next_due_date, next_due_odometer, notes, created_by, created_at, updated_at
         """
 
     let addParameters (command: NpgsqlCommand) (record: NewMaintenanceRecord) (id: Guid) (now: DateTimeOffset) =
@@ -48,6 +49,7 @@ type PostgresMaintenanceRepository(dataSource: NpgsqlDataSource) =
         command.Parameters.AddWithValue("next_due_date", NpgsqlDbType.Date, optionOrDbNull record.NextDueDate) |> ignore
         command.Parameters.AddWithValue("next_due_odometer", NpgsqlDbType.Integer, optionOrDbNull record.NextDueOdometer) |> ignore
         command.Parameters.AddWithValue("notes", NpgsqlDbType.Text, optionOrDbNull record.Notes) |> ignore
+        command.Parameters.AddWithValue("created_by", NpgsqlDbType.Text, optionOrDbNull record.CreatedBy) |> ignore
         command.Parameters.AddWithValue("created_at", NpgsqlDbType.TimestampTz, now) |> ignore
         command.Parameters.AddWithValue("updated_at", NpgsqlDbType.TimestampTz, now) |> ignore
 
@@ -63,11 +65,11 @@ type PostgresMaintenanceRepository(dataSource: NpgsqlDataSource) =
                         $"""
                         insert into kwestkarzbusinessdata.maintenance_records (
                             id, vehicle_id, event_type, date_performed, odometer, performed_by,
-                            cost, next_due_date, next_due_odometer, notes, created_at, updated_at
+                            cost, next_due_date, next_due_odometer, notes, created_by, created_at, updated_at
                         )
                         values (
                             @id, @vehicle_id, @event_type, @date_performed, @odometer, @performed_by,
-                            @cost, @next_due_date, @next_due_odometer, @notes, @created_at, @updated_at
+                            @cost, @next_due_date, @next_due_odometer, @notes, @created_by, @created_at, @updated_at
                         )
                         returning {selectColumns}
                         """,

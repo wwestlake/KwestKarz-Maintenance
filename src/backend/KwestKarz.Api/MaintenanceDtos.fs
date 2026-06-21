@@ -14,7 +14,7 @@ type CreateMaintenanceRecordRequest =
       Notes: string option }
 
 module CreateMaintenanceRecordRequest =
-    let toDomain vehicleId (request: CreateMaintenanceRecordRequest) =
+    let toDomain vehicleId createdBy (request: CreateMaintenanceRecordRequest) =
         { VehicleId = vehicleId
           EventType = request.EventType
           DatePerformed = request.DatePerformed
@@ -23,7 +23,8 @@ module CreateMaintenanceRecordRequest =
           Cost = request.Cost
           NextDueDate = request.NextDueDate
           NextDueOdometer = request.NextDueOdometer
-          Notes = request.Notes }
+          Notes = request.Notes
+          CreatedBy = createdBy }
 
 type MaintenanceRecordResponse =
     { Id: Guid
@@ -36,6 +37,7 @@ type MaintenanceRecordResponse =
       NextDueDate: DateOnly option
       NextDueOdometer: int option
       Notes: string option
+      CreatedBy: string option
       CreatedAt: DateTimeOffset
       UpdatedAt: DateTimeOffset }
 
@@ -51,6 +53,7 @@ module MaintenanceRecordResponse =
           NextDueDate = record.NextDueDate
           NextDueOdometer = record.NextDueOdometer
           Notes = record.Notes
+          CreatedBy = record.CreatedBy
           CreatedAt = record.CreatedAt
           UpdatedAt = record.UpdatedAt }
 

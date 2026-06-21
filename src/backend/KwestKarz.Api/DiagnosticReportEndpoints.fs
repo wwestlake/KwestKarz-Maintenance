@@ -49,6 +49,7 @@ module DiagnosticReportEndpoints =
                         let contentBytes = memory.ToArray()
                         let pdfText = MaintenanceLogic.extractPdfText contentBytes
 
+                        let operator = httpContext.Request.Headers.TryGetValue("X-Operator") |> (fun (ok, v) -> if ok then Some(v.ToString()) else None)
                         let newDocument =
                             { OwnerType = DocumentOwnerType.DiagnosticReport
                               OwnerId = vehicleId
@@ -58,6 +59,7 @@ module DiagnosticReportEndpoints =
                               StoragePath = ""
                               SizeBytes = int64 contentBytes.Length
                               Description = Some "OBD2 diagnostic scan report"
+                              CreatedBy = operator
                               ContentBytes = Some contentBytes }
 
                         let! document = documents.CreateAsync(newDocument, httpContext.RequestAborted)

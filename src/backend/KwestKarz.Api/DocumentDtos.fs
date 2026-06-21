@@ -12,6 +12,7 @@ type DocumentResponse =
       ContentType: string
       SizeBytes: int64
       Description: string option
+      CreatedBy: string option
       CreatedAt: DateTimeOffset }
 
 module DocumentResponse =
@@ -24,4 +25,5 @@ module DocumentResponse =
           ContentType = document.ContentType
           SizeBytes = document.SizeBytes
           Description = document.Description
+          CreatedBy = document.CreatedBy
           CreatedAt = document.CreatedAt }

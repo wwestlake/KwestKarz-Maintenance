@@ -839,6 +839,7 @@ module ComplianceEndpoints =
                         let imageBase64 = Convert.ToBase64String(contentBytes)
                         let contentType = if String.IsNullOrWhiteSpace(file.ContentType) then "application/octet-stream" else file.ContentType
 
+                        let operator = httpContext.Request.Headers.TryGetValue("X-Operator") |> (fun (ok, v) -> if ok then Some(v.ToString()) else None)
                         let newDocument =
                             { OwnerType = DocumentOwnerType.Vehicle
                               OwnerId = vehicleId
@@ -848,6 +849,7 @@ module ComplianceEndpoints =
                               StoragePath = ""
                               SizeBytes = int64 contentBytes.Length
                               Description = Some($"{recordType} photo")
+                              CreatedBy = operator
                               ContentBytes = Some contentBytes }
 
                         let! document = documents.CreateAsync(newDocument, httpContext.RequestAborted)
@@ -893,6 +895,7 @@ module ComplianceEndpoints =
                         let contentBytes = memory.ToArray()
                         let imageBase64 = Convert.ToBase64String(contentBytes)
 
+                        let operator = httpContext.Request.Headers.TryGetValue("X-Operator") |> (fun (ok, v) -> if ok then Some(v.ToString()) else None)
                         let newDocument =
                             { OwnerType = DocumentOwnerType.Vehicle
                               OwnerId = vehicleId
@@ -902,6 +905,7 @@ module ComplianceEndpoints =
                               StoragePath = ""
                               SizeBytes = int64 contentBytes.Length
                               Description = Some($"{recordType} photo")
+                              CreatedBy = operator
                               ContentBytes = Some contentBytes }
 
                         let! document = documents.CreateAsync(newDocument, httpContext.RequestAborted)

@@ -27,18 +27,19 @@ type PostgresDocumentRepository(dataSource: NpgsqlDataSource) =
           StoragePath = reader.GetString(reader.GetOrdinal("storage_path"))
           SizeBytes = reader.GetInt64(reader.GetOrdinal("size_bytes"))
           Description = getOption reader "description" reader.GetString
+          CreatedBy = getOption reader "created_by" reader.GetString
           CreatedAt = reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("created_at")) }
 
     let selectColumns =
         """
         id, owner_type, owner_id, kind, original_file_name, content_type,
-        storage_path, size_bytes, description, created_at
+        storage_path, size_bytes, description, created_by, created_at
         """
 
     let contentColumns =
         """
         id, owner_type, owner_id, kind, original_file_name, content_type,
-        storage_path, size_bytes, description, created_at, content_bytes
+        storage_path, size_bytes, description, created_by, created_at, content_bytes
         """
 
     interface IDocumentRepository with
@@ -53,11 +54,11 @@ type PostgresDocumentRepository(dataSource: NpgsqlDataSource) =
                         $"""
                         insert into kwestkarzbusinessdata.documents (
                             id, owner_type, owner_id, kind, original_file_name, content_type,
-                            storage_path, size_bytes, content_bytes, description, created_at
+                            storage_path, size_bytes, content_bytes, description, created_by, created_at
                         )
                         values (
                             @id, @owner_type, @owner_id, @kind, @original_file_name, @content_type,
-                            @storage_path, @size_bytes, @content_bytes, @description, @created_at
+                            @storage_path, @size_bytes, @content_bytes, @description, @created_by, @created_at
                         )
                         returning {selectColumns}
                         """,
@@ -74,6 +75,7 @@ type PostgresDocumentRepository(dataSource: NpgsqlDataSource) =
                 command.Parameters.AddWithValue("size_bytes", NpgsqlDbType.Bigint, document.SizeBytes) |> ignore
                 command.Parameters.AddWithValue("content_bytes", NpgsqlDbType.Bytea, optionOrDbNull document.ContentBytes) |> ignore
                 command.Parameters.AddWithValue("description", NpgsqlDbType.Text, optionOrDbNull document.Description) |> ignore
+                command.Parameters.AddWithValue("created_by", NpgsqlDbType.Text, optionOrDbNull document.CreatedBy) |> ignore
                 command.Parameters.AddWithValue("created_at", NpgsqlDbType.TimestampTz, now) |> ignore
 
                 use! reader = command.ExecuteReaderAsync(cancellationToken)

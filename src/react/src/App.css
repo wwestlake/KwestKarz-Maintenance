@@ -961,6 +961,18 @@ h2 {
   font-weight: 600;
 }
 
+.audit-meta {
+  font-size: 0.75rem;
+  color: #7a8c85;
+  font-style: italic;
+}
+
+.hint-text {
+  font-size: 0.85rem;
+  color: #65736d;
+  margin: 0 0 12px;
+}
+
 .assign-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

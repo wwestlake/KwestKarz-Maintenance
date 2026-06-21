@@ -70,6 +70,7 @@ type StoredDocument =
       StoragePath: string
       SizeBytes: int64
       Description: string option
+      CreatedBy: string option
       CreatedAt: DateTimeOffset }
 
 type NewStoredDocument =
@@ -81,6 +82,7 @@ type NewStoredDocument =
       StoragePath: string
       SizeBytes: int64
       Description: string option
+      CreatedBy: string option
       ContentBytes: byte array option }
 
 type StoredDocumentContent =
