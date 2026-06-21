@@ -19,7 +19,7 @@
 - Build before committing. TypeScript check before committing frontend.
 - Never commit .env.local or secrets.
 - Always close issues and update the GitHub project board after completing a feature.
-- Auth is disabled in Development (appsettings.Development.json). Admin phone is in user secrets.
+- Auth is enabled in all environments. Admin phone is in .NET user secrets (never in appsettings).
 
 ## Do Not
 - Do not open new PowerShell windows for servers.
