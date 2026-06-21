@@ -353,4 +353,60 @@ module RentalInspectionEndpoints =
         )
         |> ignore
 
+        group.MapGet(
+            "/report",
+            Func<Guid, IVehicleRepository, NpgsqlDataSource, HttpContext, Task<IResult>>(fun workflowId vehicles dataSource httpContext ->
+                task {
+                    let! inspection = fetchInspectionAsync dataSource workflowId httpContext.RequestAborted
+                    match inspection with
+                    | None -> return Results.NotFound("No inspection found for this workflow.")
+                    | Some insp ->
+                        let! allVehicles = vehicles.ListAsync(httpContext.RequestAborted)
+                        let vehicle = allVehicles |> List.tryFind (fun v -> v.Id = insp.VehicleId)
+                        match vehicle with
+                        | None -> return Results.NotFound("Vehicle not found.")
+                        | Some v ->
+                            let slotLabels =
+                                dict [ "front", "Front"
+                                       "rear", "Rear"
+                                       "driverSide", "Driver Side"
+                                       "passengerSide", "Passenger Side"
+                                       "frontInterior", "Front Interior"
+                                       "rearInterior", "Rear Interior"
+                                       "trunkCargo", "Trunk / Cargo"
+                                       "odometerDashboard", "Odometer / Dashboard"
+                                       "damage", "Damage Close-up" ]
+
+                            let photos =
+                                insp.Photos
+                                |> Array.map (fun p ->
+                                    { SlotKey = p.SlotKey
+                                      SlotLabel = if slotLabels.ContainsKey(p.SlotKey) then slotLabels[p.SlotKey] else p.SlotKey
+                                      DocumentId = p.DocumentId
+                                      Notes = p.Notes })
+
+                            let report =
+                                { InspectionId = insp.Id
+                                  InspectionKind = insp.InspectionKind
+                                  Status = insp.Status
+                                  InspectedAt = insp.UpdatedAt
+                                  Odometer = insp.Odometer
+                                  FuelLevel = insp.FuelLevel
+                                  DamageFound = insp.DamageFound
+                                  Notes = insp.Notes
+                                  VehicleId = v.Id
+                                  VehicleYear = v.Year
+                                  VehicleMake = v.Make
+                                  VehicleModel = v.Model
+                                  VehicleVin = v.Vin
+                                  VehicleColor = v.Color
+                                  VehiclePlate = v.LicensePlate
+                                  VehiclePlateState = v.LicensePlateState
+                                  Photos = photos }
+
+                            return Results.Ok(report)
+                })
+        )
+        |> ignore
+
         app

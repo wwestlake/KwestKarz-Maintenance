@@ -272,6 +272,33 @@ export type TuroTripRecord = {
   returnLocation?: string
 }
 
+export type InspectionReportPhoto = {
+  slotKey: string
+  slotLabel: string
+  documentId: string
+  notes?: string
+}
+
+export type InspectionReport = {
+  inspectionId: string
+  inspectionKind: string
+  status: string
+  inspectedAt: string
+  odometer?: number
+  fuelLevel?: string
+  damageFound?: boolean
+  notes?: string
+  vehicleId: string
+  vehicleYear?: number
+  vehicleMake?: string
+  vehicleModel?: string
+  vehicleVin: string
+  vehicleColor?: string
+  vehiclePlate?: string
+  vehiclePlateState?: string
+  photos: InspectionReportPhoto[]
+}
+
 export type ServiceSchedule = {
   eventType: string
   mileInterval?: number

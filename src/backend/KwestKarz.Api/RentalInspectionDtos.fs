@@ -32,3 +32,28 @@ type SaveRentalInspectionRequest =
       DamageFound: bool option
       Status: string option
       Notes: string option }
+
+type InspectionReportPhotoResponse =
+    { SlotKey: string
+      SlotLabel: string
+      DocumentId: Guid
+      Notes: string option }
+
+type InspectionReportResponse =
+    { InspectionId: Guid
+      InspectionKind: string
+      Status: string
+      InspectedAt: DateTimeOffset
+      Odometer: int option
+      FuelLevel: string option
+      DamageFound: bool option
+      Notes: string option
+      VehicleId: Guid
+      VehicleYear: int option
+      VehicleMake: string option
+      VehicleModel: string option
+      VehicleVin: string
+      VehicleColor: string option
+      VehiclePlate: string option
+      VehiclePlateState: string option
+      Photos: InspectionReportPhotoResponse array }

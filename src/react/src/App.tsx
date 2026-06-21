@@ -16,6 +16,7 @@ import type {
   TirePressureSpec, TirePressureSnapshot, TirePressureSpecScanResponse,
   RentalInspection, TuroTripImportResponse, TuroMaintenanceSignal,
   TuroImportRecord, TuroTripRecord, WorkflowEvent, DiagnosticReport, ServiceSchedule,
+  InspectionReport,
   VinDecode, CreateVehicleForm, EditVehicleForm,
 } from './types'
 import { api } from './api'
@@ -222,6 +223,7 @@ function App() {
   const [diagnosticReports, setDiagnosticReports] = useState<DiagnosticReport[]>([])
   const [obd2UploadFile, setObd2UploadFile] = useState<File | null>(null)
   const [serviceSchedules, setServiceSchedules] = useState<ServiceSchedule[]>([])
+  const [inspectionReport, setInspectionReport] = useState<InspectionReport | null>(null)
   const [message, setMessage] = useState('Ready')
   const [workingMessage, setWorkingMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -509,6 +511,15 @@ function App() {
     const inspection = await api.get<RentalInspection>(`/api/workflows/${workflow.id}/rental-inspection`)
     applyRentalInspectionForm(inspection)
     return inspection
+  }
+
+  async function loadInspectionReport(workflowId: string) {
+    try {
+      const report = await api.get<InspectionReport>(`/api/workflows/${workflowId}/rental-inspection/report`)
+      setInspectionReport(report)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not load inspection report')
+    }
   }
 
   async function loadTirePressure(vehicleId: string) {
@@ -1681,6 +1692,7 @@ function App() {
     setDamageEstimateVendor(typeof step?.data?.estimateVendor === 'string' ? step.data.estimateVendor : '')
     setDamageRepairStatus(typeof step?.data?.repairStatus === 'string' ? step.data.repairStatus : 'Pending')
     setWorkflowEvents([])
+    setInspectionReport(null)
     loadWorkflowEvents(workflow.id)
     window.setTimeout(() => {
       workflowEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -2961,6 +2973,64 @@ function App() {
                     </div>
                   )
                 })}
+              </div>
+
+              {rentalInspection && (rentalInspection.status === 'NeedsReview' || rentalInspection.status === 'Complete') && (
+                <div className="form-actions" style={{ marginTop: '12px' }}>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => {
+                      if (inspectionReport) {
+                        setInspectionReport(null)
+                      } else if (selectedWorkflow) {
+                        loadInspectionReport(selectedWorkflow.id)
+                      }
+                    }}
+                  >
+                    {inspectionReport ? 'Hide Report' : 'View Report'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {inspectionReport && (
+            <div className="panel inspection-report" id="inspection-report">
+              <div className="section-heading no-print-hide">
+                <h2>Inspection Report</h2>
+                <button className="secondary-button" onClick={() => window.print()}>Print</button>
+              </div>
+              <div className="report-header">
+                <h3>{inspectionReport.inspectionKind} Rental Inspection</h3>
+                <p>{new Date(inspectionReport.inspectedAt).toLocaleString()}</p>
+              </div>
+              <div className="report-vehicle">
+                <strong>{inspectionReport.vehicleYear} {inspectionReport.vehicleMake} {inspectionReport.vehicleModel}</strong>
+                <span>VIN: {inspectionReport.vehicleVin}</span>
+                {inspectionReport.vehiclePlate && (
+                  <span>Plate: {inspectionReport.vehiclePlate} {inspectionReport.vehiclePlateState ?? ''}</span>
+                )}
+                {inspectionReport.vehicleColor && <span>Color: {inspectionReport.vehicleColor}</span>}
+              </div>
+              <div className="report-fields">
+                <div><span>Odometer</span><strong>{inspectionReport.odometer?.toLocaleString() ?? '—'} mi</strong></div>
+                <div><span>Fuel Level</span><strong>{inspectionReport.fuelLevel ?? '—'}</strong></div>
+                <div><span>Damage Found</span><strong>{inspectionReport.damageFound == null ? '—' : inspectionReport.damageFound ? 'Yes' : 'No'}</strong></div>
+                <div><span>Status</span><strong>{inspectionReport.status}</strong></div>
+              </div>
+              {inspectionReport.notes && <p className="report-notes">{inspectionReport.notes}</p>}
+              <div className="report-photo-grid">
+                {inspectionReport.photos.map((photo) => (
+                  <div key={photo.slotKey} className="report-photo-slot">
+                    <a href={`/api/documents/${photo.documentId}/content`} target="_blank" rel="noreferrer">
+                      <img src={`/api/documents/${photo.documentId}/content`} alt={photo.slotLabel} />
+                    </a>
+                    <span>{photo.slotLabel}</span>
+                    {photo.notes && <p>{photo.notes}</p>}
+                  </div>
+                ))}
+                {inspectionReport.photos.length === 0 && <p className="empty">No photos attached.</p>}
               </div>
             </div>
           )}

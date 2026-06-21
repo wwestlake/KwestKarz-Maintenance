@@ -582,6 +582,98 @@ h2 {
   width: 100%;
 }
 
+.inspection-report {
+  page-break-inside: avoid;
+}
+
+.report-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+}
+
+.report-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.report-header p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.report-vehicle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-bottom: 14px;
+  font-size: 0.9rem;
+}
+
+.report-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.report-fields > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.report-fields span {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.report-notes {
+  font-style: italic;
+  color: var(--text-muted);
+  margin-bottom: 14px;
+}
+
+.report-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.report-photo-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.report-photo-slot img {
+  width: 100%;
+  aspect-ratio: 4/3;
+  object-fit: cover;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.report-photo-slot span {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+@media print {
+  nav, .no-print-hide { display: none !important; }
+  .inspection-report { box-shadow: none; border: none; }
+  .report-photo-grid { grid-template-columns: repeat(3, 1fr); }
+}
+
 .wide-panel {
   grid-column: 1 / -1;
 }
