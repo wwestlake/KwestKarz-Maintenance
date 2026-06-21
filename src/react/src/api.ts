@@ -13,6 +13,11 @@ export const api = {
     if (!response.ok) throw new Error(await response.text())
     return response.json()
   },
+  async postForm<T>(path: string, form: FormData): Promise<T> {
+    const response = await fetch(path, { method: 'POST', body: form })
+    if (!response.ok) throw new Error(await response.text())
+    return response.json()
+  },
   async put<T>(path: string, body: unknown): Promise<T> {
     const response = await fetch(path, {
       method: 'PUT',

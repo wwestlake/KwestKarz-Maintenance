@@ -17,6 +17,7 @@
     <Compile Include="WorkflowDtos.fs" />
     <Compile Include="RentalInspectionDtos.fs" />
     <Compile Include="TuroImportDtos.fs" />
+    <Compile Include="DiagnosticReportDtos.fs" />
     <Compile Include="MaintenanceLogic.fs" />
     <Compile Include="VinEndpoints.fs" />
     <Compile Include="VehicleEndpoints.fs" />
@@ -30,6 +31,7 @@
     <Compile Include="WorkflowEndpoints.fs" />
     <Compile Include="RentalInspectionEndpoints.fs" />
     <Compile Include="TuroImportEndpoints.fs" />
+    <Compile Include="DiagnosticReportEndpoints.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

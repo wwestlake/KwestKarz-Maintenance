@@ -1,7 +1,10 @@
 namespace KwestKarz.Api
 
 open System
+open System.IO
+open System.Text
 open KwestKarz.Domain
+open UglyToad.PdfPig
 
 type ServiceSchedule =
     { EventType: string        // display name used in suggestions
@@ -144,3 +147,34 @@ module MaintenanceLogic =
             $"Attached documents: {documents.Length}."
 
         String.Join(" ", [| vehicleLine; dueLine; maintenanceLine; documentLine |])
+
+    let truncate (max: int) (s: string) =
+        if s.Length <= max then s else s.[..max - 1]
+
+    let extractPdfText (contentBytes: byte array) =
+        use stream = new MemoryStream(contentBytes)
+        use document = PdfDocument.Open(stream)
+        let builder = StringBuilder()
+
+        for page in document.GetPages() do
+            builder.AppendLine($"--- Page {page.Number} ---") |> ignore
+            builder.AppendLine(page.Text) |> ignore
+
+        builder.ToString().Trim()
+
+    let obd2Prompt (fileName: string) (pdfText: string) =
+        $"""
+Read this OBD2 diagnostic scan report text from {fileName}. Return JSON only with fields:
+vin, odometer, scanDate, scanner, reportStatus, codes, readiness, freezeFrame, summary, severity, recommendedActions, notes.
+
+codes must be an array of objects with module, code, description, status, severity, recommendedAction.
+readiness must list any monitor/readiness results visible in the report.
+severity must be Green, Yellow, or Red.
+Use Green only when no diagnostic trouble codes or readiness problems are shown.
+Use Yellow for stored/pending/history issues needing review.
+Use Red for active drivability, safety, emissions, ABS, airbag/SRS, brake, overheating, or charging faults.
+Do not invent missing data. If the text is incomplete or OCR/PDF extraction is messy, explain uncertainty in notes.
+
+Report text:
+{truncate 18000 pdfText}
+"""

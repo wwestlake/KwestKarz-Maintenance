@@ -12,6 +12,7 @@
     <Compile Include="Maintenance.fs" />
     <Compile Include="TirePressure.fs" />
     <Compile Include="Document.fs" />
+    <Compile Include="DiagnosticReport.fs" />
     <Compile Include="AI.fs" />
   </ItemGroup>
 

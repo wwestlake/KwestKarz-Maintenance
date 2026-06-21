@@ -98,34 +98,6 @@ module WorkflowEndpoints =
         else
             value.Substring(0, maxLength)
 
-    let private extractPdfText (contentBytes: byte array) =
-        use stream = new MemoryStream(contentBytes)
-        use document = PdfDocument.Open(stream)
-        let builder = StringBuilder()
-
-        for page in document.GetPages() do
-            builder.AppendLine($"--- Page {page.Number} ---") |> ignore
-            builder.AppendLine(page.Text) |> ignore
-
-        builder.ToString().Trim()
-
-    let private obd2Prompt (fileName: string) (pdfText: string) =
-        $"""
-Read this OBD2 diagnostic scan report text from {fileName}. Return JSON only with fields:
-vin, odometer, scanDate, scanner, reportStatus, codes, readiness, freezeFrame, summary, severity, recommendedActions, notes.
-
-codes must be an array of objects with module, code, description, status, severity, recommendedAction.
-readiness must list any monitor/readiness results visible in the report.
-severity must be Green, Yellow, or Red.
-Use Green only when no diagnostic trouble codes or readiness problems are shown.
-Use Yellow for stored/pending/history issues needing review.
-Use Red for active drivability, safety, emissions, ABS, airbag/SRS, brake, overheating, or charging faults.
-Do not invent missing data. If the text is incomplete or OCR/PDF extraction is messy, explain uncertainty in notes.
-
-Report text:
-{truncate 18000 pdfText}
-"""
-
     let private updateStepDataAsync (connection: NpgsqlConnection) workflowId stepKey status data cancellationToken =
         task {
             use command =
@@ -474,7 +446,7 @@ Report text:
 
         group.MapPost(
             "/{workflowId:guid}/steps/{stepKey}/obd2-report",
-            Func<Guid, string, IDocumentRepository, IAIConnection, NpgsqlDataSource, HttpContext, Task<IResult>>(fun workflowId stepKey documents ai dataSource httpContext ->
+            Func<Guid, string, IDocumentRepository, IAIConnection, IDiagnosticReportRepository, NpgsqlDataSource, HttpContext, Task<IResult>>(fun workflowId stepKey documents ai diagnosticReports dataSource httpContext ->
                 task {
                     if stepKey <> "obd2Scan" then
                         return Results.BadRequest("OBD2 reports can only be uploaded to the obd2Scan step.")
@@ -491,7 +463,7 @@ Report text:
                             use stream = file.OpenReadStream()
                             do! stream.CopyToAsync(memory, httpContext.RequestAborted)
                             let contentBytes = memory.ToArray()
-                            let pdfText = extractPdfText contentBytes
+                            let pdfText = MaintenanceLogic.extractPdfText contentBytes
 
                             let newDocument =
                                 { OwnerType = DocumentOwnerType.DiagnosticReport
@@ -509,7 +481,7 @@ Report text:
                             let! aiResponse =
                                 ai.CompleteAsync(
                                     { SystemInstructions = Some "You extract structured fleet maintenance facts from OBD2 diagnostic reports. Return JSON only. Be conservative and do not invent facts."
-                                      UserMessage = obd2Prompt file.FileName pdfText },
+                                      UserMessage = MaintenanceLogic.obd2Prompt file.FileName pdfText },
                                     httpContext.RequestAborted
                                 )
 
@@ -531,6 +503,20 @@ Report text:
                             else
                                 do! insertEventAsync connection workflowId (Some stepKey) "Obd2ReportUploaded" (Some document.OriginalFileName) data httpContext.RequestAborted
                                 let! workflow = fetchWorkflowAsync dataSource workflowId httpContext.RequestAborted
+                                match workflow.Value.VehicleId with
+                                | Some vehicleId ->
+                                    let! _ =
+                                        diagnosticReports.CreateAsync(
+                                            { VehicleId = vehicleId
+                                              WorkflowId = Some workflowId
+                                              DocumentId = Some document.Id
+                                              ReportedAt = DateTimeOffset.UtcNow
+                                              FileName = document.OriginalFileName
+                                              AiSummary = aiResponse.Text },
+                                            httpContext.RequestAborted
+                                        )
+                                    ()
+                                | None -> ()
                                 return
                                     Results.Ok(
                                         { Workflow = workflow.Value
@@ -577,6 +563,39 @@ Report text:
                             do! insertEventAsync connection workflowId None "StatusChanged" (Some request.Status) "{}" httpContext.RequestAborted
                             let! workflow = fetchWorkflowAsync dataSource workflowId httpContext.RequestAborted
                             return Results.Ok(workflow.Value)
+                })
+        )
+        |> ignore
+
+        group.MapGet(
+            "/{workflowId:guid}/events",
+            Func<Guid, NpgsqlDataSource, HttpContext, Task<IResult>>(fun workflowId dataSource httpContext ->
+                task {
+                    use! connection = dataSource.OpenConnectionAsync(httpContext.RequestAborted)
+                    use command =
+                        new NpgsqlCommand(
+                            """
+                            select id, step_key, event_type, message, data, created_at
+                            from kwestkarzbusinessdata.workflow_events
+                            where workflow_id = @workflow_id
+                            order by created_at asc
+                            """,
+                            connection
+                        )
+
+                    command.Parameters.AddWithValue("workflow_id", NpgsqlDbType.Uuid, workflowId) |> ignore
+                    use! reader = command.ExecuteReaderAsync(httpContext.RequestAborted)
+                    let results = System.Collections.Generic.List<{| Id: Guid; StepKey: string option; EventType: string; Message: string option; CreatedAt: DateTimeOffset |}>()
+
+                    while! reader.ReadAsync(httpContext.RequestAborted) do
+                        results.Add(
+                            {| Id = reader.GetGuid(0)
+                               StepKey = if reader.IsDBNull(1) then None else Some(reader.GetString(1))
+                               EventType = reader.GetString(2)
+                               Message = if reader.IsDBNull(3) then None else Some(reader.GetString(3))
+                               CreatedAt = reader.GetFieldValue<DateTimeOffset>(5) |})
+
+                    return Results.Ok(results.ToArray())
                 })
         )
         |> ignore

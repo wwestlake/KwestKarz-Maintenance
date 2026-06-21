@@ -630,4 +630,96 @@ module TuroImportEndpoints =
         )
         |> ignore
 
+        group.MapGet(
+            "/",
+            Func<NpgsqlDataSource, HttpContext, Task<IResult>>(fun dataSource httpContext ->
+                task {
+                    use! connection = dataSource.OpenConnectionAsync(httpContext.RequestAborted)
+                    use command =
+                        new NpgsqlCommand(
+                            """
+                            select id, original_file_name, imported_at, row_count,
+                                   inserted_count, updated_count, skipped_count, notes
+                            from kwestkarzbusinessdata.turo_trip_earning_imports
+                            order by imported_at desc
+                            limit 50
+                            """,
+                            connection
+                        )
+                    use! reader = command.ExecuteReaderAsync(httpContext.RequestAborted)
+                    let results = ResizeArray<TuroImportRecord>()
+                    let mutable keepReading = true
+                    while keepReading do
+                        let! hasRow = reader.ReadAsync(httpContext.RequestAborted)
+                        if hasRow then
+                            let notesOrdinal = reader.GetOrdinal("notes")
+                            results.Add(
+                                { Id = reader.GetGuid(reader.GetOrdinal("id"))
+                                  OriginalFileName = reader.GetString(reader.GetOrdinal("original_file_name"))
+                                  ImportedAt = reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("imported_at"))
+                                  RowCount = reader.GetInt32(reader.GetOrdinal("row_count"))
+                                  InsertedCount = reader.GetInt32(reader.GetOrdinal("inserted_count"))
+                                  UpdatedCount = reader.GetInt32(reader.GetOrdinal("updated_count"))
+                                  SkippedCount = reader.GetInt32(reader.GetOrdinal("skipped_count"))
+                                  Notes = if reader.IsDBNull(notesOrdinal) then None else Some(reader.GetString(notesOrdinal)) })
+                        else
+                            keepReading <- false
+                    return Results.Ok(results.ToArray())
+                })
+        )
+        |> ignore
+
+        app.MapGet(
+            "/api/vehicles/{vehicleId:guid}/turo-trips",
+            Func<Guid, NpgsqlDataSource, HttpContext, Task<IResult>>(fun vehicleId dataSource httpContext ->
+                task {
+                    use! connection = dataSource.OpenConnectionAsync(httpContext.RequestAborted)
+                    use command =
+                        new NpgsqlCommand(
+                            """
+                            select id, reservation_id, guest, vehicle_label,
+                                   trip_start, trip_end, trip_status,
+                                   check_in_odometer, check_out_odometer, distance_traveled,
+                                   trip_days, trip_price, total_earnings,
+                                   pickup_location, return_location
+                            from kwestkarzbusinessdata.turo_trip_earnings
+                            where vehicle_id = @vehicle_id
+                            order by trip_start desc nulls last
+                            limit 100
+                            """,
+                            connection
+                        )
+                    command.Parameters.AddWithValue("vehicle_id", NpgsqlDbType.Uuid, vehicleId) |> ignore
+                    use! reader = command.ExecuteReaderAsync(httpContext.RequestAborted)
+                    let results = ResizeArray<TuroTripRecord>()
+                    let readOpt name getter =
+                        let ordinal = reader.GetOrdinal(name)
+                        if reader.IsDBNull(ordinal) then None else Some(getter ordinal)
+                    let mutable keepReading = true
+                    while keepReading do
+                        let! hasRow = reader.ReadAsync(httpContext.RequestAborted)
+                        if hasRow then
+                            results.Add(
+                                { Id = reader.GetGuid(reader.GetOrdinal("id"))
+                                  ReservationId = reader.GetString(reader.GetOrdinal("reservation_id"))
+                                  Guest = readOpt "guest" reader.GetString
+                                  VehicleLabel = readOpt "vehicle_label" reader.GetString
+                                  TripStart = readOpt "trip_start" (reader.GetFieldValue<DateTimeOffset>)
+                                  TripEnd = readOpt "trip_end" (reader.GetFieldValue<DateTimeOffset>)
+                                  TripStatus = readOpt "trip_status" reader.GetString
+                                  CheckInOdometer = readOpt "check_in_odometer" reader.GetInt32
+                                  CheckOutOdometer = readOpt "check_out_odometer" reader.GetInt32
+                                  DistanceTraveled = readOpt "distance_traveled" reader.GetInt32
+                                  TripDays = readOpt "trip_days" reader.GetInt32
+                                  TripPrice = readOpt "trip_price" reader.GetDecimal
+                                  TotalEarnings = readOpt "total_earnings" reader.GetDecimal
+                                  PickupLocation = readOpt "pickup_location" reader.GetString
+                                  ReturnLocation = readOpt "return_location" reader.GetString })
+                        else
+                            keepReading <- false
+                    return Results.Ok(results.ToArray())
+                })
+        )
+        |> ignore
+
         app

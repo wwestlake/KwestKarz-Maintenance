@@ -355,6 +355,20 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                 create index if not exists ix_workflow_events_workflow
                     on kwestkarzbusinessdata.workflow_events(workflow_id, created_at desc);
 
+                create table if not exists kwestkarzbusinessdata.diagnostic_reports (
+                    id uuid primary key,
+                    vehicle_id uuid not null references kwestkarzbusinessdata.vehicles(id) on delete cascade,
+                    workflow_id uuid null references kwestkarzbusinessdata.workflow_instances(id) on delete set null,
+                    document_id uuid null references kwestkarzbusinessdata.documents(id) on delete set null,
+                    reported_at timestamptz not null,
+                    file_name text not null,
+                    ai_summary text not null,
+                    created_at timestamptz not null
+                );
+
+                create index if not exists ix_diagnostic_reports_vehicle
+                    on kwestkarzbusinessdata.diagnostic_reports(vehicle_id, reported_at desc);
+
                 create table if not exists kwestkarzbusinessdata.rental_inspections (
                     id uuid primary key,
                     workflow_id uuid null references kwestkarzbusinessdata.workflow_instances(id) on delete set null,

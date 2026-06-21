@@ -15,6 +15,7 @@
     <Compile Include="MaintenanceRepository.fs" />
     <Compile Include="TirePressureRepository.fs" />
     <Compile Include="DocumentRepository.fs" />
+    <Compile Include="DiagnosticReportRepository.fs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -15,6 +15,7 @@ import type {
   ComplianceRecord, PhotoScanJob, Dashboard,
   TirePressureSpec, TirePressureSnapshot, TirePressureSpecScanResponse,
   RentalInspection, TuroTripImportResponse, TuroMaintenanceSignal,
+  TuroImportRecord, TuroTripRecord, WorkflowEvent, DiagnosticReport,
   VinDecode, CreateVehicleForm, EditVehicleForm,
 } from './types'
 import { api } from './api'
@@ -118,6 +119,7 @@ function App() {
   const [damageEstimateAmount, setDamageEstimateAmount] = useState('')
   const [damageEstimateVendor, setDamageEstimateVendor] = useState('')
   const [damageRepairStatus, setDamageRepairStatus] = useState('Pending')
+  const [workflowEvents, setWorkflowEvents] = useState<WorkflowEvent[]>([])
   const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const workflowVinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const workflowEditorRef = useRef<HTMLDivElement | null>(null)
@@ -214,6 +216,11 @@ function App() {
   const [turoImportFile, setTuroImportFile] = useState<File | null>(null)
   const [turoImportResult, setTuroImportResult] = useState<TuroTripImportResponse | null>(null)
   const [turoMaintenanceSignals, setTuroMaintenanceSignals] = useState<TuroMaintenanceSignal[]>([])
+  const [turoImportHistory, setTuroImportHistory] = useState<TuroImportRecord[]>([])
+  const [vehicleTuroTrips, setVehicleTuroTrips] = useState<TuroTripRecord[]>([])
+  const [showTuroTrips, setShowTuroTrips] = useState(false)
+  const [diagnosticReports, setDiagnosticReports] = useState<DiagnosticReport[]>([])
+  const [obd2UploadFile, setObd2UploadFile] = useState<File | null>(null)
   const [message, setMessage] = useState('Ready')
   const [workingMessage, setWorkingMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -302,8 +309,8 @@ function App() {
   useEffect(() => {
     if (activeArea === 'settings') {
       loadTuroMaintenanceSignals()
+      loadTuroImportHistory()
     }
-    // Settings refreshes data-import signals when opened.
   }, [activeArea])
 
   useEffect(() => {
@@ -477,7 +484,10 @@ function App() {
     const nextDashboard = await api.get<Dashboard>(`/api/vehicles/${vehicleId}/dashboard`)
     setDashboard(nextDashboard)
     setSelectedLockBoxId('')
+    setShowTuroTrips(false)
+    setVehicleTuroTrips([])
     await loadTirePressure(vehicleId)
+    await loadDiagnosticReports(vehicleId)
   }
 
   function applyRentalInspectionForm(inspection: RentalInspection) {
@@ -1668,6 +1678,8 @@ function App() {
     setDamageEstimateAmount(typeof step?.data?.estimateAmount === 'string' ? step.data.estimateAmount : '')
     setDamageEstimateVendor(typeof step?.data?.estimateVendor === 'string' ? step.data.estimateVendor : '')
     setDamageRepairStatus(typeof step?.data?.repairStatus === 'string' ? step.data.repairStatus : 'Pending')
+    setWorkflowEvents([])
+    loadWorkflowEvents(workflow.id)
     window.setTimeout(() => {
       workflowEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 0)
@@ -1983,6 +1995,69 @@ function App() {
       setTuroMaintenanceSignals(signals)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not load Turo maintenance signals')
+    }
+  }
+
+  async function loadDiagnosticReports(vehicleId: string) {
+    try {
+      const reports = await api.get<DiagnosticReport[]>(`/api/vehicles/${vehicleId}/diagnostic-reports/`)
+      setDiagnosticReports(reports)
+    } catch {
+      // non-critical; silently ignore
+    }
+  }
+
+  async function uploadObd2Report() {
+    if (!obd2UploadFile || !dashboard) return
+    setLoading(true)
+    setMessage('Uploading OBD2 report…')
+    try {
+      const form = new FormData()
+      form.append('file', obd2UploadFile)
+      const report = await api.postForm<DiagnosticReport>(
+        `/api/vehicles/${dashboard.vehicle.id}/diagnostic-reports/upload`,
+        form
+      )
+      setDiagnosticReports((prev) => [report, ...prev])
+      setObd2UploadFile(null)
+      setMessage('OBD2 report stored and analysed.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Upload failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function loadWorkflowEvents(workflowId: string) {
+    try {
+      const events = await api.get<WorkflowEvent[]>(`/api/workflows/${workflowId}/events`)
+      setWorkflowEvents(events)
+    } catch {
+      // non-critical — timeline is decorative; silently ignore
+    }
+  }
+
+  async function loadTuroImportHistory() {
+    try {
+      const history = await api.get<TuroImportRecord[]>('/api/imports/turo-trip-earnings')
+      setTuroImportHistory(history)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not load import history')
+    }
+  }
+
+  async function loadVehicleTuroTrips(vehicleId: string) {
+    setLoading(true)
+    setMessage('Loading trip history...')
+    try {
+      const trips = await api.get<TuroTripRecord[]>(`/api/vehicles/${vehicleId}/turo-trips`)
+      setVehicleTuroTrips(trips)
+      setShowTuroTrips(true)
+      setMessage(trips.length > 0 ? `${trips.length} trips loaded` : 'No trips found for this vehicle')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not load trip history')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -2317,6 +2392,7 @@ function App() {
           setDamageEstimateAmount={setDamageEstimateAmount}
           setDamageEstimateVendor={setDamageEstimateVendor}
           setDamageRepairStatus={setDamageRepairStatus}
+          workflowEvents={workflowEvents}
           saveWorkflowStep={saveWorkflowStep}
           updateWorkflowStatus={updateWorkflowStatus}
         />
@@ -2464,6 +2540,38 @@ function App() {
             onImport={importTuroTripEarnings}
             onRefreshSignals={loadTuroMaintenanceSignals}
           />
+          {turoImportHistory.length > 0 && (
+            <div className="panel area-panel">
+              <div className="section-heading">
+                <h2>Import History</h2>
+                <span className="tag">{turoImportHistory.length} imports</span>
+              </div>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>File</th>
+                    <th>Imported</th>
+                    <th>Rows</th>
+                    <th>Inserted</th>
+                    <th>Updated</th>
+                    <th>Skipped</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {turoImportHistory.map(imp => (
+                    <tr key={imp.id}>
+                      <td>{imp.originalFileName}</td>
+                      <td>{new Date(imp.importedAt).toLocaleDateString()}</td>
+                      <td>{imp.rowCount}</td>
+                      <td>{imp.insertedCount}</td>
+                      <td>{imp.updatedCount}</td>
+                      <td>{imp.skippedCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       )}
 
@@ -3244,6 +3352,92 @@ function App() {
                 </article>
               ))}
             </div>
+          </div>
+
+          <div className="panel">
+            <div className="section-heading">
+              <h2>OBD2 Diagnostic Reports</h2>
+              {diagnosticReports.length > 0 && <span className="tag">{diagnosticReports.length}</span>}
+            </div>
+            <div className="inline-action-panel">
+              <label className="file-label">
+                <span>Upload PDF</span>
+                <input
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  onChange={(e) => setObd2UploadFile(e.target.files?.[0] ?? null)}
+                />
+              </label>
+              {obd2UploadFile && (
+                <button className="primary-action" onClick={uploadObd2Report} disabled={loading}>
+                  Analyse &amp; Store
+                </button>
+              )}
+            </div>
+            <div className="record-list">
+              {diagnosticReports.length === 0 && <p className="empty">No OBD2 reports stored yet.</p>}
+              {diagnosticReports.map((report) => (
+                <article key={report.id} className="record">
+                  <strong>{report.fileName}</strong>
+                  <span>{new Date(report.reportedAt).toLocaleDateString()}</span>
+                  {report.documentId && (
+                    <a
+                      className="status-chip"
+                      href={`/api/documents/${report.documentId}/content`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      PDF
+                    </a>
+                  )}
+                  {report.aiSummary && (
+                    <p className="context">{report.aiSummary.slice(0, 300)}{report.aiSummary.length > 300 ? '…' : ''}</p>
+                  )}
+                </article>
+              ))}
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="section-heading">
+              <h2>Turo Trip History</h2>
+              <button
+                className="secondary-button"
+                onClick={() => {
+                  if (showTuroTrips) {
+                    setShowTuroTrips(false)
+                    setVehicleTuroTrips([])
+                  } else {
+                    loadVehicleTuroTrips(dashboard.vehicle.id)
+                  }
+                }}
+                disabled={loading}
+              >
+                {showTuroTrips ? 'Hide Trips' : 'Load Trips'}
+              </button>
+            </div>
+            {showTuroTrips && (
+              <div className="record-list">
+                {vehicleTuroTrips.length === 0 && <p className="empty">No trip records for this vehicle.</p>}
+                {vehicleTuroTrips.map((trip) => (
+                  <article key={trip.id} className="record">
+                    <strong>{trip.guest ?? 'Guest'}</strong>
+                    <span>{trip.tripStatus ?? ''}</span>
+                    <p>
+                      {trip.tripStart ? new Date(trip.tripStart).toLocaleDateString() : '—'}
+                      {trip.tripEnd ? ` – ${new Date(trip.tripEnd).toLocaleDateString()}` : ''}
+                      {trip.tripDays ? ` (${trip.tripDays}d)` : ''}
+                    </p>
+                    {(trip.distanceTraveled != null || trip.totalEarnings != null) && (
+                      <p className="context">
+                        {trip.distanceTraveled != null ? `${trip.distanceTraveled.toLocaleString()} mi` : ''}
+                        {trip.totalEarnings != null ? `  ·  $${trip.totalEarnings.toFixed(2)}` : ''}
+                      </p>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
         </section>
       )}

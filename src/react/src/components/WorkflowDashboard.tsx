@@ -1,5 +1,5 @@
 import type { RefObject } from 'react'
-import type { WorkflowInstance, WorkflowStep } from '../types'
+import type { WorkflowEvent, WorkflowInstance, WorkflowStep } from '../types'
 
 type WorkflowCatalogItem = readonly [string, string, string]
 
@@ -44,6 +44,7 @@ type WorkflowDashboardProps = {
   setDamageEstimateAmount: (v: string) => void
   setDamageEstimateVendor: (v: string) => void
   setDamageRepairStatus: (v: string) => void
+  workflowEvents: WorkflowEvent[]
   saveWorkflowStep: (status: string) => void
   updateWorkflowStatus: (status: string) => void
 }
@@ -326,6 +327,7 @@ export function WorkflowDashboard({
   setDamageEstimateAmount,
   setDamageEstimateVendor,
   setDamageRepairStatus,
+  workflowEvents,
   saveWorkflowStep,
   updateWorkflowStatus,
 }: WorkflowDashboardProps) {
@@ -623,6 +625,27 @@ export function WorkflowDashboard({
           )}
         </div>
       </section>
+
+      {workflowEvents.length > 0 && (
+        <section className="panel area-panel">
+          <div className="section-heading">
+            <h2>Event Timeline</h2>
+            <span className="tag">{workflowEvents.length} events</span>
+          </div>
+          <ol className="workflow-timeline">
+            {workflowEvents.map((event) => (
+              <li key={event.id} className="timeline-event">
+                <span className="timeline-time">
+                  {new Date(event.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </span>
+                <span className={`timeline-type event-type-${event.eventType.toLowerCase()}`}>{event.eventType}</span>
+                {event.stepKey && <span className="timeline-step">{event.stepKey}</span>}
+                {event.message && <span className="timeline-message">{event.message}</span>}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
     </>
   )
 }

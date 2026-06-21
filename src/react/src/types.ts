@@ -1,3 +1,11 @@
+export type WorkflowEvent = {
+  id: string
+  stepKey?: string
+  eventType: string
+  message?: string
+  createdAt: string
+}
+
 export type WorkflowStep = {
   id: string
   workflowId: string
@@ -233,6 +241,46 @@ export type TuroTripImportResponse = {
   skippedCount: number
   vehicleMatches: number
   vehicleSummaries: TuroTripImportVehicleSummary[]
+}
+
+export type TuroImportRecord = {
+  id: string
+  originalFileName: string
+  importedAt: string
+  rowCount: number
+  insertedCount: number
+  updatedCount: number
+  skippedCount: number
+  notes?: string
+}
+
+export type TuroTripRecord = {
+  id: string
+  reservationId: string
+  guest?: string
+  vehicleLabel?: string
+  tripStart?: string
+  tripEnd?: string
+  tripStatus?: string
+  checkInOdometer?: number
+  checkOutOdometer?: number
+  distanceTraveled?: number
+  tripDays?: number
+  tripPrice?: number
+  totalEarnings?: number
+  pickupLocation?: string
+  returnLocation?: string
+}
+
+export type DiagnosticReport = {
+  id: string
+  vehicleId: string
+  workflowId?: string
+  documentId?: string
+  reportedAt: string
+  fileName: string
+  aiSummary: string
+  createdAt: string
 }
 
 export type TuroMaintenanceSignal = {

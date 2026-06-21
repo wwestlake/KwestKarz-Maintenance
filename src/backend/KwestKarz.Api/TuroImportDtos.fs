@@ -2,6 +2,33 @@ namespace KwestKarz.Api
 
 open System
 
+type TuroImportRecord =
+    { Id: Guid
+      OriginalFileName: string
+      ImportedAt: DateTimeOffset
+      RowCount: int
+      InsertedCount: int
+      UpdatedCount: int
+      SkippedCount: int
+      Notes: string option }
+
+type TuroTripRecord =
+    { Id: Guid
+      ReservationId: string
+      Guest: string option
+      VehicleLabel: string option
+      TripStart: DateTimeOffset option
+      TripEnd: DateTimeOffset option
+      TripStatus: string option
+      CheckInOdometer: int option
+      CheckOutOdometer: int option
+      DistanceTraveled: int option
+      TripDays: int option
+      TripPrice: decimal option
+      TotalEarnings: decimal option
+      PickupLocation: string option
+      ReturnLocation: string option }
+
 type TuroTripImportVehicleSummary =
     { Vin: string option
       VehicleId: Guid option

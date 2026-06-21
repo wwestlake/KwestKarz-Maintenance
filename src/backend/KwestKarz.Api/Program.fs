@@ -138,6 +138,7 @@ module Program =
         builder.Services.AddScoped<IMaintenanceRepository, PostgresMaintenanceRepository>() |> ignore
         builder.Services.AddScoped<ITirePressureRepository, PostgresTirePressureRepository>() |> ignore
         builder.Services.AddScoped<IDocumentRepository, PostgresDocumentRepository>() |> ignore
+        builder.Services.AddScoped<IDiagnosticReportRepository, PostgresDiagnosticReportRepository>() |> ignore
 
         builder.Services.AddSingleton<OpenAIOptions>(fun _ ->
             { ApiKey = builder.Configuration.GetValue<string>("OpenAI:ApiKey")
@@ -233,6 +234,7 @@ module Program =
         WorkflowEndpoints.mapWorkflowEndpoints app |> ignore
         RentalInspectionEndpoints.mapRentalInspectionEndpoints app |> ignore
         TuroImportEndpoints.mapTuroImportEndpoints app |> ignore
+        DiagnosticReportEndpoints.mapDiagnosticReportEndpoints app |> ignore
 
         app.Run()
 
