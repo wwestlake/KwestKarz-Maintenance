@@ -361,7 +361,20 @@ module TuroImportEndpoints =
           VehicleMatches = trips |> Array.filter (fun trip -> trip.VehicleId.IsSome) |> Array.length
           VehicleSummaries = summaries }
 
-    let private listMaintenanceSignalsAsync (dataSource: NpgsqlDataSource) cancellationToken =
+    // Row type for the first query result before predictions are applied
+    type private RawSignalRow =
+        { VehicleId: Guid option
+          Vin: string option
+          VehicleLabel: string
+          ImportedTrips: int
+          CompletedTrips: int
+          ImportedMiles: int
+          LatestTripEnd: DateTimeOffset option
+          LatestImportedOdometer: int option
+          LatestMaintenanceOdometer: int option
+          MilesSinceLatestMaintenance: int option }
+
+    let private readRawSignalsAsync (dataSource: NpgsqlDataSource) cancellationToken =
         task {
             use! connection = dataSource.OpenConnectionAsync(cancellationToken)
             use command =
@@ -406,7 +419,8 @@ module TuroImportEndpoints =
                 )
 
             use! reader = command.ExecuteReaderAsync(cancellationToken)
-            let results = ResizeArray<TuroMaintenanceSignal>()
+            let results = ResizeArray<RawSignalRow>()
+
             let readGuid name =
                 let ordinal = reader.GetOrdinal(name)
                 if reader.IsDBNull(ordinal) then None else Some(reader.GetGuid(ordinal))
@@ -430,28 +444,101 @@ module TuroImportEndpoints =
                         match latestImported, latestMaintenance with
                         | Some imported, Some maintenance when imported >= maintenance -> Some(imported - maintenance)
                         | _ -> None
-                    let importedMiles = reader.GetInt32(reader.GetOrdinal("imported_miles"))
-                    let suggestions =
-                        [| if milesSinceMaintenance |> Option.exists (fun miles -> miles >= 4500) then "Oil change due or close based on imported odometer."
-                           if milesSinceMaintenance |> Option.exists (fun miles -> miles >= 3000 && miles < 4500) then "Oil change coming soon; watch next trip."
-                           if importedMiles >= 1000 then "Review tire pressure and wear because imported trip miles are accumulating."
-                           if latestImported.IsNone && importedMiles = 0 then "Turo import has no mileage/odometer for this vehicle; inspect manually." |]
                     results.Add(
                         { VehicleId = readGuid "vehicle_id"
                           Vin = readString "vin"
                           VehicleLabel = reader.GetString(reader.GetOrdinal("vehicle_label"))
                           ImportedTrips = reader.GetInt32(reader.GetOrdinal("imported_trips"))
                           CompletedTrips = reader.GetInt32(reader.GetOrdinal("completed_trips"))
-                          ImportedMiles = importedMiles
+                          ImportedMiles = reader.GetInt32(reader.GetOrdinal("imported_miles"))
                           LatestTripEnd = readDate "latest_trip_end"
                           LatestImportedOdometer = latestImported
                           LatestMaintenanceOdometer = latestMaintenance
-                          MilesSinceLatestMaintenance = milesSinceMaintenance
-                          SuggestedActions = suggestions })
+                          MilesSinceLatestMaintenance = milesSinceMaintenance })
                 else
                     keepReading <- false
 
             return results.ToArray()
+        }
+
+    // Returns Map<vehicleId, Map<lowercase event_type, (lastDate, lastOdometer option)>>
+    let private readServiceHistoryAsync (dataSource: NpgsqlDataSource) (vehicleIds: Guid array) cancellationToken =
+        task {
+            use! connection = dataSource.OpenConnectionAsync(cancellationToken)
+            use command =
+                new NpgsqlCommand(
+                    """
+                    select vehicle_id, lower(event_type), max(date_performed), max(odometer)
+                    from kwestkarzbusinessdata.maintenance_records
+                    where vehicle_id = any(@vehicle_ids)
+                    group by vehicle_id, lower(event_type)
+                    """,
+                    connection
+                )
+            let idsParam = command.Parameters.Add("vehicle_ids", NpgsqlDbType.Array ||| NpgsqlDbType.Uuid)
+            idsParam.Value <- (if vehicleIds.Length = 0 then [| Guid.Empty |] else vehicleIds)
+            use! reader = command.ExecuteReaderAsync(cancellationToken)
+            let rows = ResizeArray<Guid * string * DateOnly * int option>()
+            let mutable keepReading = true
+            while keepReading do
+                let! hasRow = reader.ReadAsync(cancellationToken)
+                if hasRow then
+                    let vid = reader.GetGuid(0)
+                    let et = reader.GetString(1)
+                    let lastDate = reader.GetFieldValue<DateOnly>(2)
+                    let lastOdo = if reader.IsDBNull(3) then None else Some(reader.GetInt32(3))
+                    rows.Add((vid, et, lastDate, lastOdo))
+                else
+                    keepReading <- false
+            return
+                rows
+                |> Seq.groupBy (fun (vid, _, _, _) -> vid)
+                |> Seq.map (fun (vid, items) ->
+                    let eventMap = items |> Seq.map (fun (_, et, d, o) -> et, (d, o)) |> Map.ofSeq
+                    vid, eventMap)
+                |> Map.ofSeq
+        }
+
+    let private listMaintenanceSignalsAsync (dataSource: NpgsqlDataSource) cancellationToken =
+        task {
+            let! rawRows = readRawSignalsAsync dataSource cancellationToken
+            let matchedIds = rawRows |> Array.choose (fun r -> r.VehicleId)
+            let! serviceHistory = readServiceHistoryAsync dataSource matchedIds cancellationToken
+            let today = DateOnly.FromDateTime(DateTime.UtcNow)
+
+            return
+                rawRows
+                |> Array.map (fun raw ->
+                    let history =
+                        match raw.VehicleId with
+                        | Some vid ->
+                            serviceHistory |> Map.tryFind vid |> Option.defaultValue Map.empty
+                        | None -> Map.empty
+
+                    let richSuggestions =
+                        MaintenanceLogic.predictMaintenanceActions
+                            MaintenanceLogic.defaultServiceSchedules
+                            today
+                            raw.LatestImportedOdometer
+                            history
+
+                    let fallbackSuggestions =
+                        [| if raw.LatestImportedOdometer.IsNone && raw.ImportedMiles = 0 then
+                               "Turo import has no mileage/odometer for this vehicle; inspect manually."
+                           if raw.VehicleId.IsNone then
+                               "Vehicle not matched to fleet — add VIN to link records." |]
+
+                    { VehicleId = raw.VehicleId
+                      Vin = raw.Vin
+                      VehicleLabel = raw.VehicleLabel
+                      ImportedTrips = raw.ImportedTrips
+                      CompletedTrips = raw.CompletedTrips
+                      ImportedMiles = raw.ImportedMiles
+                      LatestTripEnd = raw.LatestTripEnd
+                      LatestImportedOdometer = raw.LatestImportedOdometer
+                      LatestMaintenanceOdometer = raw.LatestMaintenanceOdometer
+                      MilesSinceLatestMaintenance = raw.MilesSinceLatestMaintenance
+                      SuggestedActions = Array.append richSuggestions fallbackSuggestions })
         }
 
     let mapTuroImportEndpoints (app: WebApplication) =

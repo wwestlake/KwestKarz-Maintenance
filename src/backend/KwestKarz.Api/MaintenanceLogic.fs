@@ -3,7 +3,81 @@ namespace KwestKarz.Api
 open System
 open KwestKarz.Domain
 
+type ServiceSchedule =
+    { EventType: string        // display name used in suggestions
+      MileInterval: int option // miles between services
+      DayInterval: int option  // calendar days between services
+      WarnMilesOut: int        // start warning this many miles before due
+      WarnDaysOut: int }       // start warning this many days before due
+
 module MaintenanceLogic =
+
+    let defaultServiceSchedules: ServiceSchedule list =
+        [ { EventType = "Oil Change"; MileInterval = Some 5000; DayInterval = Some 180; WarnMilesOut = 500; WarnDaysOut = 14 }
+          { EventType = "Tire Rotation"; MileInterval = Some 7500; DayInterval = None; WarnMilesOut = 500; WarnDaysOut = 0 }
+          { EventType = "Air Filter"; MileInterval = Some 15000; DayInterval = None; WarnMilesOut = 1000; WarnDaysOut = 0 }
+          { EventType = "Cabin Air Filter"; MileInterval = Some 15000; DayInterval = None; WarnMilesOut = 1000; WarnDaysOut = 0 }
+          { EventType = "Brake Inspection"; MileInterval = Some 20000; DayInterval = Some 365; WarnMilesOut = 2000; WarnDaysOut = 30 }
+          { EventType = "Transmission Service"; MileInterval = Some 30000; DayInterval = None; WarnMilesOut = 2000; WarnDaysOut = 0 }
+          { EventType = "Coolant Flush"; MileInterval = Some 30000; DayInterval = Some 730; WarnMilesOut = 2000; WarnDaysOut = 30 }
+          { EventType = "Spark Plugs"; MileInterval = Some 30000; DayInterval = None; WarnMilesOut = 2000; WarnDaysOut = 0 }
+          { EventType = "Wiper Blades"; MileInterval = None; DayInterval = Some 365; WarnMilesOut = 0; WarnDaysOut = 30 }
+          { EventType = "Car Wash"; MileInterval = None; DayInterval = Some 7; WarnMilesOut = 0; WarnDaysOut = 1 } ]
+
+    // serviceHistory keys are lowercase event_type strings
+    // values are (lastDatePerformed, lastOdometer option)
+    let predictMaintenanceActions
+        (schedules: ServiceSchedule list)
+        (today: DateOnly)
+        (currentOdometer: int option)
+        (serviceHistory: Map<string, DateOnly * int option>)
+        : string array =
+        schedules
+        |> List.choose (fun s ->
+            let key = s.EventType.ToLowerInvariant()
+            let lastDate, lastOdometer =
+                match serviceHistory |> Map.tryFind key with
+                | Some(d, o) -> Some d, o
+                | None -> None, None
+
+            let mileAlert =
+                match s.MileInterval, currentOdometer with
+                | Some interval, Some current ->
+                    match lastOdometer with
+                    | Some last ->
+                        let due = last + interval
+                        if current >= due then
+                            Some $"overdue by {current - due:N0} mi"
+                        elif current >= due - s.WarnMilesOut then
+                            Some $"due in {due - current:N0} mi"
+                        else None
+                    | None ->
+                        if current >= interval then Some "no service record — confirm last service"
+                        else None
+                | _ -> None
+
+            let dateAlert =
+                match s.DayInterval, lastDate with
+                | Some days, Some last ->
+                    let due = last.AddDays(days)
+                    let daysOver = today.DayNumber - due.DayNumber
+                    if today >= due then
+                        let plural = if daysOver = 1 then "" else "s"
+                        Some $"overdue by {daysOver} day{plural}"
+                    elif today.DayNumber >= due.DayNumber - s.WarnDaysOut then
+                        let daysLeft = due.DayNumber - today.DayNumber
+                        let plural = if daysLeft = 1 then "" else "s"
+                        Some $"due in {daysLeft} day{plural}"
+                    else None
+                | _ -> None
+
+            match mileAlert, dateAlert with
+            | Some m, Some d -> Some $"{s.EventType}: {m}; {d}"
+            | Some m, None -> Some $"{s.EventType}: {m}"
+            | None, Some d -> Some $"{s.EventType}: {d}"
+            | None, None -> None)
+        |> List.toArray
+
     let dueStatus (today: DateOnly) (currentOdometer: int option) (record: MaintenanceRecord) =
         let dateStatus =
             match record.NextDueDate with
