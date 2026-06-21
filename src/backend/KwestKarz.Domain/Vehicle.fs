@@ -70,7 +70,19 @@ type NewVehicle =
       FleetPositionNumber: string option
       Notes: string option }
 
+type UpdateVehicle =
+    { Color: string option
+      LicensePlate: string option
+      LicensePlateState: string option
+      Status: VehicleStatus
+      CurrentOdometer: int option
+      CurrentOdometerRecordedAt: DateTimeOffset option
+      FleetPositionNumber: string option
+      Notes: string option }
+
 type IVehicleRepository =
     abstract member ListAsync: cancellationToken: CancellationToken -> Task<Vehicle list>
+    abstract member FindByIdAsync: id: Guid * cancellationToken: CancellationToken -> Task<Vehicle option>
     abstract member FindByVinAsync: vin: string * cancellationToken: CancellationToken -> Task<Vehicle option>
     abstract member CreateAsync: vehicle: NewVehicle * cancellationToken: CancellationToken -> Task<Vehicle>
+    abstract member UpdateAsync: id: Guid * update: UpdateVehicle * cancellationToken: CancellationToken -> Task<Vehicle option>

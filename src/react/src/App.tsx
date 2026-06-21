@@ -238,6 +238,16 @@ type CreateVehicleForm = {
   notes: string
 }
 
+type EditVehicleForm = {
+  color: string
+  licensePlate: string
+  licensePlateState: string
+  status: string
+  currentOdometer: string
+  fleetPositionNumber: string
+  notes: string
+}
+
 const appAreas: { id: AppArea; label: string }[] = [
   { id: 'home', label: 'Home' },
   { id: 'inventory', label: 'Inventory' },
@@ -601,6 +611,16 @@ function App() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptInsight, setReceiptInsight] = useState('')
   const [showMaintenanceForm, setShowMaintenanceForm] = useState(false)
+  const [showEditVehicle, setShowEditVehicle] = useState(false)
+  const [editVehicleForm, setEditVehicleForm] = useState<EditVehicleForm>({
+    color: '',
+    licensePlate: '',
+    licensePlateState: '',
+    status: 'Active',
+    currentOdometer: '',
+    fleetPositionNumber: '',
+    notes: '',
+  })
   const [showTirePressurePanel, setShowTirePressurePanel] = useState(false)
   const [showLockBoxManager, setShowLockBoxManager] = useState(false)
   const [selectedLockBoxId, setSelectedLockBoxId] = useState('')
@@ -1450,6 +1470,7 @@ function App() {
     setDecoded(null)
     setVin('')
     setShowMaintenanceForm(false)
+    setShowEditVehicle(false)
     setShowTirePressurePanel(false)
     setShowLockBoxManager(false)
     setEditingLockBoxId('')
@@ -1457,6 +1478,50 @@ function App() {
     localStorage.removeItem(selectedVehicleStorageKey)
     localStorage.removeItem(tirePanelStorageKey)
     setMessage('Ready')
+  }
+
+  function startEditingVehicle() {
+    const v = dashboard?.vehicle
+    if (!v) return
+    setEditVehicleForm({
+      color: v.color ?? '',
+      licensePlate: v.licensePlate ?? '',
+      licensePlateState: v.licensePlateState ?? '',
+      status: v.status,
+      currentOdometer: v.currentOdometer?.toString() ?? '',
+      fleetPositionNumber: v.fleetPositionNumber ?? '',
+      notes: v.notes ?? '',
+    })
+    setShowEditVehicle(true)
+  }
+
+  async function saveVehicle(event: FormEvent) {
+    event.preventDefault()
+    if (!dashboard) return
+
+    setLoading(true)
+    setMessage('Saving vehicle...')
+
+    try {
+      const updated = await api.put<Vehicle>(`/api/vehicles/${dashboard.vehicle.id}`, {
+        color: editVehicleForm.color || null,
+        licensePlate: editVehicleForm.licensePlate || null,
+        licensePlateState: editVehicleForm.licensePlateState || null,
+        status: editVehicleForm.status || 'Active',
+        currentOdometer: editVehicleForm.currentOdometer ? Number(editVehicleForm.currentOdometer) : null,
+        currentOdometerRecordedAt: editVehicleForm.currentOdometer ? new Date().toISOString() : null,
+        fleetPositionNumber: editVehicleForm.fleetPositionNumber || null,
+        notes: editVehicleForm.notes || null,
+      })
+      setShowEditVehicle(false)
+      await loadDashboard(updated.id)
+      await refreshVehicles()
+      setMessage('Vehicle saved')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not save vehicle')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function lookupVehicle(event?: FormEvent) {
@@ -3160,6 +3225,9 @@ function App() {
               <button className="secondary-button" type="button" onClick={showFleet}>
                 Fleet
               </button>
+              <button className="secondary-button" type="button" onClick={startEditingVehicle}>
+                Edit Vehicle
+              </button>
               <button className="primary-action" type="button" onClick={() => setShowMaintenanceForm(true)}>
                 Add Maintenance
               </button>
@@ -3195,6 +3263,89 @@ function App() {
             </div>
             <p className="context">{dashboard.aiContextSummary}</p>
           </div>
+
+          {showEditVehicle && (
+            <div className="panel">
+              <div className="section-heading">
+                <h2>Edit Vehicle</h2>
+                <button className="secondary-button" type="button" onClick={() => setShowEditVehicle(false)}>
+                  Cancel
+                </button>
+              </div>
+              <form className="vehicle-edit-form" onSubmit={saveVehicle}>
+                <label>
+                  <span>Color</span>
+                  <input
+                    value={editVehicleForm.color}
+                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, color: e.target.value })}
+                    placeholder="e.g. Silver"
+                  />
+                </label>
+                <label>
+                  <span>License Plate</span>
+                  <input
+                    value={editVehicleForm.licensePlate}
+                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, licensePlate: e.target.value.toUpperCase() })}
+                    placeholder="e.g. ABC1234"
+                  />
+                </label>
+                <label>
+                  <span>Plate State</span>
+                  <input
+                    value={editVehicleForm.licensePlateState}
+                    maxLength={2}
+                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, licensePlateState: e.target.value.toUpperCase() })}
+                    placeholder="e.g. TX"
+                  />
+                </label>
+                <label>
+                  <span>Status</span>
+                  <select
+                    value={editVehicleForm.status}
+                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, status: e.target.value })}
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                    <option value="In Shop">In Shop</option>
+                    <option value="Staging">Staging</option>
+                    <option value="Sold">Sold</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Odometer</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={editVehicleForm.currentOdometer}
+                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, currentOdometer: e.target.value })}
+                    placeholder="Current miles"
+                  />
+                </label>
+                <label>
+                  <span>Fleet Position</span>
+                  <input
+                    value={editVehicleForm.fleetPositionNumber}
+                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, fleetPositionNumber: e.target.value })}
+                    placeholder="e.g. 01"
+                  />
+                </label>
+                <label>
+                  <span>Notes</span>
+                  <textarea
+                    value={editVehicleForm.notes}
+                    rows={3}
+                    onChange={(e) => setEditVehicleForm({ ...editVehicleForm, notes: e.target.value })}
+                  />
+                </label>
+                <div className="form-actions">
+                  <button type="submit" disabled={loading}>Save Changes</button>
+                  <button className="secondary-button" type="button" onClick={() => setShowEditVehicle(false)}>
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
 
           {selectedWorkflow?.workflowType === 'RentalInspection' && (
             <div className="panel rental-inspection-panel">

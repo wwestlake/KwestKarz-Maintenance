@@ -42,6 +42,27 @@ module CreateVehicleRequest =
           FleetPositionNumber = request.FleetPositionNumber
           Notes = request.Notes }
 
+type UpdateVehicleRequest =
+    { Color: string option
+      LicensePlate: string option
+      LicensePlateState: string option
+      Status: string option
+      CurrentOdometer: int option
+      CurrentOdometerRecordedAt: DateTimeOffset option
+      FleetPositionNumber: string option
+      Notes: string option }
+
+module UpdateVehicleRequest =
+    let toDomain (request: UpdateVehicleRequest) : UpdateVehicle =
+        { Color = request.Color
+          LicensePlate = request.LicensePlate
+          LicensePlateState = request.LicensePlateState
+          Status = request.Status |> Option.map VehicleStatus.fromStorageValue |> Option.defaultValue VehicleStatus.Active
+          CurrentOdometer = request.CurrentOdometer
+          CurrentOdometerRecordedAt = request.CurrentOdometerRecordedAt
+          FleetPositionNumber = request.FleetPositionNumber
+          Notes = request.Notes }
+
 type VehicleResponse =
     { Id: Guid
       Vin: string

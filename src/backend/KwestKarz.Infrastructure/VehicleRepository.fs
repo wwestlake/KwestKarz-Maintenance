@@ -90,6 +90,21 @@ type PostgresVehicleRepository(dataSource: NpgsqlDataSource) =
                 return List.ofSeq vehicles
             }
 
+        member _.FindByIdAsync(id: Guid, cancellationToken: CancellationToken) : Task<Vehicle option> =
+            task {
+                use! connection = dataSource.OpenConnectionAsync(cancellationToken)
+                use command =
+                    new NpgsqlCommand(
+                        $"select {selectColumns} from kwestkarzbusinessdata.vehicles where id = @id",
+                        connection
+                    )
+
+                command.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, id) |> ignore
+                use! reader = command.ExecuteReaderAsync(cancellationToken)
+                let! hasRow = reader.ReadAsync(cancellationToken)
+                return if hasRow then Some(mapVehicle reader) else None
+            }
+
         member _.FindByVinAsync(vin: string, cancellationToken: CancellationToken) : Task<Vehicle option> =
             task {
                 use! connection = dataSource.OpenConnectionAsync(cancellationToken)
@@ -100,6 +115,46 @@ type PostgresVehicleRepository(dataSource: NpgsqlDataSource) =
                     )
 
                 command.Parameters.AddWithValue("vin", NpgsqlDbType.Varchar, vin.Trim().ToUpperInvariant()) |> ignore
+                use! reader = command.ExecuteReaderAsync(cancellationToken)
+                let! hasRow = reader.ReadAsync(cancellationToken)
+                return if hasRow then Some(mapVehicle reader) else None
+            }
+
+        member _.UpdateAsync(id: Guid, update: UpdateVehicle, cancellationToken: CancellationToken) : Task<Vehicle option> =
+            task {
+                let now = DateTimeOffset.UtcNow
+
+                use! connection = dataSource.OpenConnectionAsync(cancellationToken)
+                use command =
+                    new NpgsqlCommand(
+                        $"""
+                        update kwestkarzbusinessdata.vehicles set
+                            color = @color,
+                            license_plate = @license_plate,
+                            license_plate_state = @license_plate_state,
+                            status = @status,
+                            current_odometer = @current_odometer,
+                            current_odometer_recorded_at = @current_odometer_recorded_at,
+                            fleet_position_number = @fleet_position_number,
+                            notes = @notes,
+                            updated_at = @updated_at
+                        where id = @id
+                        returning {selectColumns}
+                        """,
+                        connection
+                    )
+
+                command.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, id) |> ignore
+                command.Parameters.AddWithValue("color", NpgsqlDbType.Text, optionOrDbNull update.Color) |> ignore
+                command.Parameters.AddWithValue("license_plate", NpgsqlDbType.Text, optionOrDbNull update.LicensePlate) |> ignore
+                command.Parameters.AddWithValue("license_plate_state", NpgsqlDbType.Text, optionOrDbNull update.LicensePlateState) |> ignore
+                command.Parameters.AddWithValue("status", NpgsqlDbType.Text, VehicleStatus.toStorageValue update.Status) |> ignore
+                command.Parameters.AddWithValue("current_odometer", NpgsqlDbType.Integer, optionOrDbNull update.CurrentOdometer) |> ignore
+                command.Parameters.AddWithValue("current_odometer_recorded_at", NpgsqlDbType.TimestampTz, optionOrDbNull update.CurrentOdometerRecordedAt) |> ignore
+                command.Parameters.AddWithValue("fleet_position_number", NpgsqlDbType.Text, optionOrDbNull update.FleetPositionNumber) |> ignore
+                command.Parameters.AddWithValue("notes", NpgsqlDbType.Text, optionOrDbNull update.Notes) |> ignore
+                command.Parameters.AddWithValue("updated_at", NpgsqlDbType.TimestampTz, now) |> ignore
+
                 use! reader = command.ExecuteReaderAsync(cancellationToken)
                 let! hasRow = reader.ReadAsync(cancellationToken)
                 return if hasRow then Some(mapVehicle reader) else None
