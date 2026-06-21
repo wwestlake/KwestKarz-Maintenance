@@ -31,7 +31,7 @@ import { lockBoxStyles, lockBoxStatuses, complianceTypes, rentalInspectionPhotoS
 
 // ─── local constants kept in App for nav/catalog references ──────────────────
 
-const appAreas: { id: AppArea; label: string }[] = [
+const baseAreas: { id: AppArea; label: string }[] = [
   { id: 'home', label: 'Home' },
   { id: 'inventory', label: 'Inventory' },
   { id: 'workflows', label: 'Workflows' },
@@ -57,6 +57,7 @@ const areaTitles: Record<AppArea, string> = {
   maintenance: 'Maintenance',
   compliance: 'Compliance',
   lockboxes: 'Lock Boxes',
+  users: 'Users',
   settings: 'Settings',
 }
 
@@ -105,7 +106,8 @@ function getVinScanClientId() {
 
 function getStoredActiveArea(): AppArea {
   const stored = localStorage.getItem(activeAreaStorageKey)
-  return appAreas.some((area) => area.id === stored) ? (stored as AppArea) : 'home'
+  const allAreaIds: AppArea[] = [...baseAreas.map(a => a.id), 'users']
+  return allAreaIds.includes(stored as AppArea) ? (stored as AppArea) : 'home'
 }
 
 function App() {
@@ -2237,7 +2239,11 @@ function App() {
         <span className={loading ? 'status busy' : 'status'}>{message}</span>
       </header>
       <nav className="app-nav" aria-label="Main areas">
-        {appAreas.map((area) => (
+        {[
+          ...baseAreas.slice(0, -1),
+          ...(profile?.role === 'admin' ? [{ id: 'users' as AppArea, label: 'Users' }] : []),
+          baseAreas[baseAreas.length - 1],
+        ].map((area) => (
           <button
             key={area.id}
             className={activeArea === area.id ? 'nav-button selected' : 'nav-button'}
@@ -2537,6 +2543,12 @@ function App() {
         </section>
       )}
 
+      {activeArea === 'users' && profile?.role === 'admin' && (
+        <section className="area-grid">
+          <PendingApprovalsPanel />
+        </section>
+      )}
+
       {activeArea === 'settings' && (
         <section className="area-grid">
           <div className="panel area-panel">
@@ -2592,7 +2604,6 @@ function App() {
               Sign out
             </button>
           </div>
-          <PendingApprovalsPanel />
           <TuroImportPanel
             turoImportFile={turoImportFile}
             turoImportResult={turoImportResult}

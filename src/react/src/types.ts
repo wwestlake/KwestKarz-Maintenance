@@ -40,7 +40,7 @@ export type Obd2ReportUploadResponse = {
   extractedText: string
 }
 
-export type AppArea = 'home' | 'inventory' | 'workflows' | 'maintenance' | 'compliance' | 'lockboxes' | 'settings'
+export type AppArea = 'home' | 'inventory' | 'workflows' | 'maintenance' | 'compliance' | 'lockboxes' | 'users' | 'settings'
 
 export type GuidedCaptureMode = 'vin' | 'workflowVin' | 'compliance'
 
