@@ -479,6 +479,23 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
 
                 create index if not exists ix_users_firebase_uid
                     on kwestkarzbusinessdata.users(firebase_uid);
+
+                create table if not exists kwestkarzbusinessdata.jobs (
+                    id uuid primary key default gen_random_uuid(),
+                    title text not null,
+                    description text null,
+                    amount numeric(10,2) not null default 0,
+                    status text not null default 'open' check (status in ('open', 'claimed', 'complete', 'canceled')),
+                    created_by text not null,
+                    claimed_by_id uuid null references kwestkarzbusinessdata.users(id),
+                    claimed_at timestamptz null,
+                    completed_at timestamptz null,
+                    created_at timestamptz not null default now(),
+                    updated_at timestamptz not null default now()
+                );
+
+                create index if not exists ix_jobs_status
+                    on kwestkarzbusinessdata.jobs(status);
                 """
 
             use! connection = dataSource.OpenConnectionAsync(cancellationToken)

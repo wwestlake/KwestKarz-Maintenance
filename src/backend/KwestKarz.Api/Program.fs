@@ -248,6 +248,7 @@ module Program =
                             | Some user ->
                                 let name = user.DisplayName |> Option.defaultWith (fun () -> user.Phone)
                                 context.Request.Headers["X-Operator"] <- name
+                                context.Request.Headers["X-Role"] <- user.Role
                                 do! next.Invoke()
                 }
                 :> Task))
@@ -255,6 +256,7 @@ module Program =
 
         app.MapGet("/api/health", Func<string>(fun () -> "ok")) |> ignore
         UserEndpoints.mapUserEndpoints adminPhone app |> ignore
+        JobEndpoints.mapJobEndpoints app |> ignore
         VinEndpoints.mapVinEndpoints app |> ignore
         VehicleEndpoints.mapVehicleEndpoints app |> ignore
         LockBoxEndpoints.mapLockBoxEndpoints app |> ignore

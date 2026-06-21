@@ -40,7 +40,20 @@ export type Obd2ReportUploadResponse = {
   extractedText: string
 }
 
-export type AppArea = 'home' | 'inventory' | 'workflows' | 'maintenance' | 'compliance' | 'lockboxes' | 'users' | 'settings'
+export type Job = {
+  id: string
+  title: string
+  description?: string
+  amount: number
+  status: 'open' | 'claimed' | 'complete' | 'canceled'
+  createdBy: string
+  claimedByName?: string
+  claimedAt?: string
+  completedAt?: string
+  createdAt: string
+}
+
+export type AppArea = 'home' | 'inventory' | 'workflows' | 'maintenance' | 'compliance' | 'lockboxes' | 'jobs' | 'users' | 'settings'
 
 export type GuidedCaptureMode = 'vin' | 'workflowVin' | 'compliance'
 

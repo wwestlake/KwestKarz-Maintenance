@@ -33,6 +33,7 @@
     <Compile Include="TuroImportEndpoints.fs" />
     <Compile Include="DiagnosticReportEndpoints.fs" />
     <Compile Include="UserEndpoints.fs" />
+    <Compile Include="JobEndpoints.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
