@@ -254,7 +254,7 @@ module Program =
                 :> Task))
             |> ignore
 
-        app.MapGet("/api/health", Func<string>(fun () -> "ok")) |> ignore
+        app.MapGet("/api/health", Func<string>(fun () -> "ok")).AllowAnonymous() |> ignore
         UserEndpoints.mapUserEndpoints adminPhone app |> ignore
         JobEndpoints.mapJobEndpoints app |> ignore
         LedgerEndpoints.mapLedgerEndpoints app |> ignore

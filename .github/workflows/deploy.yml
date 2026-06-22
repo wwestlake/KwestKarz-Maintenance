@@ -1,0 +1,91 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Frontend ────────────────────────────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: src/react/package-lock.json
+
+      - name: Build frontend
+        working-directory: src/react
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+        run: |
+          npm ci
+          npm run build
+
+      # ── Backend ─────────────────────────────────────────────────────────────
+      - name: Set up .NET 9
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Publish backend
+        run: |
+          dotnet publish src/backend/KwestKarz.Api/KwestKarz.Api.fsproj \
+            --configuration Release \
+            --output ./publish/api
+
+      # ── Deploy ──────────────────────────────────────────────────────────────
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Sync frontend
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            src/react/dist/ \
+            ubuntu@${{ secrets.DEPLOY_HOST }}:/var/www/kwestkarz/
+
+      - name: Sync backend
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            publish/api/ \
+            ubuntu@${{ secrets.DEPLOY_HOST }}:/opt/kwestkarz/app/
+
+      - name: Update env and restart
+        run: |
+          ssh -i ~/.ssh/deploy_key ubuntu@${{ secrets.DEPLOY_HOST }} bash -s << 'EOF'
+          set -e
+          cat > /tmp/kwestkarz_env << ENVEOF
+          ASPNETCORE_ENVIRONMENT=Production
+          ASPNETCORE_URLS=http://localhost:5081
+          ConnectionStrings__KwestKarz=${{ secrets.DB_CONNECTION_STRING }}
+          OpenAI__ApiKey=${{ secrets.OPENAI_API_KEY }}
+          Auth__AdminPhoneNumber=${{ secrets.ADMIN_PHONE }}
+          Storage__RootPath=/opt/kwestkarz/storage
+          SystemLog__Enabled=false
+          ENVEOF
+          sed -i 's/^[[:space:]]*//' /tmp/kwestkarz_env
+          sudo mv /tmp/kwestkarz_env /opt/kwestkarz/env
+          sudo chmod 600 /opt/kwestkarz/env
+          sudo chown ubuntu:ubuntu /opt/kwestkarz/env
+          sudo systemctl restart kwestkarz
+          sleep 5
+          sudo systemctl is-active kwestkarz
+          curl -sf http://localhost:5081/api/health
+          EOF

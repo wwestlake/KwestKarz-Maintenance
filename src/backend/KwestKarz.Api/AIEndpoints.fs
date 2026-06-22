@@ -5,6 +5,7 @@ open KwestKarz.Domain
 open KwestKarz.Infrastructure
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Http
+open Npgsql
 
 module AIEndpoints =
     let private systemInstructions =
@@ -22,7 +23,7 @@ module AIEndpoints =
 
         group.MapPost(
             "/chat",
-            Func<AIChatRequest, IAIConnection, IVehicleRepository, IMaintenanceRepository, IDiagnosticReportRepository, IDocumentRepository, HttpContext, Threading.Tasks.Task<IResult>>(fun request ai vehicles maintenance diagnosticReports documents httpContext ->
+            Func<AIChatRequest, IAIConnection, IVehicleRepository, IMaintenanceRepository, IDiagnosticReportRepository, IDocumentRepository, NpgsqlDataSource, HttpContext, Threading.Tasks.Task<IResult>>(fun request ai vehicles maintenance diagnosticReports documents dataSource httpContext ->
                 task {
                     let! vehicle =
                         match request.VehicleVin with
@@ -33,19 +34,20 @@ module AIEndpoints =
                         match vehicle with
                         | None -> "No specific vehicle context was provided."
                         | Some vehicle ->
-                            // Run all lookups in parallel
                             let maintenanceTask = maintenance.ListForVehicleAsync(vehicle.Id, httpContext.RequestAborted)
                             let documentsTask = documents.ListForOwnerAsync(DocumentOwnerType.Vehicle, vehicle.Id, httpContext.RequestAborted)
                             let diagnosticsTask = diagnosticReports.ListForVehicleAsync(vehicle.Id, httpContext.RequestAborted)
-                            Threading.Tasks.Task.WaitAll([| maintenanceTask :> Threading.Tasks.Task; documentsTask :> Threading.Tasks.Task; diagnosticsTask :> Threading.Tasks.Task |])
+                            let complianceTask = ComplianceEndpoints.listLatestAsync dataSource vehicle.Id httpContext.RequestAborted
+                            Threading.Tasks.Task.WaitAll([| maintenanceTask :> Threading.Tasks.Task; documentsTask :> Threading.Tasks.Task; diagnosticsTask :> Threading.Tasks.Task; complianceTask :> Threading.Tasks.Task |])
 
                             let allMaintenance = maintenanceTask.Result
                             let vehicleDocuments = documentsTask.Result
                             let reports = diagnosticsTask.Result
+                            let complianceRecords = complianceTask.Result |> Array.toList
                             let today = DateOnly.FromDateTime(DateTime.UtcNow)
                             let nextDue = MaintenanceLogic.nextDue today vehicle.CurrentOdometer allMaintenance
 
-                            MaintenanceLogic.richAiContext vehicle allMaintenance nextDue reports vehicleDocuments
+                            MaintenanceLogic.richAiContext vehicle allMaintenance nextDue reports vehicleDocuments complianceRecords
 
                     let aiRequest =
                         { SystemInstructions = Some systemInstructions
@@ -59,7 +61,7 @@ module AIEndpoints =
 
         group.MapPost(
             "/interpret-image",
-            Func<OpenAIResponsesConnection, IVehicleRepository, IMaintenanceRepository, IDiagnosticReportRepository, IDocumentRepository, HttpContext, Threading.Tasks.Task<IResult>>(fun ai vehicles maintenance diagnosticReports documents httpContext ->
+            Func<OpenAIResponsesConnection, IVehicleRepository, IMaintenanceRepository, IDiagnosticReportRepository, IDocumentRepository, NpgsqlDataSource, HttpContext, Threading.Tasks.Task<IResult>>(fun ai vehicles maintenance diagnosticReports documents dataSource httpContext ->
                 task {
                     let! form = httpContext.Request.ReadFormAsync(httpContext.RequestAborted)
                     let file = form.Files.GetFile("file")
@@ -82,15 +84,17 @@ module AIEndpoints =
                                 let maintenanceTask = maintenance.ListForVehicleAsync(vehicle.Id, httpContext.RequestAborted)
                                 let documentsTask = documents.ListForOwnerAsync(DocumentOwnerType.Vehicle, vehicle.Id, httpContext.RequestAborted)
                                 let diagnosticsTask = diagnosticReports.ListForVehicleAsync(vehicle.Id, httpContext.RequestAborted)
-                                Threading.Tasks.Task.WaitAll([| maintenanceTask :> Threading.Tasks.Task; documentsTask :> Threading.Tasks.Task; diagnosticsTask :> Threading.Tasks.Task |])
+                                let complianceTask = ComplianceEndpoints.listLatestAsync dataSource vehicle.Id httpContext.RequestAborted
+                                Threading.Tasks.Task.WaitAll([| maintenanceTask :> Threading.Tasks.Task; documentsTask :> Threading.Tasks.Task; diagnosticsTask :> Threading.Tasks.Task; complianceTask :> Threading.Tasks.Task |])
 
                                 let allMaintenance = maintenanceTask.Result
                                 let vehicleDocuments = documentsTask.Result
                                 let reports = diagnosticsTask.Result
+                                let complianceRecords = complianceTask.Result |> Array.toList
                                 let today = DateOnly.FromDateTime(DateTime.UtcNow)
                                 let nextDue = MaintenanceLogic.nextDue today vehicle.CurrentOdometer allMaintenance
 
-                                MaintenanceLogic.richAiContext vehicle allMaintenance nextDue reports vehicleDocuments
+                                MaintenanceLogic.richAiContext vehicle allMaintenance nextDue reports vehicleDocuments complianceRecords
 
                         use stream = file.OpenReadStream()
                         use memory = new IO.MemoryStream()

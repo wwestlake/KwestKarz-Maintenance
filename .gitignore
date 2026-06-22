@@ -491,3 +491,6 @@ src/backend/KwestKarz.Api/storage/
 
 # Local HTTPS development certificates
 certs/dev/
+
+# Server env file (real secrets — template only in repo)
+deploy/env

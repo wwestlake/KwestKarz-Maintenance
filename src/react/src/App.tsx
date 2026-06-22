@@ -9,6 +9,8 @@ import { PendingApprovalsPanel } from './components/PendingApprovalsPanel'
 import { JobsPanel } from './components/JobsPanel'
 import { LedgerPanel } from './components/LedgerPanel'
 import { MaintenanceTemplateManager } from './components/MaintenanceTemplateManager'
+import { FleetMaintenancePanel } from './components/FleetMaintenancePanel'
+import { DocumentLibraryPanel } from './components/DocumentLibraryPanel'
 import { MaintenanceForm } from './components/MaintenanceForm'
 import { TirePressurePanel } from './components/TirePressurePanel'
 import type {
@@ -2442,19 +2444,14 @@ function App() {
       {activeArea === 'maintenance' && (
         <section className="panel area-panel">
           <div className="section-heading">
-            <h2>Maintenance</h2>
-            <button className="primary-action" type="button" onClick={() => setActiveArea('inventory')}>
-              Open Vehicle
-            </button>
+            <h2>Fleet Maintenance</h2>
           </div>
-          <div className="record-list">
-            {vehicles.map((vehicle) => (
-              <button key={vehicle.id} className="vehicle-list-item" type="button" onClick={() => openVehicle(vehicle)}>
-                <span>{[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || vehicle.vin}</span>
-                <small>{vehicle.currentOdometer?.toLocaleString() ?? 'No miles'} - {vehicle.status}</small>
-              </button>
-            ))}
-          </div>
+          <FleetMaintenancePanel
+            onOpenVehicle={(vehicleId) => {
+              const v = vehicles.find((vehicle) => vehicle.id === vehicleId)
+              if (v) openVehicle(v)
+            }}
+          />
         </section>
       )}
 
@@ -3528,18 +3525,8 @@ function App() {
           <div className="panel">
             <div className="section-heading">
               <h2>Documents</h2>
-              <p>{dashboard.documents.length} attachments</p>
             </div>
-            <div className="record-list">
-              {dashboard.documents.length === 0 && <p className="empty">Receipts and photos will show here.</p>}
-              {dashboard.documents.map((document) => (
-                <article key={document.id} className="record">
-                  <strong>{document.kind}</strong>
-                  <span>{document.originalFileName}</span>
-                  <p>{Math.round(document.sizeBytes / 1024)} KB</p>
-                </article>
-              ))}
-            </div>
+            <DocumentLibraryPanel vehicleId={dashboard.vehicle.id} />
           </div>
 
           <div className="panel">

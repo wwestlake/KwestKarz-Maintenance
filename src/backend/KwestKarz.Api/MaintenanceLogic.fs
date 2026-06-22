@@ -159,7 +159,8 @@ module MaintenanceLogic =
         (maintenance: MaintenanceRecord list)
         (nextDueItem: MaintenanceSummary option)
         (diagnosticReports: DiagnosticReport list)
-        (documents: StoredDocument list) =
+        (documents: StoredDocument list)
+        (compliance: ComplianceRecordResponse list) =
 
         let nl = System.Environment.NewLine
 
@@ -216,11 +217,39 @@ module MaintenanceLogic =
                 let rows =
                     documents
                     |> List.truncate 10
-                    |> List.map (fun d -> $"  • {DocumentKind.toStorageValue d.Kind}: {d.OriginalFileName} ({d.SizeBytes} bytes)")
+                    |> List.map (fun d ->
+                        let desc =
+                            d.Description
+                            |> Option.map (fun s -> $"{nl}    {truncate 400 s}")
+                            |> Option.defaultValue ""
+                        $"  • {DocumentKind.toStorageValue d.Kind}: {d.OriginalFileName} ({d.SizeBytes} bytes){desc}")
                     |> String.concat nl
                 $"DOCUMENTS:{nl}{rows}"
 
-        String.concat (nl + nl) [| vehicleSection; maintenanceSection; dueSection; obd2Section; documentSection |]
+        let complianceSection =
+            if List.isEmpty compliance then
+                "COMPLIANCE: No records on file."
+            else
+                let rows =
+                    compliance
+                    |> List.map (fun c ->
+                        let expiry =
+                            c.ExpirationDate
+                            |> Option.map (fun d -> $" — expires {d}")
+                            |> Option.defaultValue ""
+                        let provider =
+                            c.Provider
+                            |> Option.map (fun p -> $" ({p})")
+                            |> Option.defaultValue ""
+                        let policy =
+                            c.PolicyNumber
+                            |> Option.map (fun n -> $" #{n}")
+                            |> Option.defaultValue ""
+                        $"  • {c.RecordType}{provider}{policy} [{c.DueStatus}]{expiry}")
+                    |> String.concat nl
+                $"COMPLIANCE:{nl}{rows}"
+
+        String.concat (nl + nl) [| vehicleSection; maintenanceSection; dueSection; obd2Section; documentSection; complianceSection |]
 
     let extractPdfText (contentBytes: byte array) =
         use stream = new MemoryStream(contentBytes)

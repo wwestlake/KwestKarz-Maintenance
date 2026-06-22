@@ -239,7 +239,7 @@ module UserEndpoints =
                     command.Parameters.AddWithValue("now", NpgsqlDbType.TimestampTz, DateTimeOffset.UtcNow) |> ignore
                     command.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, userId) |> ignore
                     let! rows = command.ExecuteNonQueryAsync(httpContext.RequestAborted)
-                    return if rows = 0 then Results.NotFound() else Results.Ok()
+                    return if rows = 0 then Results.NotFound() else Results.Ok({| approved = true |})
                 })
         )
         |> ignore
@@ -257,7 +257,7 @@ module UserEndpoints =
                     command.Parameters.AddWithValue("now", NpgsqlDbType.TimestampTz, DateTimeOffset.UtcNow) |> ignore
                     command.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, userId) |> ignore
                     let! rows = command.ExecuteNonQueryAsync(httpContext.RequestAborted)
-                    return if rows = 0 then Results.NotFound() else Results.Ok()
+                    return if rows = 0 then Results.NotFound() else Results.Ok({| suspended = true |})
                 })
         )
         |> ignore

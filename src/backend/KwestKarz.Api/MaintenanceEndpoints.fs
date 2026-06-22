@@ -18,6 +18,60 @@ module MaintenanceEndpoints =
           WarnDaysOut = s.WarnDaysOut }
 
     let mapMaintenanceEndpoints (app: WebApplication) =
+        app.MapGet(
+            "/api/maintenance/fleet-summary",
+            Func<IVehicleRepository, IMaintenanceRepository, HttpContext, Task<IResult>>(fun vehicles maintenance httpContext ->
+                task {
+                    let today = DateOnly.FromDateTime(DateTime.UtcNow)
+                    let! allVehicles = vehicles.ListAsync(httpContext.RequestAborted)
+
+                    let! summaries =
+                        allVehicles
+                        |> List.map (fun vehicle ->
+                            task {
+                                let! records = maintenance.ListForVehicleAsync(vehicle.Id, httpContext.RequestAborted)
+
+                                let withDue = records |> List.filter (fun r -> r.NextDueDate.IsSome || r.NextDueOdometer.IsSome)
+                                let statuses = withDue |> List.map (MaintenanceLogic.dueStatus today vehicle.CurrentOdometer)
+                                let overdueCount = statuses |> List.filter ((=) MaintenanceDueStatus.Overdue) |> List.length
+                                let dueSoonCount = statuses |> List.filter ((=) MaintenanceDueStatus.DueSoon) |> List.length
+
+                                let nextDueItem = MaintenanceLogic.nextDue today vehicle.CurrentOdometer records
+                                let lastMaint = records |> List.tryHead
+
+                                let label =
+                                    [ vehicle.Year |> Option.map string; vehicle.Make; vehicle.Model ]
+                                    |> List.choose id
+                                    |> String.concat " "
+                                let label = if label.Trim() = "" then vehicle.Vin else label
+
+                                return {|
+                                    vehicleId = vehicle.Id
+                                    vin = vehicle.Vin
+                                    label = label
+                                    status = VehicleStatus.toStorageValue vehicle.Status
+                                    currentOdometer = vehicle.CurrentOdometer
+                                    fleetPositionNumber = vehicle.FleetPositionNumber
+                                    overdueCount = overdueCount
+                                    dueSoonCount = dueSoonCount
+                                    nextDue =
+                                        nextDueItem |> Option.map (fun nd ->
+                                            {| eventType = nd.Record.EventType
+                                               dueStatus = MaintenanceDueStatus.toStorageValue nd.DueStatus
+                                               nextDueDate = nd.Record.NextDueDate |> Option.map (fun d -> d.ToString("yyyy-MM-dd"))
+                                               nextDueOdometer = nd.Record.NextDueOdometer |})
+                                    lastMaintenanceDate =
+                                        lastMaint |> Option.map (fun r -> r.DatePerformed.ToString("yyyy-MM-dd"))
+                                |}
+                            })
+                        |> List.toArray
+                        |> Task.WhenAll
+
+                    return summaries |> Results.Ok
+                })
+        )
+        |> ignore
+
         // Keep old endpoint for backward compat — now reads from DB
         app.MapGet(
             "/api/maintenance/service-schedules",

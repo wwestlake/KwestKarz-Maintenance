@@ -1,0 +1,22 @@
+[Unit]
+Description=KwestKarz API
+After=network.target postgresql.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/kwestkarz/app
+ExecStart=/usr/share/dotnet/dotnet /opt/kwestkarz/app/KwestKarz.Api.dll
+
+# Load secrets from this file — create it on the server, never commit it
+EnvironmentFile=/opt/kwestkarz/env
+
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kwestkarz
+
+[Install]
+WantedBy=multi-user.target

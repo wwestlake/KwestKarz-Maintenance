@@ -6,6 +6,8 @@ open KwestKarz.Domain
 open KwestKarz.Infrastructure
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Http
+open Npgsql
+open NpgsqlTypes
 
 module DocumentEndpoints =
     let private parseKind value =
@@ -15,6 +17,56 @@ module DocumentEndpoints =
             DocumentKind.fromStorageValue value
 
     let mapDocumentEndpoints (app: WebApplication) =
+        // All documents for a vehicle across every owner type
+        app.MapGet(
+            "/api/vehicles/{vehicleId:guid}/documents/all",
+            Func<Guid, NpgsqlDataSource, HttpContext, Threading.Tasks.Task<IResult>>(fun vehicleId dataSource httpContext ->
+                task {
+                    let cols = "id, owner_type, owner_id, kind, original_file_name, content_type, storage_path, size_bytes, description, created_by, created_at"
+                    use! connection = dataSource.OpenConnectionAsync(httpContext.RequestAborted)
+                    use command =
+                        new NpgsqlCommand(
+                            $"""
+                            select {cols} from kwestkarzbusinessdata.documents
+                            where owner_type = 'Vehicle' and owner_id = @vid
+                            union all
+                            select d.{cols} from kwestkarzbusinessdata.documents d
+                            join kwestkarzbusinessdata.maintenance_records m on d.owner_id = m.id
+                            where d.owner_type = 'MaintenanceRecord' and m.vehicle_id = @vid
+                            union all
+                            select {cols} from kwestkarzbusinessdata.documents
+                            where owner_type = 'DiagnosticReport' and owner_id = @vid
+                            order by created_at desc
+                            """,
+                            connection
+                        )
+                    command.Parameters.AddWithValue("vid", NpgsqlDbType.Uuid, vehicleId) |> ignore
+                    use! reader = command.ExecuteReaderAsync(httpContext.RequestAborted)
+                    let getOption name getter =
+                        let ord = reader.GetOrdinal(name)
+                        if reader.IsDBNull(ord) then None else Some(getter ord)
+                    let docs = ResizeArray()
+                    let mutable keep = true
+                    while keep do
+                        let! hasRow = reader.ReadAsync(httpContext.RequestAborted)
+                        if hasRow then
+                            docs.Add(
+                                {| id = reader.GetGuid(reader.GetOrdinal("id"))
+                                   ownerType = reader.GetString(reader.GetOrdinal("owner_type"))
+                                   ownerId = reader.GetGuid(reader.GetOrdinal("owner_id"))
+                                   kind = reader.GetString(reader.GetOrdinal("kind"))
+                                   originalFileName = reader.GetString(reader.GetOrdinal("original_file_name"))
+                                   contentType = reader.GetString(reader.GetOrdinal("content_type"))
+                                   sizeBytes = reader.GetInt64(reader.GetOrdinal("size_bytes"))
+                                   description = getOption "description" reader.GetString
+                                   createdBy = getOption "created_by" reader.GetString
+                                   createdAt = reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("created_at")) |})
+                        else keep <- false
+                    return docs |> Seq.toArray |> Results.Ok
+                })
+        )
+        |> ignore
+
         let vehicleDocuments = app.MapGroup("/api/vehicles/{vehicleId:guid}/documents")
 
         vehicleDocuments.MapGet(
