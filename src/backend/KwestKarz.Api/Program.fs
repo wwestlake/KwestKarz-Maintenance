@@ -142,6 +142,16 @@ module Program =
         )
         |> ignore
 
+        builder.Services.AddSingleton<NotificationService.NotificationConfig>(fun _ ->
+            let str key = let v = builder.Configuration.GetValue<string>(key) in if isNull v then "" else v
+            let cfg : NotificationService.NotificationConfig =
+                { AdminTopicArn = str "Notifications:AdminTopicArn"
+                  SenderEmail   = str "Notifications:SenderEmail"
+                  AwsRegion     = let v = str "Notifications:AwsRegion" in if v = "" then "us-east-2" else v }
+            cfg
+        )
+        |> ignore
+
         builder.Services.AddHttpClient<OpenAIResponsesConnection>(fun (serviceProvider: IServiceProvider) (client: HttpClient) ->
             let options = serviceProvider.GetRequiredService<OpenAIOptions>()
 
@@ -254,9 +264,11 @@ module Program =
                 :> Task))
             |> ignore
 
+        let notifConfig = app.Services.GetRequiredService<NotificationService.NotificationConfig>()
+
         app.MapGet("/api/health", Func<string>(fun () -> "ok")).AllowAnonymous() |> ignore
-        UserEndpoints.mapUserEndpoints adminPhone app |> ignore
-        JobEndpoints.mapJobEndpoints app |> ignore
+        UserEndpoints.mapUserEndpoints adminPhone notifConfig app |> ignore
+        JobEndpoints.mapJobEndpoints notifConfig app |> ignore
         LedgerEndpoints.mapLedgerEndpoints app |> ignore
         MaintenanceTemplateEndpoints.mapMaintenanceTemplateEndpoints app |> ignore
         VinEndpoints.mapVinEndpoints app |> ignore
@@ -272,6 +284,7 @@ module Program =
         RentalInspectionEndpoints.mapRentalInspectionEndpoints app |> ignore
         TuroImportEndpoints.mapTuroImportEndpoints app |> ignore
         DiagnosticReportEndpoints.mapDiagnosticReportEndpoints app |> ignore
+        NotificationEndpoints.mapNotificationEndpoints app |> ignore
 
         app.Run()
 

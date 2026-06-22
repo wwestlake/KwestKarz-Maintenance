@@ -466,6 +466,30 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                 alter table if exists kwestkarzbusinessdata.documents
                     add column if not exists created_by text null;
 
+                alter table if exists kwestkarzbusinessdata.users
+                    add column if not exists notify_by_email boolean not null default false,
+                    add column if not exists email_address text null;
+
+                create table if not exists kwestkarzbusinessdata.notification_log (
+                    id uuid primary key default gen_random_uuid(),
+                    user_id uuid null references kwestkarzbusinessdata.users(id) on delete set null,
+                    job_id uuid null references kwestkarzbusinessdata.jobs(id) on delete set null,
+                    event_type text not null,
+                    channel text not null check (channel in ('Email', 'SNS')),
+                    recipient text not null,
+                    subject text not null,
+                    status text not null check (status in ('Sent', 'Failed')),
+                    error text null,
+                    sent_at timestamptz not null default now()
+                );
+
+                create index if not exists ix_notification_log_sent_at
+                    on kwestkarzbusinessdata.notification_log(sent_at desc);
+
+                create index if not exists ix_notification_log_job
+                    on kwestkarzbusinessdata.notification_log(job_id, sent_at desc)
+                    where job_id is not null;
+
                 create table if not exists kwestkarzbusinessdata.users (
                     id uuid primary key default gen_random_uuid(),
                     firebase_uid text not null unique,

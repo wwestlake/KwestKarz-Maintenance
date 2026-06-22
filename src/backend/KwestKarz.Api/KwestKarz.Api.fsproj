@@ -33,9 +33,11 @@
     <Compile Include="RentalInspectionEndpoints.fs" />
     <Compile Include="TuroImportEndpoints.fs" />
     <Compile Include="DiagnosticReportEndpoints.fs" />
+    <Compile Include="NotificationService.fs" />
     <Compile Include="UserEndpoints.fs" />
     <Compile Include="LedgerEndpoints.fs" />
     <Compile Include="JobEndpoints.fs" />
+    <Compile Include="NotificationEndpoints.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 
@@ -48,6 +50,8 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.0" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
     <PackageReference Include="PdfPig" Version="0.1.14" />
+    <PackageReference Include="AWSSDK.SimpleNotificationService" Version="3.7.*" />
+    <PackageReference Include="AWSSDK.SimpleEmailV2" Version="3.7.*" />
   </ItemGroup>
 
 </Project>

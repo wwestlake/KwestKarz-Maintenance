@@ -10,6 +10,8 @@ export type UserProfile = {
   role: string
   status: string
   createdAt: string
+  notifyByEmail: boolean
+  emailAddress: string | null
 }
 
 type AuthState =

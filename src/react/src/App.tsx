@@ -23,7 +23,7 @@ import type {
   RentalInspection, TuroTripImportResponse, TuroMaintenanceSignal,
   TuroImportRecord, TuroTripRecord, WorkflowEvent, DiagnosticReport, ServiceSchedule,
   InspectionReport, TireFleetAlert,
-  VinDecode, CreateVehicleForm, EditVehicleForm,
+  VinDecode, CreateVehicleForm, EditVehicleForm, NotifLogEntry,
 } from './types'
 import { api } from './api'
 import { useAuth } from './AuthContext'
@@ -233,6 +233,10 @@ function App() {
   const [turoImportResult, setTuroImportResult] = useState<TuroTripImportResponse | null>(null)
   const [turoMaintenanceSignals, setTuroMaintenanceSignals] = useState<TuroMaintenanceSignal[]>([])
   const [turoImportHistory, setTuroImportHistory] = useState<TuroImportRecord[]>([])
+  const [notifyByEmail, setNotifyByEmail] = useState(false)
+  const [notifyEmail, setNotifyEmail] = useState('')
+  const [notifSaving, setNotifSaving] = useState(false)
+  const [notifLog, setNotifLog] = useState<NotifLogEntry[]>([])
   const [vehicleTuroTrips, setVehicleTuroTrips] = useState<TuroTripRecord[]>([])
   const [showTuroTrips, setShowTuroTrips] = useState(false)
   const [diagnosticReports, setDiagnosticReports] = useState<DiagnosticReport[]>([])
@@ -332,6 +336,10 @@ function App() {
     if (activeArea === 'settings') {
       loadTuroMaintenanceSignals()
       loadTuroImportHistory()
+      loadNotifPrefs()
+    }
+    if (activeArea === 'users') {
+      loadNotifLog()
     }
   }, [activeArea])
 
@@ -2081,6 +2089,35 @@ function App() {
     }
   }
 
+  async function loadNotifPrefs() {
+    try {
+      const prefs = await api.get<{ notifyByEmail: boolean; emailAddress: string | null }>('/api/users/me/notifications')
+      setNotifyByEmail(prefs.notifyByEmail)
+      setNotifyEmail(prefs.emailAddress ?? '')
+    } catch { /* silently ignore */ }
+  }
+
+  async function saveNotifPrefs() {
+    setNotifSaving(true)
+    try {
+      await api.put('/api/users/me/notifications', {
+        notifyByEmail,
+        emailAddress: notifyByEmail && notifyEmail.trim() ? notifyEmail.trim() : null,
+      })
+    } catch {
+      alert('Could not save notification preferences')
+    } finally {
+      setNotifSaving(false)
+    }
+  }
+
+  async function loadNotifLog() {
+    try {
+      const log = await api.get<NotifLogEntry[]>('/api/notifications/log')
+      setNotifLog(log)
+    } catch { /* silently ignore */ }
+  }
+
   async function loadVehicleTuroTrips(vehicleId: string) {
     setLoading(true)
     setMessage('Loading trip history...')
@@ -2554,6 +2591,40 @@ function App() {
       {activeArea === 'users' && profile?.role === 'admin' && (
         <section className="area-grid">
           <PendingApprovalsPanel />
+          {notifLog.length > 0 && (
+            <div className="panel area-panel">
+              <div className="section-heading">
+                <h2>Notification Log</h2>
+                <span className="tag">{notifLog.length}</span>
+              </div>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Sent</th>
+                    <th>Event</th>
+                    <th>Channel</th>
+                    <th>Recipient</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {notifLog.map(entry => (
+                    <tr key={entry.id}>
+                      <td>{new Date(entry.sentAt).toLocaleString()}</td>
+                      <td>{entry.eventType}</td>
+                      <td>{entry.channel}</td>
+                      <td style={{ fontSize: 12 }}>{entry.recipient}</td>
+                      <td>
+                        <span className={entry.status === 'Sent' ? 'status' : 'status busy'}>
+                          {entry.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
       )}
 
@@ -2611,6 +2682,37 @@ function App() {
             <button className="btn-secondary" style={{ marginTop: 8 }} onClick={signOut}>
               Sign out
             </button>
+            <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+              <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Job Notifications</h3>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={notifyByEmail}
+                  onChange={e => setNotifyByEmail(e.target.checked)}
+                />
+                Email me when new jobs are posted
+              </label>
+              {notifyByEmail && (
+                <div className="form-row" style={{ marginTop: 8 }}>
+                  <label htmlFor="notifEmail">Notification Email</label>
+                  <input
+                    id="notifEmail"
+                    type="email"
+                    value={notifyEmail}
+                    placeholder="your@email.com"
+                    onChange={e => setNotifyEmail(e.target.value)}
+                  />
+                </div>
+              )}
+              <button
+                className="btn-secondary"
+                style={{ marginTop: 8 }}
+                disabled={notifSaving}
+                onClick={saveNotifPrefs}
+              >
+                {notifSaving ? 'Saving…' : 'Save Preferences'}
+              </button>
+            </div>
           </div>
           <MaintenanceTemplateManager />
           <TuroImportPanel

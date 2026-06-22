@@ -1,3 +1,16 @@
+export type NotifLogEntry = {
+  id: string
+  userId?: string
+  jobId?: string
+  eventType: string
+  channel: string
+  recipient: string
+  subject: string
+  status: string
+  error?: string
+  sentAt: string
+}
+
 export type WorkflowEvent = {
   id: string
   stepKey?: string

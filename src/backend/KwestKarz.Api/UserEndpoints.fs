@@ -17,7 +17,9 @@ module UserEndpoints =
           DisplayName: string option
           Role: string
           Status: string
-          CreatedAt: DateTimeOffset }
+          CreatedAt: DateTimeOffset
+          NotifyByEmail: bool
+          EmailAddress: string option }
 
     [<CLIMutable>]
     type ApproveUserRequest =
@@ -27,12 +29,24 @@ module UserEndpoints =
     type UpdateDisplayNameRequest =
         { DisplayName: string }
 
+    let private readUser (reader: NpgsqlDataReader) =
+        { Id = reader.GetGuid(0)
+          FirebaseUid = reader.GetString(1)
+          Phone = reader.GetString(2)
+          DisplayName = if reader.IsDBNull(3) then None else Some(reader.GetString(3))
+          Role = reader.GetString(4)
+          Status = reader.GetString(5)
+          CreatedAt = reader.GetFieldValue<DateTimeOffset>(6)
+          NotifyByEmail = reader.GetBoolean(7)
+          EmailAddress = if reader.IsDBNull(8) then None else Some(reader.GetString(8)) }
+
     let private findUserByUid (connection: NpgsqlConnection) (uid: string) (cancellationToken: Threading.CancellationToken) =
         task {
             use command =
                 new NpgsqlCommand(
                     """
-                    select id, firebase_uid, phone, display_name, role, status, created_at
+                    select id, firebase_uid, phone, display_name, role, status, created_at,
+                           notify_by_email, email_address
                     from kwestkarzbusinessdata.users
                     where firebase_uid = @uid
                     """,
@@ -42,15 +56,7 @@ module UserEndpoints =
             use! reader = command.ExecuteReaderAsync(cancellationToken)
             let! hasRow = reader.ReadAsync(cancellationToken)
             if not hasRow then return None
-            else
-                return Some {
-                    Id = reader.GetGuid(0)
-                    FirebaseUid = reader.GetString(1)
-                    Phone = reader.GetString(2)
-                    DisplayName = if reader.IsDBNull(3) then None else Some(reader.GetString(3))
-                    Role = reader.GetString(4)
-                    Status = reader.GetString(5)
-                    CreatedAt = reader.GetFieldValue<DateTimeOffset>(6) }
+            else return Some(readUser reader)
         }
 
     let internal findUserByUidAsync (dataSource: NpgsqlDataSource) (uid: string) (cancellationToken: Threading.CancellationToken) =
@@ -59,7 +65,7 @@ module UserEndpoints =
             return! findUserByUid connection uid cancellationToken
         }
 
-    let mapUserEndpoints (adminPhone: string) (app: WebApplication) =
+    let mapUserEndpoints (adminPhone: string) (notifConfig: NotificationService.NotificationConfig) (app: WebApplication) =
         let group = app.MapGroup("/api/users")
 
         // Register or retrieve own profile — accessible to all authenticated users including pending
@@ -90,7 +96,8 @@ module UserEndpoints =
                                     insert into kwestkarzbusinessdata.users
                                         (firebase_uid, phone, role, status, created_at, updated_at)
                                     values (@uid, @phone, @role, @status, @now, @now)
-                                    returning id, firebase_uid, phone, display_name, role, status, created_at
+                                    returning id, firebase_uid, phone, display_name, role, status, created_at,
+                                              notify_by_email, email_address
                                     """,
                                     connection
                                 )
@@ -101,14 +108,10 @@ module UserEndpoints =
                             command.Parameters.AddWithValue("now", NpgsqlDbType.TimestampTz, DateTimeOffset.UtcNow) |> ignore
                             use! reader = command.ExecuteReaderAsync(httpContext.RequestAborted)
                             let! _ = reader.ReadAsync(httpContext.RequestAborted)
-                            let user = {
-                                Id = reader.GetGuid(0)
-                                FirebaseUid = reader.GetString(1)
-                                Phone = reader.GetString(2)
-                                DisplayName = None
-                                Role = reader.GetString(4)
-                                Status = reader.GetString(5)
-                                CreatedAt = reader.GetFieldValue<DateTimeOffset>(6) }
+                            let user = readUser reader
+                            // fire-and-forget admin alert for new pending registrations
+                            if status = "pending" then
+                                NotificationService.notifyAdminNewUser notifConfig dataSource phoneVal |> ignore
                             return Results.Ok(user)
                 })
         )
@@ -146,7 +149,8 @@ module UserEndpoints =
                                 update kwestkarzbusinessdata.users
                                 set display_name = @name, updated_at = @now
                                 where firebase_uid = @uid
-                                returning id, firebase_uid, phone, display_name, role, status, created_at
+                                returning id, firebase_uid, phone, display_name, role, status, created_at,
+                                          notify_by_email, email_address
                                 """,
                                 connection
                             )
@@ -157,16 +161,7 @@ module UserEndpoints =
                         use! reader = command.ExecuteReaderAsync(httpContext.RequestAborted)
                         let! hasRow = reader.ReadAsync(httpContext.RequestAborted)
                         if not hasRow then return Results.NotFound()
-                        else
-                            let user = {
-                                Id = reader.GetGuid(0)
-                                FirebaseUid = reader.GetString(1)
-                                Phone = reader.GetString(2)
-                                DisplayName = if reader.IsDBNull(3) then None else Some(reader.GetString(3))
-                                Role = reader.GetString(4)
-                                Status = reader.GetString(5)
-                                CreatedAt = reader.GetFieldValue<DateTimeOffset>(6) }
-                            return Results.Ok(user)
+                        else return Results.Ok(readUser reader)
                 })
         )
         |> ignore
@@ -179,20 +174,13 @@ module UserEndpoints =
                     use! connection = dataSource.OpenConnectionAsync(httpContext.RequestAborted)
                     use command =
                         new NpgsqlCommand(
-                            "select id, firebase_uid, phone, display_name, role, status, created_at from kwestkarzbusinessdata.users order by created_at desc",
+                            "select id, firebase_uid, phone, display_name, role, status, created_at, notify_by_email, email_address from kwestkarzbusinessdata.users order by created_at desc",
                             connection
                         )
                     use! reader = command.ExecuteReaderAsync(httpContext.RequestAborted)
                     let results = ResizeArray<UserProfile>()
                     while! reader.ReadAsync(httpContext.RequestAborted) do
-                        results.Add({
-                            Id = reader.GetGuid(0)
-                            FirebaseUid = reader.GetString(1)
-                            Phone = reader.GetString(2)
-                            DisplayName = if reader.IsDBNull(3) then None else Some(reader.GetString(3))
-                            Role = reader.GetString(4)
-                            Status = reader.GetString(5)
-                            CreatedAt = reader.GetFieldValue<DateTimeOffset>(6) })
+                        results.Add(readUser reader)
                     return Results.Ok(results.ToArray())
                 })
         )
@@ -205,20 +193,13 @@ module UserEndpoints =
                     use! connection = dataSource.OpenConnectionAsync(httpContext.RequestAborted)
                     use command =
                         new NpgsqlCommand(
-                            "select id, firebase_uid, phone, display_name, role, status, created_at from kwestkarzbusinessdata.users where status = 'pending' order by created_at asc",
+                            "select id, firebase_uid, phone, display_name, role, status, created_at, notify_by_email, email_address from kwestkarzbusinessdata.users where status = 'pending' order by created_at asc",
                             connection
                         )
                     use! reader = command.ExecuteReaderAsync(httpContext.RequestAborted)
                     let results = ResizeArray<UserProfile>()
                     while! reader.ReadAsync(httpContext.RequestAborted) do
-                        results.Add({
-                            Id = reader.GetGuid(0)
-                            FirebaseUid = reader.GetString(1)
-                            Phone = reader.GetString(2)
-                            DisplayName = if reader.IsDBNull(3) then None else Some(reader.GetString(3))
-                            Role = reader.GetString(4)
-                            Status = reader.GetString(5)
-                            CreatedAt = reader.GetFieldValue<DateTimeOffset>(6) })
+                        results.Add(readUser reader)
                     return Results.Ok(results.ToArray())
                 })
         )

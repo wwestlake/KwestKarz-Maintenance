@@ -53,7 +53,7 @@ module JobEndpoints =
         left join kwestkarzbusinessdata.users u on u.id = j.claimed_by_id
         """
 
-    let mapJobEndpoints (app: WebApplication) =
+    let mapJobEndpoints (notifConfig: NotificationService.NotificationConfig) (app: WebApplication) =
         let group = app.MapGroup("/api/jobs")
 
         // POST /api/jobs — admin/manager creates a job
@@ -84,7 +84,10 @@ module JobEndpoints =
                         command.Parameters.AddWithValue("now", NpgsqlDbType.TimestampTz, DateTimeOffset.UtcNow) |> ignore
                         use! reader = command.ExecuteReaderAsync(httpContext.RequestAborted)
                         let! _ = reader.ReadAsync(httpContext.RequestAborted)
-                        return Results.Ok(readJob reader)
+                        let job = readJob reader
+                        // fire-and-forget: notify opted-in helpers and admin
+                        NotificationService.notifyHelpersJobPosted notifConfig dataSource job.Id job.Title job.Description |> ignore
+                        return Results.Ok(job)
                 })
         ) |> ignore
 
@@ -165,7 +168,10 @@ module JobEndpoints =
                             command2.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, jobId) |> ignore
                             use! reader = command2.ExecuteReaderAsync(httpContext.RequestAborted)
                             let! _ = reader.ReadAsync(httpContext.RequestAborted)
-                            return Results.Ok(readJob reader)
+                            let job = readJob reader
+                            let claimedBy = job.ClaimedByName |> Option.defaultValue "Unknown"
+                            NotificationService.notifyAdminJobClaimed notifConfig dataSource jobId job.Title claimedBy |> ignore
+                            return Results.Ok(job)
                 })
         ) |> ignore
 
@@ -221,7 +227,8 @@ module JobEndpoints =
                                     operator
                                     httpContext.RequestAborted
 
-                        return Results.Ok()
+                        NotificationService.notifyAdminJobCompleted notifConfig dataSource jobId jobTitle operator |> ignore
+                        return Results.Ok({| completed = true |})
                 })
         ) |> ignore
 
