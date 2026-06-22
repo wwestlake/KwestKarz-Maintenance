@@ -258,6 +258,7 @@ module Program =
         UserEndpoints.mapUserEndpoints adminPhone app |> ignore
         JobEndpoints.mapJobEndpoints app |> ignore
         LedgerEndpoints.mapLedgerEndpoints app |> ignore
+        MaintenanceTemplateEndpoints.mapMaintenanceTemplateEndpoints app |> ignore
         VinEndpoints.mapVinEndpoints app |> ignore
         VehicleEndpoints.mapVehicleEndpoints app |> ignore
         LockBoxEndpoints.mapLockBoxEndpoints app |> ignore

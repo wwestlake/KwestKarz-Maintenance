@@ -544,6 +544,64 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                 create index if not exists ix_ledger_job_id
                     on kwestkarzbusinessdata.ledger_entries(job_id)
                     where job_id is not null;
+
+                create table if not exists kwestkarzbusinessdata.maintenance_templates (
+                    id uuid primary key default gen_random_uuid(),
+                    event_type text not null unique,
+                    mile_interval integer null,
+                    day_interval integer null,
+                    warn_miles_out integer not null default 500,
+                    warn_days_out integer not null default 14,
+                    description text null,
+                    is_active boolean not null default true,
+                    sort_order integer not null default 999,
+                    created_at timestamptz not null default now(),
+                    updated_at timestamptz not null default now()
+                );
+
+                insert into kwestkarzbusinessdata.maintenance_templates
+                    (event_type, mile_interval, day_interval, warn_miles_out, warn_days_out, description, sort_order)
+                values
+                    ('Oil Change',              5000,  180, 500,  14, 'Engine oil and filter replacement',              10),
+                    ('Tire Rotation',           7500, null, 500,   0, 'Rotate tires to even wear',                      20),
+                    ('Tire Repair',             null, null,   0,   0, 'Patch or plug flat tire',                        21),
+                    ('Tires',                   null, null,   0,   0, 'New tire purchase or replacement',               22),
+                    ('Wheel Alignment',         null,  365,   0,  14, 'Four-wheel alignment check',                     23),
+                    ('Air Filter',             15000, null,1000,   0, 'Engine air filter replacement',                  30),
+                    ('Cabin Air Filter',       15000, null,1000,   0, 'Cabin/HVAC air filter replacement',              31),
+                    ('Spark Plugs',            30000, null,2000,   0, 'Spark plug replacement',                         40),
+                    ('Brake Inspection',       20000,  365,2000,  30, 'Brake pads, rotors, and fluid inspection',       50),
+                    ('Brake Pads',             null,  null,   0,   0, 'Brake pad replacement',                          51),
+                    ('Brake Rotors',           null,  null,   0,   0, 'Brake rotor replacement',                        52),
+                    ('Brake Fluid Flush',      null,  730,   0,  30, 'Brake fluid flush and replacement',               53),
+                    ('Transmission Flush',     30000, null,2000,   0, 'Transmission fluid service',                     60),
+                    ('Coolant Flush',          30000,  730,2000,  30, 'Coolant system flush',                           61),
+                    ('Battery',                null, 1095,   0,  30, 'Battery test or replacement',                     70),
+                    ('Alternator',             null,  null,   0,   0, 'Alternator replacement',                         71),
+                    ('Starter',                null,  null,   0,   0, 'Starter motor replacement',                      72),
+                    ('A/C Service',            null,  730,   0,  30, 'A/C recharge or repair',                          80),
+                    ('Suspension',             null,  null,   0,   0, 'Suspension component inspection or repair',       81),
+                    ('Wipers',                 null,  365,   0,  14, 'Wiper blade replacement',                         90),
+                    ('Car Wash',               null,    7,   0,   1, 'Exterior wash',                                  100),
+                    ('Full Detail',            null,   90,   0,  14, 'Full interior and exterior detail',               101),
+                    ('Interior Detail',        null,   90,   0,  14, 'Interior-only deep clean',                        102),
+                    ('Exterior Detail',        null,   90,   0,  14, 'Exterior polish and wax',                         103),
+                    ('Check Engine Diagnostic',null,  null,   0,   0, 'Diagnosis of check engine light',                110),
+                    ('OBD2 Scan',              null,  null,   0,   0, 'OBD2 diagnostic scan',                           111),
+                    ('Emissions',              null,  365,   0,  30, 'Emissions test',                                  112),
+                    ('Inspection',             null,  365,   0,  30, 'State vehicle inspection',                        113),
+                    ('Mechanical Repair',      null,  null,   0,   0, 'General mechanical repair',                      120),
+                    ('Damage Repair',          null,  null,   0,   0, 'Collision or cosmetic damage repair',            121),
+                    ('Body Work',              null,  null,   0,   0, 'Body panel repair or replacement',               122),
+                    ('Paint / Touch Up',       null,  null,   0,   0, 'Paint touch-up or respray',                      123),
+                    ('Registration',           null,  365,   0,  30, 'Vehicle registration renewal',                    130),
+                    ('Recall / Dealer Service',null,  null,   0,   0, 'Factory recall or scheduled dealer service',     131),
+                    ('GPS / Bouncie Install',  null,  null,   0,   0, 'GPS tracker installation or service',            140),
+                    ('Lock Box',               null,  null,   0,   0, 'Lock box installation or maintenance',           141),
+                    ('Key / Fob',              null,  null,   0,   0, 'Key or key fob replacement/programming',         142),
+                    ('Roadside',               null,  null,   0,   0, 'Roadside assistance event',                      150),
+                    ('Other',                  null,  null,   0,   0, 'Miscellaneous service not listed above',         999)
+                on conflict (event_type) do nothing;
                 """
 
             use! connection = dataSource.OpenConnectionAsync(cancellationToken)

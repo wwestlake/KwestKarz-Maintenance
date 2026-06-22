@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { maintenanceTypes } from '../constants'
 import type { ServiceSchedule } from '../types'
 
 type MaintenanceFormState = {
@@ -94,15 +93,15 @@ export function MaintenanceForm({
         </div>
         {showMaintenanceTypes && (
           <div className="type-picker wide">
-            {maintenanceTypes.map((type) => (
+            {serviceSchedules.map((s) => (
               <button
-                key={type}
-                className={form.eventType === type ? 'type-option selected' : 'type-option'}
+                key={s.eventType}
+                className={form.eventType === s.eventType ? 'type-option selected' : 'type-option'}
                 type="button"
-                onClick={() => applyType(type)}
+                onClick={() => applyType(s.eventType)}
               >
-                {type}
-                {serviceSchedules.some((s) => s.eventType.toLowerCase() === type.toLowerCase()) && (
+                {s.eventType}
+                {(s.mileInterval != null || s.dayInterval != null) && (
                   <span className="schedule-dot" title="Auto-fill available" />
                 )}
               </button>

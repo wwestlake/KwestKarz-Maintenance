@@ -504,6 +504,7 @@ module TuroImportEndpoints =
             let! rawRows = readRawSignalsAsync dataSource cancellationToken
             let matchedIds = rawRows |> Array.choose (fun r -> r.VehicleId)
             let! serviceHistory = readServiceHistoryAsync dataSource matchedIds cancellationToken
+            let! schedules = MaintenanceTemplateEndpoints.loadSchedulesAsync dataSource cancellationToken
             let today = DateOnly.FromDateTime(DateTime.UtcNow)
 
             return
@@ -517,7 +518,7 @@ module TuroImportEndpoints =
 
                     let richSuggestions =
                         MaintenanceLogic.predictMaintenanceActions
-                            MaintenanceLogic.defaultServiceSchedules
+                            schedules
                             today
                             raw.LatestImportedOdometer
                             history

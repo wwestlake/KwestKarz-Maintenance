@@ -8,6 +8,7 @@ import { TuroImportPanel } from './components/TuroImportPanel'
 import { PendingApprovalsPanel } from './components/PendingApprovalsPanel'
 import { JobsPanel } from './components/JobsPanel'
 import { LedgerPanel } from './components/LedgerPanel'
+import { MaintenanceTemplateManager } from './components/MaintenanceTemplateManager'
 import { MaintenanceForm } from './components/MaintenanceForm'
 import { TirePressurePanel } from './components/TirePressurePanel'
 import type {
@@ -289,7 +290,7 @@ function App() {
     restoreWorkspace()
     refreshLockBoxes()
     refreshWorkflows()
-    api.get<ServiceSchedule[]>('/api/maintenance/service-schedules').then(setServiceSchedules).catch(() => {})
+    api.get<ServiceSchedule[]>('/api/maintenance/templates').then(setServiceSchedules).catch(() => {})
     api.get<TireFleetAlert[]>('/api/fleet/tire-alerts').then(setTireAlerts).catch(() => {})
 
     if (localStorage.getItem(vinScanPendingStorageKey) === 'true') {
@@ -2614,6 +2615,7 @@ function App() {
               Sign out
             </button>
           </div>
+          <MaintenanceTemplateManager />
           <TuroImportPanel
             turoImportFile={turoImportFile}
             turoImportResult={turoImportResult}

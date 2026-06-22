@@ -7,6 +7,7 @@ open KwestKarz.Domain
 open KwestKarz.Infrastructure
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Http
+open Npgsql
 
 module MaintenanceEndpoints =
     let private toScheduleResponse (s: ServiceSchedule) : ServiceScheduleResponse =
@@ -17,13 +18,14 @@ module MaintenanceEndpoints =
           WarnDaysOut = s.WarnDaysOut }
 
     let mapMaintenanceEndpoints (app: WebApplication) =
+        // Keep old endpoint for backward compat — now reads from DB
         app.MapGet(
             "/api/maintenance/service-schedules",
-            Func<IResult>(fun () ->
-                MaintenanceLogic.defaultServiceSchedules
-                |> List.map toScheduleResponse
-                |> List.toArray
-                |> Results.Ok)
+            Func<NpgsqlDataSource, HttpContext, Task<IResult>>(fun dataSource httpContext ->
+                task {
+                    let! schedules = MaintenanceTemplateEndpoints.loadSchedulesAsync dataSource httpContext.RequestAborted
+                    return schedules |> List.map toScheduleResponse |> List.toArray |> Results.Ok
+                })
         )
         |> ignore
 
