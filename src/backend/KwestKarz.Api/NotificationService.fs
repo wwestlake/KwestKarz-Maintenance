@@ -57,20 +57,23 @@ module NotificationService =
             ()
         }
 
-    let private sendSes (config: NotificationConfig) (toEmail: string) (subject: string) (body: string) =
+    let private sendSes (config: NotificationConfig) (toEmail: string) (subject: string) (textBody: string) (htmlBody: string) =
         task {
             let region = RegionEndpoint.GetBySystemName(config.AwsRegion)
             use client = new AmazonSimpleEmailServiceV2Client(region)
             let req =
                 SendEmailRequest(
-                    FromEmailAddress = config.SenderEmail,
+                    FromEmailAddress = $"KwestKarz Fleet <{config.SenderEmail}>",
                     Destination = Destination(ToAddresses = ResizeArray([toEmail])),
                     Content =
                         EmailContent(
                             Simple =
                                 Amazon.SimpleEmailV2.Model.Message(
                                     Subject = Amazon.SimpleEmailV2.Model.Content(Data = subject),
-                                    Body = Body(Text = Amazon.SimpleEmailV2.Model.Content(Data = body))
+                                    Body = Body(
+                                        Text = Amazon.SimpleEmailV2.Model.Content(Data = textBody),
+                                        Html = Amazon.SimpleEmailV2.Model.Content(Data = htmlBody)
+                                    )
                                 )
                         )
                 )
@@ -91,10 +94,10 @@ module NotificationService =
         }
 
     // Send a job-related email to one helper and log it
-    let private sendHelperEmail (config: NotificationConfig) (dataSource: NpgsqlDataSource) (userId: Guid) (jobId: Guid) (eventType: string) (toEmail: string) (subject: string) (body: string) =
+    let private sendHelperEmail (config: NotificationConfig) (dataSource: NpgsqlDataSource) (userId: Guid) (jobId: Guid) (eventType: string) (toEmail: string) (subject: string) (textBody: string) (htmlBody: string) =
         task {
             try
-                do! sendSes config toEmail subject body
+                do! sendSes config toEmail subject textBody htmlBody
                 do! writeLog dataSource (Some userId) (Some jobId) eventType "Email" toEmail subject "Sent" None
             with ex ->
                 do! writeLog dataSource (Some userId) (Some jobId) eventType "Email" toEmail subject "Failed" (Some ex.Message)
@@ -124,9 +127,34 @@ module NotificationService =
 
                     for (userId, email, name) in subscribers do
                         let subject = $"New Job Available — {jobTitle}"
-                        let desc = jobDescription |> Option.defaultValue "(no description)"
-                        let body = $"Hi {name},\n\nA new job has been posted on KwestKarz.\n\nJob: {jobTitle}\nDetails: {desc}\n\nLog in to view and claim it.\n\n— KwestKarz Fleet Management"
-                        do! sendHelperEmail config dataSource userId jobId "JobPosted" email subject body
+                        let desc = jobDescription |> Option.defaultValue "No description provided."
+                        let textBody =
+                            $"Hi {name},\n\nA new job is available on KwestKarz.\n\nJob: {jobTitle}\nDetails: {desc}\n\nLog in to view and claim it.\n\n— KwestKarz Fleet Management"
+                        let htmlTemplate = """<!DOCTYPE html>
+<html><body style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1a1a1a;">
+<div style="background:#0f172a;padding:16px 24px;border-radius:8px 8px 0 0;">
+  <h1 style="color:#fff;font-size:18px;margin:0;">KwestKarz Fleet Management</h1>
+</div>
+<div style="border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+  <p style="margin:0 0 16px;">Hi <strong>{{NAME}}</strong>,</p>
+  <p style="margin:0 0 16px;">A new job is available and ready to claim.</p>
+  <table style="width:100%;border-collapse:collapse;margin:0 0 20px;">
+    <tr style="background:#f8fafc;">
+      <td style="padding:10px 14px;font-weight:600;border:1px solid #e2e8f0;">Job</td>
+      <td style="padding:10px 14px;border:1px solid #e2e8f0;">{{TITLE}}</td>
+    </tr>
+    <tr>
+      <td style="padding:10px 14px;font-weight:600;border:1px solid #e2e8f0;">Details</td>
+      <td style="padding:10px 14px;border:1px solid #e2e8f0;">{{DESC}}</td>
+    </tr>
+  </table>
+  <p style="font-size:13px;color:#64748b;">Log in to KwestKarz to view and claim this job.</p>
+  <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
+  <p style="margin:0;color:#94a3b8;font-size:12px;">KwestKarz Fleet Management &#8212; automated notification</p>
+</div>
+</body></html>"""
+                        let htmlBody = htmlTemplate.Replace("{{NAME}}", name).Replace("{{TITLE}}", jobTitle).Replace("{{DESC}}", desc)
+                        do! sendHelperEmail config dataSource userId jobId "JobPosted" email subject textBody htmlBody
                 with _ -> () // never fail the request
         }
 

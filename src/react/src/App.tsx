@@ -245,6 +245,7 @@ function App() {
   const [inspectionReport, setInspectionReport] = useState<InspectionReport | null>(null)
   const [tireAlerts, setTireAlerts] = useState<TireFleetAlert[]>([])
   const [operatorName, setOperatorName] = useState(() => localStorage.getItem('operatorName') ?? '')
+  const [displayNameSaving, setDisplayNameSaving] = useState(false)
   const [message, setMessage] = useState('Ready')
   const [workingMessage, setWorkingMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -2089,6 +2090,19 @@ function App() {
     }
   }
 
+  async function saveDisplayName() {
+    if (!operatorName.trim()) return
+    setDisplayNameSaving(true)
+    try {
+      await api.put('/api/users/me/display-name', { displayName: operatorName.trim() })
+      if (operatorName.trim()) localStorage.setItem('operatorName', operatorName.trim())
+    } catch {
+      alert('Could not save display name')
+    } finally {
+      setDisplayNameSaving(false)
+    }
+  }
+
   async function loadNotifPrefs() {
     try {
       const prefs = await api.get<{ notifyByEmail: boolean; emailAddress: string | null }>('/api/users/me/notifications')
@@ -2668,17 +2682,18 @@ function App() {
                 type="text"
                 value={operatorName}
                 placeholder="e.g. Jane Smith"
-                onChange={e => {
-                  setOperatorName(e.target.value)
-                  if (e.target.value.trim()) {
-                    localStorage.setItem('operatorName', e.target.value.trim())
-                  } else {
-                    localStorage.removeItem('operatorName')
-                  }
-                }}
+                onChange={e => setOperatorName(e.target.value)}
               />
             </div>
-            <p className="hint-text">Your display name is shown on records you create.</p>
+            <button
+              className="btn-secondary"
+              style={{ marginTop: 6 }}
+              disabled={displayNameSaving || !operatorName.trim()}
+              onClick={saveDisplayName}
+            >
+              {displayNameSaving ? 'Saving…' : 'Save Display Name'}
+            </button>
+            <p className="hint-text">Your display name is shown on records you create and in notification emails.</p>
             <button className="btn-secondary" style={{ marginTop: 8 }} onClick={signOut}>
               Sign out
             </button>
