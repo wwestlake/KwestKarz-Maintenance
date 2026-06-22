@@ -146,6 +146,7 @@ module Program =
             let str key = let v = builder.Configuration.GetValue<string>(key) in if isNull v then "" else v
             let cfg : NotificationService.NotificationConfig =
                 { AdminTopicArn = str "Notifications:AdminTopicArn"
+                  AdminEmail    = str "Notifications:AdminEmail"
                   SenderEmail   = str "Notifications:SenderEmail"
                   AwsRegion     = let v = str "Notifications:AwsRegion" in if v = "" then "us-east-2" else v }
             cfg

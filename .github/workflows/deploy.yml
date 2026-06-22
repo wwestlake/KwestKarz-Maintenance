@@ -80,6 +80,7 @@ jobs:
           Storage__RootPath=/opt/kwestkarz/storage
           SystemLog__Enabled=false
           Notifications__AdminTopicArn=arn:aws:sns:us-east-2:886110331954:KwestKarzAdminNotificaitions
+          Notifications__AdminEmail=wweatlake1234@gmail.com
           Notifications__SenderEmail=kwest.karz@gmail.com
           Notifications__AwsRegion=us-east-2
           ENVEOF
