@@ -2042,7 +2042,7 @@ function App() {
     }
   }
 
-  async function uploadObd2Report() {
+  async function uploadDiagnosticReport() {
     if (!obd2UploadFile || !dashboard) return
     setLoading(true)
     setMessage('Uploading OBD2 report…')
@@ -3544,7 +3544,7 @@ function App() {
                 />
               </label>
               {obd2UploadFile && (
-                <button className="primary-action" onClick={uploadObd2Report} disabled={loading}>
+                <button className="primary-action" onClick={uploadDiagnosticReport} disabled={loading}>
                   Analyse &amp; Store
                 </button>
               )}
