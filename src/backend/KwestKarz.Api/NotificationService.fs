@@ -176,6 +176,65 @@ module NotificationService =
                 do! publishAdminAlert config dataSource "JobCompleted" subject message (Some jobId)
         }
 
+    let notifyJobCanceled (config: NotificationConfig) (dataSource: NpgsqlDataSource) (jobId: Guid) (jobTitle: string) (canceledBy: string) (claimedByUserId: Guid option) =
+        task {
+            if not (isConfigured config) then ()
+            else
+                // Admin SNS alert
+                let subject = $"Job Canceled — {jobTitle}"
+                let message = $"Job '{jobTitle}' was canceled by {canceledBy}.\n\nJob ID: {jobId}"
+                do! publishAdminAlert config dataSource "JobCanceled" subject message (Some jobId)
+
+                // Email the helper who had it claimed, if any
+                match claimedByUserId with
+                | None -> ()
+                | Some uid ->
+                    try
+                        use! conn = dataSource.OpenConnectionAsync(CancellationToken.None)
+                        use cmd =
+                            new NpgsqlCommand(
+                                """select id, email_address, coalesce(display_name, phone)
+                                   from kwestkarzbusinessdata.users
+                                   where id = @uid and notify_by_email = true and email_address is not null""",
+                                conn
+                            )
+                        cmd.Parameters.AddWithValue("uid", NpgsqlDbType.Uuid, uid) |> ignore
+                        use! reader = cmd.ExecuteReaderAsync(CancellationToken.None)
+                        let! hasRow = reader.ReadAsync(CancellationToken.None)
+                        if hasRow then
+                            let userId = reader.GetGuid(0)
+                            let email = reader.GetString(1)
+                            let name = reader.GetString(2)
+                            do! reader.DisposeAsync()
+                            let emailSubject = $"Job Canceled — {jobTitle}"
+                            let textBody = $"Hi {name},\n\nA job you claimed has been canceled.\n\nJob: {jobTitle}\nCanceled by: {canceledBy}\n\n— KwestKarz Fleet Management"
+                            let htmlTemplate = """<!DOCTYPE html>
+<html><body style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#1a1a1a;">
+<div style="background:#0f172a;padding:16px 24px;border-radius:8px 8px 0 0;">
+  <h1 style="color:#fff;font-size:18px;margin:0;">KwestKarz Fleet Management</h1>
+</div>
+<div style="border:1px solid #e2e8f0;border-top:none;padding:24px;border-radius:0 0 8px 8px;">
+  <p style="margin:0 0 16px;">Hi <strong>{{NAME}}</strong>,</p>
+  <p style="margin:0 0 16px;">A job you had claimed has been canceled.</p>
+  <table style="width:100%;border-collapse:collapse;margin:0 0 20px;">
+    <tr style="background:#f8fafc;">
+      <td style="padding:10px 14px;font-weight:600;border:1px solid #e2e8f0;">Job</td>
+      <td style="padding:10px 14px;border:1px solid #e2e8f0;">{{TITLE}}</td>
+    </tr>
+    <tr>
+      <td style="padding:10px 14px;font-weight:600;border:1px solid #e2e8f0;">Canceled by</td>
+      <td style="padding:10px 14px;border:1px solid #e2e8f0;">{{BY}}</td>
+    </tr>
+  </table>
+  <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0;">
+  <p style="margin:0;color:#94a3b8;font-size:12px;">KwestKarz Fleet Management &#8212; automated notification</p>
+</div>
+</body></html>"""
+                            let htmlBody = htmlTemplate.Replace("{{NAME}}", name).Replace("{{TITLE}}", jobTitle).Replace("{{BY}}", canceledBy)
+                            do! sendHelperEmail config dataSource userId jobId "JobCanceled" email emailSubject textBody htmlBody
+                    with _ -> ()
+        }
+
     let notifyAdminNewUser (config: NotificationConfig) (dataSource: NpgsqlDataSource) (phone: string) =
         task {
             if not (isConfigured config) then ()

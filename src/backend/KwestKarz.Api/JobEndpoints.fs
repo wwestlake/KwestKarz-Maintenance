@@ -237,20 +237,34 @@ module JobEndpoints =
             "/{jobId:guid}/cancel",
             Func<Guid, NpgsqlDataSource, HttpContext, Task<IResult>>(fun jobId dataSource httpContext ->
                 task {
+                    let operator = let h = httpContext.Request.Headers["X-Operator"] in if h.Count = 0 then "unknown" else h.[0]
                     use! connection = dataSource.OpenConnectionAsync(httpContext.RequestAborted)
-                    use command =
-                        new NpgsqlCommand(
-                            """
-                            update kwestkarzbusinessdata.jobs
-                            set status = 'canceled', updated_at = @now
-                            where id = @id and status <> 'complete'
-                            """,
-                            connection
-                        )
-                    command.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, jobId) |> ignore
-                    command.Parameters.AddWithValue("now", NpgsqlDbType.TimestampTz, DateTimeOffset.UtcNow) |> ignore
-                    let! rows = command.ExecuteNonQueryAsync(httpContext.RequestAborted)
-                    return if rows = 0 then Results.NotFound() else Results.Ok()
+
+                    // fetch title and claimed_by_id before canceling so we can notify
+                    use fetchCmd = new NpgsqlCommand(
+                        "select title, claimed_by_id from kwestkarzbusinessdata.jobs where id = @id and status <> 'complete'",
+                        connection)
+                    fetchCmd.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, jobId) |> ignore
+                    use! reader = fetchCmd.ExecuteReaderAsync(httpContext.RequestAborted)
+                    let! hasRow = reader.ReadAsync(httpContext.RequestAborted)
+                    if not hasRow then return Results.NotFound()
+                    else
+                        let jobTitle = reader.GetString(0)
+                        let claimedById = if reader.IsDBNull(1) then None else Some(reader.GetGuid(1))
+                        do! reader.DisposeAsync()
+
+                        use command =
+                            new NpgsqlCommand(
+                                "update kwestkarzbusinessdata.jobs set status = 'canceled', updated_at = @now where id = @id",
+                                connection
+                            )
+                        command.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, jobId) |> ignore
+                        command.Parameters.AddWithValue("now", NpgsqlDbType.TimestampTz, DateTimeOffset.UtcNow) |> ignore
+                        let! rows = command.ExecuteNonQueryAsync(httpContext.RequestAborted)
+                        if rows = 0 then return Results.NotFound()
+                        else
+                            NotificationService.notifyJobCanceled notifConfig dataSource jobId jobTitle operator claimedById |> ignore
+                            return Results.Ok({| canceled = true |})
                 })
         ) |> ignore
 
