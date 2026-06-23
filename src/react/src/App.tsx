@@ -301,7 +301,15 @@ function App() {
     api.get<TireFleetAlert[]>('/api/fleet/tire-alerts').then(setTireAlerts).catch(() => {})
 
     if (localStorage.getItem(vinScanPendingStorageKey) === 'true') {
-      recoverLatestVinScan(true)
+      const startedAt = Date.parse(localStorage.getItem(vinScanStartedStorageKey) || '')
+      const isStale = Number.isFinite(startedAt) && Date.now() - startedAt > 2 * 60 * 1000
+      if (isStale) {
+        localStorage.removeItem(vinScanPendingStorageKey)
+        localStorage.removeItem(vinScanStartedStorageKey)
+        localStorage.removeItem(vinScanTargetStorageKey)
+      } else {
+        recoverLatestVinScan(true)
+      }
     }
 
     if (localStorage.getItem(complianceScanPendingStorageKey) === 'true') {
@@ -1206,6 +1214,7 @@ function App() {
 
     try {
       for (let attempt = 0; attempt < 45; attempt += 1) {
+        if (localStorage.getItem(vinScanPendingStorageKey) !== 'true') break
         try {
           if (attempt === 0) {
             setMessage('Waiting for VIN scan result...')
@@ -1293,10 +1302,18 @@ function App() {
       form.append('clientId', clientId)
       if (localStorage.getItem(vinScanPendingStorageKey) !== 'true') markVinScanPending()
 
-      const response = await fetch('/api/vin/scan-photo', {
-        method: 'POST',
-        body: form,
-      })
+      const scanAbort = new AbortController()
+      const scanTimeout = setTimeout(() => scanAbort.abort(), 30_000)
+      let response: Response
+      try {
+        response = await fetch('/api/vin/scan-photo', {
+          method: 'POST',
+          body: form,
+          signal: scanAbort.signal,
+        })
+      } finally {
+        clearTimeout(scanTimeout)
+      }
 
       const responseText = await response.text()
       if (!response.ok) throw new Error(responseText)
