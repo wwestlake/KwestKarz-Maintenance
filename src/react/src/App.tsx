@@ -302,13 +302,14 @@ function App() {
 
     if (localStorage.getItem(vinScanPendingStorageKey) === 'true') {
       const startedAt = Date.parse(localStorage.getItem(vinScanStartedStorageKey) || '')
-      const isStale = Number.isFinite(startedAt) && Date.now() - startedAt > 2 * 60 * 1000
+      // Stale if no valid timestamp OR started more than 2 minutes ago
+      const isStale = !Number.isFinite(startedAt) || Date.now() - startedAt > 2 * 60 * 1000
       if (isStale) {
         localStorage.removeItem(vinScanPendingStorageKey)
         localStorage.removeItem(vinScanStartedStorageKey)
         localStorage.removeItem(vinScanTargetStorageKey)
       } else {
-        recoverLatestVinScan(true)
+        recoverLatestVinScan(true, false, 3)
       }
     }
 
@@ -1206,14 +1207,14 @@ function App() {
     return api.get<VinLatestScanResponse>('/api/vin/latest-scan')
   }
 
-  async function recoverLatestVinScan(ignoreStartedAt = false, forceRestart = false) {
+  async function recoverLatestVinScan(ignoreStartedAt = false, forceRestart = false, maxAttempts = 45) {
     if (vinRecoveryActiveRef.current && !forceRestart) return
     vinRecoveryActiveRef.current = true
     const clientId = getVinScanClientId()
     const startedAt = Date.parse(localStorage.getItem(vinScanStartedStorageKey) || '')
 
     try {
-      for (let attempt = 0; attempt < 45; attempt += 1) {
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         if (localStorage.getItem(vinScanPendingStorageKey) !== 'true') break
         try {
           if (attempt === 0) {
