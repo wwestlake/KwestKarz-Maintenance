@@ -68,14 +68,15 @@ export type Job = {
 
 export type AppArea = 'home' | 'inventory' | 'workflows' | 'maintenance' | 'compliance' | 'lockboxes' | 'jobs' | 'ledger' | 'users' | 'settings'
 
-export type GuidedCaptureMode = 'vin' | 'workflowVin' | 'compliance'
-
 export type GuidedCaptureConfig = {
-  mode: GuidedCaptureMode
   title: string
   instructions: string
   overlay: 'vin' | 'document' | 'label'
-  recordType?: string
+  // Called with the captured photo, from either the in-app camera or the
+  // native-camera fallback. This is the single entry point every scan uses.
+  onPhoto: (file: File) => void
+  // Optional cleanup if the user cancels before capturing.
+  onCancel?: () => void
 }
 
 export type Vehicle = {

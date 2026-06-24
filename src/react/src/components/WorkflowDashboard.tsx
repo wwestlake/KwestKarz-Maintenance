@@ -27,11 +27,9 @@ type WorkflowDashboardProps = {
   damageEstimateVendor: string
   damageRepairStatus: string
   workflowEditorRef: RefObject<HTMLDivElement | null>
-  workflowVinCameraInputRef: RefObject<HTMLInputElement | null>
   startWorkflow: (workflowType: string) => void
   selectWorkflow: (workflow: WorkflowInstance) => void
   activateWorkflowStep: (workflow: WorkflowInstance, step: WorkflowStep) => void
-  scanVinFromPhoto: (file: File) => void
   setVin: (vin: string) => void
   setRentalInspectionKind: (kind: string) => void
   openWorkflowVinCamera: () => void
@@ -311,11 +309,9 @@ export function WorkflowDashboard({
   damageEstimateVendor,
   damageRepairStatus,
   workflowEditorRef,
-  workflowVinCameraInputRef,
   startWorkflow,
   selectWorkflow,
   activateWorkflowStep,
-  scanVinFromPhoto,
   setVin,
   setRentalInspectionKind,
   openWorkflowVinCamera,
@@ -436,18 +432,6 @@ export function WorkflowDashboard({
                     <div className="workflow-action-panel">
                       <strong>Get the VIN first.</strong>
                       <p className="context">Scan the dashboard or door-jamb VIN. If the scan misses, type it here and continue.</p>
-                      <input
-                        ref={workflowVinCameraInputRef}
-                        className="hidden-input"
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={(event) => {
-                          const file = event.target.files?.[0]
-                          event.target.value = ''
-                          if (file) scanVinFromPhoto(file)
-                        }}
-                      />
                       <label>
                         <span>VIN</span>
                         <input value={vin} onChange={(event) => setVin(event.target.value.toUpperCase())} placeholder="Scan or enter VIN" autoCapitalize="characters" />

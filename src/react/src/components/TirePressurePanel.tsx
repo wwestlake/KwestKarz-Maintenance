@@ -1,4 +1,4 @@
-import type { RefObject, FormEvent } from 'react'
+import type { FormEvent } from 'react'
 import type { TirePressureSnapshot } from '../types'
 
 type TirePsiForm = {
@@ -15,15 +15,12 @@ type Props = {
   tireLogForm: TirePsiForm
   tirePressureInsight: string
   loading: boolean
-  tireSpecCameraInputRef: RefObject<HTMLInputElement | null>
-  tireLogCameraInputRef: RefObject<HTMLInputElement | null>
   onSpecChange: (form: TirePsiForm) => void
   onLogChange: (form: TirePsiForm) => void
   onSpecSubmit: (event: FormEvent) => void
   onLogSubmit: (event: FormEvent) => void
-  onSpecPhotoChange: (file: File) => void
-  onLogPhotoChange: (file: File) => void
   onScanSpec: () => void
+  onScanLog: () => void
 }
 
 export function TirePressurePanel({
@@ -32,15 +29,12 @@ export function TirePressurePanel({
   tireLogForm,
   tirePressureInsight,
   loading,
-  tireSpecCameraInputRef,
-  tireLogCameraInputRef,
   onSpecChange,
   onLogChange,
   onSpecSubmit,
   onLogSubmit,
-  onSpecPhotoChange,
-  onLogPhotoChange,
   onScanSpec,
+  onScanLog,
 }: Props) {
   const specSummary = tirePressure.spec
     ? `FL ${tirePressure.spec.frontLeftPsi ?? '?'} / FR ${tirePressure.spec.frontRightPsi ?? '?'} / RL ${tirePressure.spec.rearLeftPsi ?? '?'} / RR ${tirePressure.spec.rearRightPsi ?? '?'} PSI`
@@ -52,31 +46,6 @@ export function TirePressurePanel({
         <h2>Tire Pressure</h2>
         <p>{specSummary}</p>
       </div>
-
-      <input
-        ref={tireSpecCameraInputRef}
-        className="hidden-input"
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          e.target.value = ''
-          if (file) onSpecPhotoChange(file)
-        }}
-      />
-      <input
-        ref={tireLogCameraInputRef}
-        className="hidden-input"
-        type="file"
-        accept="image/*"
-        capture="environment"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          e.target.value = ''
-          if (file) onLogPhotoChange(file)
-        }}
-      />
 
       <div className="tire-grid">
         <form className="tire-card" onSubmit={onSpecSubmit}>
@@ -112,7 +81,7 @@ export function TirePressurePanel({
         <form className="tire-card" onSubmit={onLogSubmit}>
           <div className="section-heading compact-heading">
             <h2>Actual Readings</h2>
-            <button className="secondary-button" type="button" disabled={loading} onClick={() => tireLogCameraInputRef.current?.click()}>
+            <button className="secondary-button" type="button" disabled={loading} onClick={onScanLog}>
               Scan Readings
             </button>
           </div>

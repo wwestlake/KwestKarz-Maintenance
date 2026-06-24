@@ -136,13 +136,13 @@ function App() {
   const [damageEstimateVendor, setDamageEstimateVendor] = useState('')
   const [damageRepairStatus, setDamageRepairStatus] = useState('Pending')
   const [workflowEvents, setWorkflowEvents] = useState<WorkflowEvent[]>([])
-  const vinCameraInputRef = useRef<HTMLInputElement | null>(null)
-  const workflowVinCameraInputRef = useRef<HTMLInputElement | null>(null)
   const workflowEditorRef = useRef<HTMLDivElement | null>(null)
-  const complianceCameraInputRef = useRef<HTMLInputElement | null>(null)
   const complianceFormRef = useRef<HTMLFormElement | null>(null)
-  const tireSpecCameraInputRef = useRef<HTMLInputElement | null>(null)
-  const tireLogCameraInputRef = useRef<HTMLInputElement | null>(null)
+  // Single shared native-camera fallback input, used when the in-app camera
+  // (getUserMedia) is unavailable. pendingPhotoHandlerRef carries the active
+  // scan's onPhoto handler across the native-camera round trip.
+  const fallbackCameraInputRef = useRef<HTMLInputElement | null>(null)
+  const pendingPhotoHandlerRef = useRef<((file: File) => void) | null>(null)
   const guidedVideoRef = useRef<HTMLVideoElement | null>(null)
   const guidedCanvasRef = useRef<HTMLCanvasElement | null>(null)
   const vinRecoveryActiveRef = useRef(false)
@@ -668,54 +668,66 @@ function App() {
   function openVinCamera() {
     localStorage.setItem(vinScanTargetStorageKey, 'inventory')
     openGuidedCamera({
-      mode: 'vin',
       title: 'Scan VIN',
       instructions: 'Align the VIN inside the narrow frame. Use the dashboard plate or door jamb label.',
       overlay: 'vin',
+      onPhoto: scanVinFromPhoto,
+      onCancel: clearVinScanPending,
     })
   }
 
   function openWorkflowVinCamera() {
     localStorage.setItem(vinScanTargetStorageKey, 'addVehicleWorkflow')
     openGuidedCamera({
-      mode: 'workflowVin',
       title: 'Scan VIN',
       instructions: 'Align the VIN inside the narrow frame. This will continue the Add Vehicle workflow.',
       overlay: 'vin',
+      onPhoto: scanVinFromPhoto,
+      onCancel: clearVinScanPending,
     })
   }
 
   function openComplianceCamera(recordType: string) {
     setComplianceScanType(recordType)
+    localStorage.setItem(complianceScanTypeStorageKey, recordType)
     openGuidedCamera({
-      mode: 'compliance',
-      recordType,
       title: `Scan ${formatComplianceType(recordType)}`,
       instructions: 'Align the document inside the frame. Use steady light and avoid glare.',
       overlay: 'document',
+      onPhoto: scanCompliancePhoto,
+      onCancel: clearComplianceScanPending,
+    })
+  }
+
+  function openTireSpecCamera() {
+    setShowTirePressurePanel(true)
+    localStorage.setItem(tirePanelStorageKey, 'true')
+    localStorage.setItem(tireSpecScanPendingStorageKey, 'true')
+    openGuidedCamera({
+      title: 'Scan Tire Plate',
+      instructions: 'Align the door-jamb tire pressure label inside the frame.',
+      overlay: 'label',
+      onPhoto: readTireSpecPhoto,
+      onCancel: () => localStorage.removeItem(tireSpecScanPendingStorageKey),
+    })
+  }
+
+  function openTireLogCamera() {
+    openGuidedCamera({
+      title: 'Scan Tire Readings',
+      instructions: 'Align the gauge or readout inside the frame.',
+      overlay: 'label',
+      onPhoto: readTireLogPhoto,
     })
   }
 
   function openNativeCapture(config: GuidedCaptureConfig) {
-    if (config.mode === 'workflowVin' && workflowVinCameraInputRef.current) {
-      workflowVinCameraInputRef.current.value = ''
-      workflowVinCameraInputRef.current.click()
-      closeGuidedCamera()
-      return
+    pendingPhotoHandlerRef.current = config.onPhoto
+    if (fallbackCameraInputRef.current) {
+      fallbackCameraInputRef.current.value = ''
+      fallbackCameraInputRef.current.click()
     }
-
-    if (config.mode === 'compliance' && complianceCameraInputRef.current) {
-      complianceCameraInputRef.current.value = ''
-      complianceCameraInputRef.current.click()
-      closeGuidedCamera()
-      return
-    }
-
-    if (vinCameraInputRef.current) {
-      vinCameraInputRef.current.value = ''
-      vinCameraInputRef.current.click()
-      closeGuidedCamera()
-    }
+    closeGuidedCamera()
   }
 
   function stopGuidedCamera() {
@@ -733,12 +745,7 @@ function App() {
   }
 
   function cancelGuidedCamera() {
-    if (guidedCapture?.mode === 'compliance') {
-      clearComplianceScanPending()
-    } else if (guidedCapture?.mode === 'vin' || guidedCapture?.mode === 'workflowVin') {
-      clearVinScanPending()
-    }
-
+    guidedCapture?.onCancel?.()
     setWorkingMessage('')
     setLoading(false)
     setMessage('Scan canceled')
@@ -833,14 +840,10 @@ function App() {
           return
         }
 
-        const file = new File([blob], `${config.mode}-${Date.now()}.jpg`, { type: 'image/jpeg' })
+        const file = new File([blob], `scan-${Date.now()}.jpg`, { type: 'image/jpeg' })
+        const handler = config.onPhoto
         closeGuidedCamera()
-
-        if (config.mode === 'compliance') {
-          scanCompliancePhoto(file)
-        } else {
-          scanVinFromPhoto(file)
-        }
+        handler(file)
       },
       'image/jpeg',
       0.92,
@@ -2019,9 +2022,9 @@ function App() {
     }
   }
 
-  async function uploadRentalInspectionPhoto(slotKey: string) {
+  async function uploadRentalInspectionPhoto(slotKey: string, capturedFile?: File) {
     if (!selectedWorkflow || selectedWorkflow.workflowType !== 'RentalInspection') return
-    const file = rentalInspectionPhotoFiles[slotKey]
+    const file = capturedFile ?? rentalInspectionPhotoFiles[slotKey]
     if (!file) {
       setMessage('Choose a photo before uploading.')
       return
@@ -2386,6 +2389,22 @@ function App() {
         />
       )}
 
+      {/* Single shared native-camera fallback for every scan in the app. */}
+      <input
+        ref={fallbackCameraInputRef}
+        className="hidden-input"
+        type="file"
+        accept="image/*"
+        capture="environment"
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.target.value = ''
+          const handler = pendingPhotoHandlerRef.current
+          pendingPhotoHandlerRef.current = null
+          if (file && handler) handler(file)
+        }}
+      />
+
       {activeArea === 'home' && (
         <section className="area-grid">
           <div className="panel area-panel">
@@ -2496,11 +2515,9 @@ function App() {
           damageEstimateVendor={damageEstimateVendor}
           damageRepairStatus={damageRepairStatus}
           workflowEditorRef={workflowEditorRef}
-          workflowVinCameraInputRef={workflowVinCameraInputRef}
           startWorkflow={startWorkflow}
           selectWorkflow={selectWorkflow}
           activateWorkflowStep={activateWorkflowStep}
-          scanVinFromPhoto={scanVinFromPhoto}
           setVin={setVin}
           setRentalInspectionKind={setRentalInspectionKind}
           openWorkflowVinCamera={openWorkflowVinCamera}
@@ -2814,18 +2831,6 @@ function App() {
               onChange={(event) => setVin(event.target.value.toUpperCase())}
               placeholder="Scan or enter VIN"
               autoCapitalize="characters"
-            />
-            <input
-              ref={vinCameraInputRef}
-              className="hidden-input"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                event.target.value = ''
-                if (file) scanVinFromPhoto(file)
-              }}
             />
             <button
               className="camera-button"
@@ -3206,24 +3211,20 @@ function App() {
                           View
                         </a>
                       )}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        capture="environment"
-                        onChange={(event) =>
-                          setRentalInspectionPhotoFiles({
-                            ...rentalInspectionPhotoFiles,
-                            [slotKey]: event.target.files?.[0] ?? null,
-                          })
-                        }
-                      />
                       <button
                         className="secondary-button"
                         type="button"
-                        disabled={loading || !rentalInspectionPhotoFiles[slotKey]}
-                        onClick={() => uploadRentalInspectionPhoto(slotKey)}
+                        disabled={loading}
+                        onClick={() =>
+                          openGuidedCamera({
+                            title: label,
+                            instructions: `Capture the ${label.toLowerCase()} photo for this inspection.`,
+                            overlay: 'document',
+                            onPhoto: (file) => uploadRentalInspectionPhoto(slotKey, file),
+                          })
+                        }
                       >
-                        {savedPhoto ? 'Replace Photo' : 'Upload Photo'}
+                        {savedPhoto ? 'Replace Photo' : 'Take Photo'}
                       </button>
                     </div>
                   )
@@ -3394,18 +3395,6 @@ function App() {
               </p>
             </div>
             {workingIndicator}
-            <input
-              ref={complianceCameraInputRef}
-              className="hidden-input"
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={(event) => {
-                const file = event.target.files?.[0]
-                event.target.value = ''
-                if (file) scanCompliancePhoto(file)
-              }}
-            />
             <div className="compliance-actions">
               {complianceTypes.map((type) => (
                 <button
@@ -3592,20 +3581,12 @@ function App() {
               tireLogForm={tireLogForm}
               tirePressureInsight={tirePressureInsight}
               loading={loading}
-              tireSpecCameraInputRef={tireSpecCameraInputRef}
-              tireLogCameraInputRef={tireLogCameraInputRef}
               onSpecChange={setTireSpecForm}
               onLogChange={setTireLogForm}
               onSpecSubmit={saveTireSpec}
               onLogSubmit={saveTireLog}
-              onSpecPhotoChange={readTireSpecPhoto}
-              onLogPhotoChange={readTireLogPhoto}
-              onScanSpec={() => {
-                setShowTirePressurePanel(true)
-                localStorage.setItem(tirePanelStorageKey, 'true')
-                localStorage.setItem(tireSpecScanPendingStorageKey, 'true')
-                tireSpecCameraInputRef.current?.click()
-              }}
+              onScanSpec={openTireSpecCamera}
+              onScanLog={openTireLogCamera}
             />
           )}
 
