@@ -1826,6 +1826,35 @@ function App() {
     }
   }
 
+  function jumpToWorkflowStep(workflow: WorkflowInstance, step: WorkflowStep) {
+    setSelectedWorkflowId(workflow.id)
+    setSelectedWorkflowStepKey(step.stepKey)
+    setWorkflowStepNotes(typeof step.data?.notes === 'string' ? step.data.notes : '')
+    setObd2ReportInsight(typeof step.data?.aiText === 'string' ? step.data.aiText : '')
+    setDamageEstimateAmount(typeof step.data?.estimateAmount === 'string' ? step.data.estimateAmount : '')
+    setDamageEstimateVendor(typeof step.data?.estimateVendor === 'string' ? step.data.estimateVendor : '')
+    setDamageRepairStatus(typeof step.data?.repairStatus === 'string' ? step.data.repairStatus : 'Pending')
+  }
+
+  async function pauseAndExitWorkflow() {
+    if (selectedWorkflow && selectedWorkflowStep && selectedWorkflowStep.status !== 'Complete') {
+      try {
+        setLoading(true)
+        const saved = await api.put<WorkflowInstance>(
+          `/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}`,
+          { status: 'InProgress', makeCurrent: true, data: { ...(selectedWorkflowStep.data ?? {}), notes: workflowStepNotes } },
+        )
+        setWorkflows((current) => current.map((w) => (w.id === saved.id ? saved : w)))
+      } catch { /* navigate out regardless */ } finally {
+        setLoading(false)
+      }
+    }
+    setSelectedWorkflowId('')
+    setSelectedWorkflowStepKey('')
+    localStorage.removeItem(selectedWorkflowStorageKey)
+    localStorage.removeItem(selectedWorkflowStepStorageKey)
+  }
+
   function selectWorkflow(workflow: WorkflowInstance) {
     setSelectedWorkflowId(workflow.id)
     setSelectedWorkflowStepKey(workflow.currentStepKey)
@@ -2643,6 +2672,8 @@ function App() {
           startWorkflow={startWorkflow}
           selectWorkflow={selectWorkflow}
           activateWorkflowStep={activateWorkflowStep}
+          jumpToStep={jumpToWorkflowStep}
+          pauseAndExit={pauseAndExitWorkflow}
           setVin={setVin}
           setRentalInspectionKind={setRentalInspectionKind}
           openWorkflowVinCamera={openWorkflowVinCamera}
