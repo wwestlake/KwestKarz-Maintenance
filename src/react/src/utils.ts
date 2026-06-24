@@ -97,6 +97,22 @@ export function normalizeState(value?: string) {
   return stateCodes[normalized] ?? normalized
 }
 
+export const US_STATE_CODES = [
+  'AK','AL','AR','AZ','CA','CO','CT','DC','DE','FL','GA','HI','IA','ID','IL','IN',
+  'KS','KY','LA','MA','MD','ME','MI','MN','MO','MS','MT','NC','ND','NE','NH','NJ',
+  'NM','NV','NY','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VA','VT','WA',
+  'WI','WV','WY',
+]
+
+export function computeFleetId(year: string, color: string, model: string, plate: string): string {
+  const yy = year.slice(-2)
+  const c = color.trim().charAt(0).toUpperCase()
+  const m = model.trim().charAt(0).toUpperCase()
+  const p = plate.toUpperCase().replace(/[^A-Z0-9]/g, '')
+  if (!yy || !c || !m || !p) return ''
+  return `${yy}${c}${m}-${p}`
+}
+
 export function complianceChecks(record: ComplianceRecord, dashboard: Dashboard) {
   const issues: string[] = []
   const ok: string[] = []

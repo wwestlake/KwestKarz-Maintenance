@@ -1705,6 +1705,107 @@ label span,
   border-top: 1px solid var(--border);
 }
 
+/* ── Add Vehicle Modal ──────────────────────────────────────────────────────── */
+.add-vehicle-panel {
+  background: var(--surface);
+  border-radius: var(--radius);
+  width: min(540px, 96vw);
+  max-height: 90dvh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  box-shadow: 0 8px 32px rgba(0,0,0,.18);
+}
+
+.add-veh-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.add-veh-header strong { font-size: 16px; color: var(--text); }
+
+.add-veh-scans {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 16px 20px 0;
+}
+
+.add-veh-scan-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+.add-veh-scan-btn:hover:not(:disabled) { border-color: var(--accent); background: var(--surface); }
+.add-veh-scan-icon { font-size: 22px; }
+
+.add-veh-message {
+  margin: 10px 20px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.add-veh-insurance-notes {
+  margin: 6px 20px 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.add-veh-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 20px;
+}
+
+.add-veh-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.add-veh-full { grid-column: 1 / -1; }
+
+.add-veh-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.add-veh-form label span { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+
+.add-veh-auto { font-style: italic; font-weight: 400; }
+
+.add-veh-fleet-preview {
+  margin-top: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.03em;
+}
+
+.add-veh-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+
 /* ── Workflow Redesign ──────────────────────────────────────────────────────── */
 .wf-start-panel { margin-bottom: 0; }
 

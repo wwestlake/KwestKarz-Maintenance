@@ -123,10 +123,14 @@ export function VinConfirmModal({
             <button type="button" disabled={loading} onClick={onOpenVehicle}>
               Open Vehicle
             </button>
-          ) : (
+          ) : confirm.scanTarget !== 'inventory' ? (
             <button type="button" disabled={loading || !confirm.checksumValid} onClick={onAddToFleet}>
               Add to Fleet
             </button>
+          ) : (
+            <span className="vin-confirm-check vin-check-warn">
+              Use "Add Vehicle" on the fleet list to add this vehicle.
+            </span>
           )}
         </div>
       </div>

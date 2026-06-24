@@ -6,6 +6,7 @@ import { GuidedCameraModal } from './components/GuidedCameraModal'
 import { VinConfirmModal } from './components/VinConfirmModal'
 import type { VinConfirm } from './components/VinConfirmModal'
 import { VehicleEditPanel } from './components/VehicleEditPanel'
+import { AddVehicleModal } from './components/AddVehicleModal'
 import { TuroImportPanel } from './components/TuroImportPanel'
 import { PendingApprovalsPanel } from './components/PendingApprovalsPanel'
 import { JobsPanel } from './components/JobsPanel'
@@ -32,7 +33,7 @@ import { useAuth } from './AuthContext'
 import {
   tryApplyReceiptDetails, extractVin, extractPressure, firstPressures,
   wait, formatComplianceType, complianceClass,
-  complianceChecks, validateVin,
+  complianceChecks, validateVin, US_STATE_CODES,
 } from './utils'
 import { lockBoxStyles, lockBoxStatuses, complianceTypes, rentalInspectionPhotoSlots } from './constants'
 
@@ -155,6 +156,7 @@ function App() {
   const [fleetPageSize, setFleetPageSize] = useState(10)
   const [fleetSearch, setFleetSearch] = useState('')
   const [lockBoxes, setLockBoxes] = useState<LockBox[]>([])
+  const [showAddVehicle, setShowAddVehicle] = useState(false)
   const [vin, setVin] = useState('')
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
   const [decoded, setDecoded] = useState<VinDecode | null>(null)
@@ -1370,19 +1372,7 @@ function App() {
       setActiveArea('vehicle')
       setMessage('Vehicle loaded')
     } catch {
-      setMessage('VIN not found. Decoding basics...')
-      const decode = await api.get<VinDecode>(`/api/vin/${encodeURIComponent(nextVin)}/decode`)
-      setDecoded(decode)
-      setActiveArea('vehicle')
-      setVehicleForm({
-        ...emptyVehicleForm,
-        vin: nextVin,
-        year: decode.year?.toString() ?? '',
-        make: decode.make ?? '',
-        model: decode.model ?? '',
-        trim: decode.trim ?? '',
-      })
-      setMessage('Decoded VIN. Confirm details to create the vehicle.')
+      setMessage(`VIN ${nextVin} not in fleet. Use "Add Vehicle" to add it.`)
     } finally {
       setLoading(false)
     }
@@ -1503,6 +1493,16 @@ function App() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function handleVehicleCreated(vehicle: Vehicle) {
+    setShowAddVehicle(false)
+    setVin(vehicle.vin)
+    localStorage.setItem(selectedVehicleStorageKey, vehicle.id)
+    await loadDashboard(vehicle.id)
+    await refreshVehicles()
+    setActiveArea('vehicle')
+    setMessage('Vehicle added to fleet')
   }
 
   async function logMaintenance(event: FormEvent) {
@@ -3023,7 +3023,7 @@ function App() {
       {activeArea === 'inventory' && (
       <section className="lookup-band">
         <form className="lookup-form" onSubmit={lookupVehicle}>
-          <label htmlFor="vin">VIN Lookup / Add Vehicle</label>
+          <label htmlFor="vin">Find Vehicle by VIN</label>
           <div className="lookup-row">
             <input
               id="vin"
@@ -3061,6 +3061,12 @@ function App() {
             <div className="heading-actions">
               <p>{vehicles.length} vehicles</p>
               <button
+                type="button"
+                onClick={() => setShowAddVehicle(true)}
+              >
+                + Add Vehicle
+              </button>
+              <button
                 className="secondary-button"
                 type="button"
                 onClick={() => {
@@ -3068,7 +3074,7 @@ function App() {
                   setEditingLockBoxId('')
                 }}
               >
-                {showLockBoxManager ? 'Hide Lock Boxes' : 'Manage Lock Boxes'}
+                {showLockBoxManager ? 'Hide Lock Boxes' : 'Lock Boxes'}
               </button>
             </div>
           </div>
@@ -3085,7 +3091,7 @@ function App() {
             />
           )}
           <div className="vehicle-list">
-            {vehicles.length === 0 && <p className="empty">No vehicles yet. Scan or enter a VIN to add one.</p>}
+            {vehicles.length === 0 && <p className="empty">No vehicles yet. Tap "+ Add Vehicle" to get started.</p>}
             {vehicles.length > 0 && filteredVehicles.length === 0 && (
               <p className="empty">No vehicles match "{fleetSearch}".</p>
             )}
@@ -3246,45 +3252,11 @@ function App() {
         </>
       )}
 
-      {activeArea === 'vehicle' && decoded && (
-        <section className="panel">
-          <div className="section-heading">
-            <h2>Create Vehicle</h2>
-            <p>{decoded.errorText}</p>
-          </div>
-          <form className="vehicle-form" onSubmit={createVehicle}>
-            {[
-              ['vin', 'VIN'],
-              ['year', 'Year'],
-              ['make', 'Make'],
-              ['model', 'Model'],
-              ['trim', 'Trim'],
-              ['color', 'Color'],
-              ['licensePlate', 'Plate'],
-              ['licensePlateState', 'State'],
-              ['currentOdometer', 'Odometer'],
-              ['fleetPositionNumber', 'Fleet #'],
-            ].map(([key, label]) => (
-              <label key={key}>
-                <span>{label}</span>
-                <input
-                  value={vehicleForm[key as keyof CreateVehicleForm]}
-                  onChange={(event) => setVehicleForm({ ...vehicleForm, [key]: event.target.value })}
-                />
-              </label>
-            ))}
-            <label className="wide">
-              <span>Notes</span>
-              <textarea
-                value={vehicleForm.notes}
-                onChange={(event) => setVehicleForm({ ...vehicleForm, notes: event.target.value })}
-              />
-            </label>
-            <button type="submit" disabled={loading}>
-              Create Vehicle
-            </button>
-          </form>
-        </section>
+      {showAddVehicle && (
+        <AddVehicleModal
+          onClose={() => setShowAddVehicle(false)}
+          onCreated={(vehicle) => void handleVehicleCreated(vehicle)}
+        />
       )}
 
       {activeArea === 'vehicle' && dashboard && (
@@ -3752,10 +3724,15 @@ function App() {
                 </label>
                 <label>
                   <span>State</span>
-                  <input
+                  <select
                     value={complianceForm.plateState}
-                    onChange={(event) => setComplianceForm({ ...complianceForm, plateState: event.target.value.toUpperCase() })}
-                  />
+                    onChange={(event) => setComplianceForm({ ...complianceForm, plateState: event.target.value })}
+                  >
+                    <option value="">— select —</option>
+                    {US_STATE_CODES.map((code) => (
+                      <option key={code} value={code}>{code}</option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   <span>VIN</span>
