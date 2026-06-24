@@ -1,6 +1,7 @@
 import type { FormEvent } from 'react'
 import type { EditVehicleForm } from '../types'
 import { vehicleStatuses } from '../constants'
+import { US_STATE_CODES } from '../utils'
 
 type Props = {
   form: EditVehicleForm
@@ -38,12 +39,15 @@ export function VehicleEditPanel({ form, loading, onChange, onSubmit, onCancel }
         </label>
         <label>
           <span>Plate State</span>
-          <input
+          <select
             value={form.licensePlateState}
-            maxLength={2}
-            onChange={(e) => onChange({ ...form, licensePlateState: e.target.value.toUpperCase() })}
-            placeholder="e.g. TX"
-          />
+            onChange={(e) => onChange({ ...form, licensePlateState: e.target.value })}
+          >
+            <option value="">— select —</option>
+            {US_STATE_CODES.map((code) => (
+              <option key={code} value={code}>{code}</option>
+            ))}
+          </select>
         </label>
         <label>
           <span>Status</span>
