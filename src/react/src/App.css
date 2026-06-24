@@ -1257,6 +1257,109 @@ label span,
 .fleet-panel { max-width: 980px; }
 .assign-row  { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
 
+/* ── VIN Confirm Modal ──────────────────────────────────────────────────────── */
+.vin-confirm-panel {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  width: min(480px, 96vw);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.vin-confirm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.vin-confirm-header strong { font-size: 16px; color: var(--text); }
+
+.vin-confirm-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.vin-confirm-raw {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.vin-confirm-raw code {
+  font-family: monospace;
+  background: var(--border);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.vin-confirm-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vin-confirm-label span { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+
+.vin-confirm-input {
+  font-family: monospace;
+  font-size: 18px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.vin-confirm-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  margin: 0;
+}
+
+.vin-check-ok   { background: rgba(58,158,98,0.12);  color: #3a9e62; }
+.vin-check-warn { background: rgba(212,160,23,0.12); color: #d4a017; }
+
+.vin-confirm-result {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+}
+
+.vin-result-found   { border-color: #3a9e62; background: rgba(58,158,98,0.07); }
+.vin-result-missing { border-color: var(--border); }
+
+.vin-result-icon { font-size: 20px; line-height: 1; flex-shrink: 0; }
+.vin-result-found .vin-result-icon { color: #3a9e62; }
+
+.vin-confirm-result > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vin-confirm-result strong { font-size: 14px; color: var(--text); }
+.vin-confirm-result span   { font-size: 12px; color: var(--text-secondary); }
+
+.vin-confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+
 /* ── Workflow Redesign ──────────────────────────────────────────────────────── */
 .wf-start-panel { margin-bottom: 0; }
 
