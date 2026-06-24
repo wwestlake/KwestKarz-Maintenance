@@ -25,7 +25,7 @@ import type {
   InspectionReport, TireFleetAlert,
   VinDecode, CreateVehicleForm, EditVehicleForm, NotifLogEntry,
 } from './types'
-import { api } from './api'
+import { api, getAuthHeaders } from './api'
 import { useAuth } from './AuthContext'
 import {
   tryApplyReceiptDetails, extractVin, extractPressure, firstPressures,
@@ -605,6 +605,7 @@ function App() {
 
     const response = await fetch(`/api/vehicles/${vehicleId}/documents`, {
       method: 'POST',
+      headers: await getAuthHeaders(),
       body: form,
     })
 
@@ -940,6 +941,7 @@ function App() {
     try {
       const response = await fetch(`/api/vehicles/${vehicleId}/compliance/photo-jobs/recheck`, {
         method: 'POST',
+        headers: await getAuthHeaders(),
       })
 
       if (!response.ok) throw new Error(await response.text())
@@ -981,6 +983,7 @@ function App() {
 
       const response = await fetch(`/api/vehicles/${vehicleId}/compliance/photo-jobs`, {
         method: 'POST',
+        headers: await getAuthHeaders(),
         body: form,
       })
 
@@ -1303,12 +1306,14 @@ function App() {
       form.append('clientId', clientId)
       if (localStorage.getItem(vinScanPendingStorageKey) !== 'true') markVinScanPending()
 
+      const authHeaders = await getAuthHeaders()
       const scanAbort = new AbortController()
-      const scanTimeout = setTimeout(() => scanAbort.abort(), 30_000)
+      const scanTimeout = setTimeout(() => scanAbort.abort(), 60_000)
       let response: Response
       try {
         response = await fetch('/api/vin/scan-photo', {
           method: 'POST',
+          headers: authHeaders,
           body: form,
           signal: scanAbort.signal,
         })
@@ -1430,7 +1435,7 @@ function App() {
 
         const response = await fetch(
           `/api/vehicles/${dashboard.vehicle.id}/maintenance/${record.id}/receipt`,
-          { method: 'POST', body: form },
+          { method: 'POST', headers: await getAuthHeaders(), body: form },
         )
 
         if (!response.ok) throw new Error(await response.text())
@@ -1470,6 +1475,7 @@ function App() {
 
       const response = await fetch('/api/ai/interpret-image', {
         method: 'POST',
+        headers: await getAuthHeaders(),
         body: form,
       })
 
@@ -1506,6 +1512,7 @@ function App() {
 
       const response = await fetch(`/api/vehicles/${dashboard.vehicle.id}/tire-pressure/spec/photo`, {
         method: 'POST',
+        headers: await getAuthHeaders(),
         body: form,
       })
 
@@ -1564,7 +1571,7 @@ function App() {
         'Read actual tire pressure readings from this image. Return PSI values using labels frontLeftPsi, frontRightPsi, rearLeftPsi, rearRightPsi. If only handwritten/listed values are visible, infer positions from labels if possible.',
       )
 
-      const response = await fetch('/api/ai/interpret-image', { method: 'POST', body: form })
+      const response = await fetch('/api/ai/interpret-image', { method: 'POST', headers: await getAuthHeaders(), body: form })
       if (!response.ok) throw new Error(await response.text())
 
       const ai = (await response.json()) as AIResponse
@@ -2034,6 +2041,7 @@ function App() {
 
       const response = await fetch(`/api/workflows/${selectedWorkflow.id}/rental-inspection/photos/${slotKey}`, {
         method: 'POST',
+        headers: await getAuthHeaders(),
         body: form,
       })
 
@@ -2180,6 +2188,7 @@ function App() {
       form.append('file', turoImportFile)
       const response = await fetch('/api/imports/turo-trip-earnings', {
         method: 'POST',
+        headers: await getAuthHeaders(),
         body: form,
       })
       if (!response.ok) throw new Error(await response.text())
@@ -2232,6 +2241,7 @@ function App() {
 
       const response = await fetch(`/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}/obd2-report`, {
         method: 'POST',
+        headers: await getAuthHeaders(),
         body: form,
       })
 
@@ -2264,7 +2274,7 @@ function App() {
 
       const response = await fetch(
         `/api/vehicles/${selectedWorkflow.vehicleId}/documents/receipt`,
-        { method: 'POST', body: form },
+        { method: 'POST', headers: await getAuthHeaders(), body: form },
       )
       if (!response.ok) throw new Error(await response.text())
 

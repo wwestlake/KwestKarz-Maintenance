@@ -1,6 +1,6 @@
 import { auth } from './firebase'
 
-const getAuthHeaders = async (): Promise<Record<string, string>> => {
+export const getAuthHeaders = async (): Promise<Record<string, string>> => {
   const headers: Record<string, string> = {}
   const user = auth.currentUser
   if (user) {
