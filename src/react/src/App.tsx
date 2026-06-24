@@ -1052,7 +1052,6 @@ function App() {
     setActiveArea('vehicle')
     setLoading(true)
     setMessage('Loading vehicle...')
-    setDecoded(null)
     setVin(vehicle.vin)
     setShowMaintenanceForm(false)
     localStorage.setItem(selectedVehicleStorageKey, vehicle.id)
@@ -1339,7 +1338,6 @@ function App() {
     setLoading(true)
     setMessage('Looking up vehicle...')
     setDashboard(null)
-    setDecoded(null)
     setVin(nextVin)
 
     try {
