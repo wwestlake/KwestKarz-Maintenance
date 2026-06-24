@@ -1257,6 +1257,351 @@ label span,
 .fleet-panel { max-width: 980px; }
 .assign-row  { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
 
+/* ── Workflow Wizard ────────────────────────────────────────────────────────── */
+.wf-wiz {
+  max-width: 720px;
+  margin: 0 auto;
+  padding-bottom: 40px;
+}
+
+.wf-wiz-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 14px clamp(16px, 4vw, 32px);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.wf-wiz-header-left { display: flex; flex-direction: column; gap: 2px; }
+.wf-wiz-title       { font-size: 14px; font-weight: 700; color: var(--text); }
+.wf-wiz-step-count  { font-size: 12px; color: var(--text-secondary); }
+
+.wf-wiz-pause {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: auto;
+}
+.wf-wiz-pause:hover:not(:disabled) { border-color: var(--text-secondary); color: var(--text); }
+
+/* Progress dots */
+.wf-wiz-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px clamp(16px, 4vw, 32px);
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.wf-wiz-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  min-height: auto;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.wf-wiz-dot:hover:not(:disabled) { border-color: var(--accent); }
+.wf-wiz-dot--done    { background: var(--accent); border-color: var(--accent); }
+.wf-wiz-dot--current { background: var(--text); border-color: var(--text); transform: scale(1.3); }
+.wf-wiz-dot--review  { background: #d4a017; border-color: #d4a017; }
+.wf-wiz-pct          { font-size: 12px; font-weight: 700; color: var(--accent); margin-left: 6px; }
+
+/* Body */
+.wf-wiz-body {
+  padding: clamp(16px, 4vw, 32px);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.wf-wiz-step-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.wf-wiz-step-title { font-size: 22px; font-weight: 700; margin: 0; color: var(--text); }
+
+.wf-wiz-status {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 12px;
+  background: var(--border);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.wf-wiz-status--complete    { background: rgba(58,158,98,0.15);  color: #3a9e62; }
+.wf-wiz-status--inprogress  { background: rgba(74,158,106,0.15); color: var(--accent); }
+.wf-wiz-status--needsreview { background: rgba(212,160,23,0.15); color: #d4a017; }
+
+/* Instruction box */
+.wf-wiz-instruction {
+  background: rgba(74, 158, 106, 0.07);
+  border: 1px solid rgba(74, 158, 106, 0.25);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wf-wiz-instruction-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+}
+
+.wf-wiz-instruction-text {
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--text);
+  margin: 0;
+}
+
+/* Checklist */
+.wf-wiz-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wf-wiz-checks-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.wf-wiz-check-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  color: var(--text);
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.wf-wiz-check-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+
+/* Inputs */
+.wf-wiz-inputs { display: flex; flex-direction: column; gap: 12px; }
+
+.wf-wiz-vin-input {
+  font-family: monospace;
+  font-size: 20px;
+  letter-spacing: 3px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.wf-wiz-input-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wf-wiz-notes-label { display: flex; flex-direction: column; gap: 6px; }
+.wf-wiz-notes-label span { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+.wf-wiz-notes-label textarea { min-height: 80px; resize: vertical; }
+
+/* Actions */
+.wf-wiz-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.wf-wiz-go-btn {
+  font-size: 16px;
+  font-weight: 700;
+  padding: 14px 20px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  width: 100%;
+}
+.wf-wiz-go-btn:hover:not(:disabled) { opacity: 0.9; }
+.wf-wiz-go-btn:disabled              { opacity: 0.5; cursor: not-allowed; }
+
+.wf-wiz-done-btn {
+  font-size: 16px;
+  font-weight: 700;
+  padding: 14px 20px;
+  width: 100%;
+}
+
+.wf-wiz-secondary-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wf-wiz-secondary-actions button { flex: 1; }
+
+.wf-wiz-workflow-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.wf-wiz-workflow-actions button { flex: 1; }
+
+/* Prev/Next nav */
+.wf-wiz-nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px clamp(16px, 4vw, 32px);
+  border-top: 1px solid var(--border);
+}
+
+.wf-wiz-nav button { flex: 1; font-size: 13px; }
+
+/* Event timeline */
+.wf-wiz-timeline {
+  padding: clamp(16px, 4vw, 32px);
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.wf-wiz-timeline summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-weight: 600;
+  padding: 4px 0;
+  list-style: none;
+}
+.wf-wiz-timeline summary::-webkit-details-marker { display: none; }
+.wf-wiz-timeline summary::before       { content: '▶  '; font-size: 10px; }
+.wf-wiz-timeline[open] summary::before { content: '▼  '; }
+
+/* Start New toggle */
+.wf-start-toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 14px clamp(16px, 4vw, 40px);
+  background: transparent;
+  border: none;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  min-height: auto;
+}
+.wf-start-toggle:hover:not(:disabled) { background: rgba(255,255,255,0.03); }
+.wf-start-toggle-hint { font-size: 12px; font-weight: 400; color: var(--text-secondary); }
+
+/* Workflow cards (list mode) */
+.wf-card-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px clamp(16px, 4vw, 40px) 16px;
+}
+
+.wf-card-list--completed { opacity: 0.75; }
+
+.wf-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  transition: border-color 0.12s;
+}
+
+.wf-card--selected { border-color: var(--accent); }
+.wf-card:hover     { border-color: var(--accent); }
+
+.wf-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wf-card-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wf-card-step {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wf-card-bar-wrap {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.wf-card-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+.wf-card-pct { font-size: 11px; color: var(--text-secondary); }
+
+.wf-card-resume {
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+  min-height: auto;
+  padding: 8px 16px;
+}
+
 /* ── VIN Confirm Modal ──────────────────────────────────────────────────────── */
 .vin-confirm-panel {
   background: var(--surface);
