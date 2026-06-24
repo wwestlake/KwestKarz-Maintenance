@@ -3,6 +3,8 @@ import type { FormEvent } from 'react'
 import './App.css'
 import { WorkflowDashboard } from './components/WorkflowDashboard'
 import { GuidedCameraModal } from './components/GuidedCameraModal'
+import { VinConfirmModal } from './components/VinConfirmModal'
+import type { VinConfirm } from './components/VinConfirmModal'
 import { VehicleEditPanel } from './components/VehicleEditPanel'
 import { TuroImportPanel } from './components/TuroImportPanel'
 import { PendingApprovalsPanel } from './components/PendingApprovalsPanel'
@@ -30,7 +32,7 @@ import { useAuth } from './AuthContext'
 import {
   tryApplyReceiptDetails, extractVin, extractPressure, firstPressures,
   wait, formatComplianceType, complianceClass,
-  complianceChecks,
+  complianceChecks, validateVin,
 } from './utils'
 import { lockBoxStyles, lockBoxStatuses, complianceTypes, rentalInspectionPhotoSlots } from './constants'
 
@@ -253,6 +255,7 @@ function App() {
   const [message, setMessage] = useState('Ready')
   const [workingMessage, setWorkingMessage] = useState('')
   const [loading, setLoading] = useState(false)
+  const [vinConfirm, setVinConfirm] = useState<VinConfirm | null>(null)
   const [guidedCapture, setGuidedCapture] = useState<GuidedCaptureConfig | null>(null)
   const [guidedStream, setGuidedStream] = useState<MediaStream | null>(null)
   const [guidedPhotoUrl, setGuidedPhotoUrl] = useState('')
@@ -778,6 +781,12 @@ function App() {
         audio: false,
       })
 
+      // Request continuous autofocus on browsers that support it (Chrome/Android)
+      try {
+        const track = stream.getVideoTracks()[0]
+        if (track) await track.applyConstraints({ advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet] })
+      } catch { /* focusMode not supported on this browser — ignore */ }
+
       setGuidedStream(stream)
       setGuidedCameraStarting(false)
       window.setTimeout(() => {
@@ -1173,26 +1182,105 @@ function App() {
     clearVinScanPending()
     setWorkingMessage('')
     setVin(scannedVin)
-    setMessage(`VIN read: ${scannedVin}`)
 
+    const checkResult = validateVin(scannedVin)
+
+    setLoading(true)
+    setMessage('Checking fleet…')
     try {
-      if (scanTarget === 'addVehicleWorkflow' || scanTarget === 'inventory') {
-        if (scanTarget === 'addVehicleWorkflow') {
-          try {
-            await saveAddVehicleWorkflowVin(scannedVin)
-          } catch {
-            localStorage.removeItem(selectedWorkflowStorageKey)
-            localStorage.removeItem(selectedWorkflowStepStorageKey)
-            setSelectedWorkflowId('')
-            setSelectedWorkflowStepKey('')
-          }
-        }
-        setActiveArea('inventory')
+      let foundVehicle: Vehicle | null = null
+      let decoded: VinDecode | null = null
+      try {
+        foundVehicle = await api.get<Vehicle>(`/api/vehicles/by-vin/${encodeURIComponent(scannedVin)}`)
+      } catch {
+        try {
+          decoded = await api.get<VinDecode>(`/api/vin/${encodeURIComponent(scannedVin)}/decode`)
+        } catch { /* decode failed — show confirm anyway */ }
       }
-      await lookupVehicleByVin(scannedVin)
+      setVinConfirm({
+        rawVin: scannedVin,
+        correctedVin: scannedVin,
+        foundVehicle,
+        decoded,
+        checksumValid: checkResult.valid,
+        checksumReason: checkResult.reason,
+        scanTarget: scanTarget ?? 'inventory',
+      })
+      setMessage(foundVehicle ? 'Found in fleet — confirm to open' : 'VIN not in fleet — review before adding')
     } catch (error) {
-      setMessage(error instanceof Error ? `VIN read, but lookup failed: ${error.message}` : 'VIN read, but lookup failed')
+      setMessage(error instanceof Error ? `Fleet check failed: ${error.message}` : 'Fleet check failed')
+    } finally {
+      setLoading(false)
     }
+  }
+
+  async function confirmVinOpenVehicle() {
+    const confirm = vinConfirm
+    if (!confirm?.foundVehicle) return
+    setVinConfirm(null)
+    if (confirm.scanTarget === 'addVehicleWorkflow') {
+      try { await saveAddVehicleWorkflowVin(confirm.correctedVin) } catch {
+        localStorage.removeItem(selectedWorkflowStorageKey)
+        localStorage.removeItem(selectedWorkflowStepStorageKey)
+        setSelectedWorkflowId('')
+        setSelectedWorkflowStepKey('')
+      }
+    }
+    localStorage.setItem(selectedVehicleStorageKey, confirm.foundVehicle.id)
+    await loadDashboard(confirm.foundVehicle.id)
+    setActiveArea('vehicle')
+    setMessage('Vehicle loaded')
+  }
+
+  function confirmVinAddToFleet() {
+    const confirm = vinConfirm
+    if (!confirm) return
+    const vinToUse = confirm.correctedVin.trim().toUpperCase()
+    setVinConfirm(null)
+    setVin(vinToUse)
+    setDecoded(confirm.decoded)
+    setVehicleForm({
+      ...emptyVehicleForm,
+      vin: vinToUse,
+      year: confirm.decoded?.year?.toString() ?? '',
+      make: confirm.decoded?.make ?? '',
+      model: confirm.decoded?.model ?? '',
+      trim: confirm.decoded?.trim ?? '',
+    })
+    setActiveArea('inventory')
+    setMessage('Fill in vehicle details to add to fleet.')
+  }
+
+  async function confirmVinRecheck(newVin: string) {
+    const confirm = vinConfirm
+    if (!confirm) return
+    const v = newVin.trim().toUpperCase()
+    const checkResult = validateVin(v)
+    setLoading(true)
+    setMessage('Rechecking fleet…')
+    try {
+      let foundVehicle: Vehicle | null = null
+      let decoded: VinDecode | null = null
+      try {
+        foundVehicle = await api.get<Vehicle>(`/api/vehicles/by-vin/${encodeURIComponent(v)}`)
+      } catch {
+        try {
+          decoded = await api.get<VinDecode>(`/api/vin/${encodeURIComponent(v)}/decode`)
+        } catch { /* ignore */ }
+      }
+      setVin(v)
+      setVinConfirm({ ...confirm, correctedVin: v, foundVehicle, decoded, checksumValid: checkResult.valid, checksumReason: checkResult.reason })
+      setMessage(foundVehicle ? 'Found in fleet — confirm to open' : 'VIN not in fleet')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Recheck failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function dismissVinConfirm() {
+    setVinConfirm(null)
+    setMessage('VIN scan dismissed.')
   }
 
   async function readLatestVinScan(clientId: string, allowAnyClient: boolean) {
@@ -2380,6 +2468,18 @@ function App() {
           <span className="spinner" aria-hidden="true" />
           <span>{workingMessage}</span>
         </div>
+      )}
+
+      {vinConfirm && (
+        <VinConfirmModal
+          confirm={vinConfirm}
+          loading={loading}
+          onOpenVehicle={confirmVinOpenVehicle}
+          onAddToFleet={confirmVinAddToFleet}
+          onRecheck={confirmVinRecheck}
+          onScanAgain={() => { dismissVinConfirm(); openVinCamera() }}
+          onDismiss={dismissVinConfirm}
+        />
       )}
 
       {guidedCapture && (

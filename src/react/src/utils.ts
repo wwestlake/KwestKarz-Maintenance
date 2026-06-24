@@ -14,6 +14,26 @@ export function extractVin(text: string) {
   return compact.match(/[A-HJ-NPR-Z0-9]{17}/)?.[0] ?? ''
 }
 
+const VIN_XLAT: Record<string, number> = {
+  '0':0,'1':1,'2':2,'3':3,'4':4,'5':5,'6':6,'7':7,'8':8,'9':9,
+  'A':1,'B':2,'C':3,'D':4,'E':5,'F':6,'G':7,'H':8,
+  'J':1,'K':2,'L':3,'M':4,'N':5,'P':7,'R':9,
+  'S':2,'T':3,'U':4,'V':5,'W':6,'X':7,'Y':8,'Z':9,
+}
+const VIN_WEIGHTS = [8,7,6,5,4,3,2,10,0,9,8,7,6,5,4,3,2]
+
+export function validateVin(vin: string): { valid: boolean; reason?: string } {
+  const v = vin.trim().toUpperCase()
+  if (v.length !== 17) return { valid: false, reason: `${v.length} of 17 characters` }
+  if (/[IOQ]/.test(v)) return { valid: false, reason: 'contains I, O, or Q (not allowed in VINs — possible misread)' }
+  if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(v)) return { valid: false, reason: 'contains invalid characters' }
+  const sum = v.split('').reduce((acc, ch, i) => acc + (VIN_XLAT[ch] ?? 0) * VIN_WEIGHTS[i], 0)
+  const rem = sum % 11
+  const expected = rem === 10 ? 'X' : rem.toString()
+  if (v[8] !== expected) return { valid: false, reason: `check digit should be ${expected}, got ${v[8]} — possible misread` }
+  return { valid: true }
+}
+
 export function pressureValue(value: unknown) {
   if (typeof value === 'number' && value >= 15 && value <= 80) return value
   if (typeof value !== 'string') return undefined
