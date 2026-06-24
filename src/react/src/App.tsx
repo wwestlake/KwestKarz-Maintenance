@@ -2332,23 +2332,23 @@ function App() {
       <header className="topbar">
         <div>
           <p className="eyebrow">KwestKarz Maintenance</p>
-          <h1>{areaTitles[activeArea]}</h1>
+          <h1>{activeArea === 'vehicle' ? areaTitles['inventory'] : areaTitles[activeArea]}</h1>
         </div>
         <span className={loading ? 'status busy' : 'status'}>{message}</span>
       </header>
       <nav className="app-nav" aria-label="Main areas">
         {[
-          ...baseAreas.slice(0, -1).flatMap((area) =>
-            area.id === 'inventory' && dashboard
-              ? [area, { id: 'vehicle' as AppArea, label: vehicleTitle || 'Vehicle' }]
-              : [area],
-          ),
+          ...baseAreas.slice(0, -1),
           ...(profile?.role === 'admin' ? [{ id: 'users' as AppArea, label: 'Users' }] : []),
           baseAreas[baseAreas.length - 1],
         ].map((area) => (
           <button
             key={area.id}
-            className={activeArea === area.id ? 'nav-button selected' : 'nav-button'}
+            className={
+              activeArea === area.id || (area.id === 'inventory' && activeArea === 'vehicle')
+                ? 'nav-button selected'
+                : 'nav-button'
+            }
             type="button"
             onClick={() => setActiveArea(area.id)}
           >
@@ -2832,6 +2832,16 @@ function App() {
 
       {(activeArea === 'inventory' || activeArea === 'vehicle') && (
         <>
+      {activeArea === 'vehicle' && (
+        <div className="vehicle-back-bar">
+          <button className="back-link" type="button" onClick={() => setActiveArea('inventory')}>
+            ← Fleet List
+          </button>
+          {dashboard && (
+            <span className="vehicle-back-title">{vehicleTitle}</span>
+          )}
+        </div>
+      )}
       {activeArea === 'inventory' && (
       <section className="lookup-band">
         <form className="lookup-form" onSubmit={lookupVehicle}>
@@ -3107,9 +3117,6 @@ function App() {
                 <h2>{vehicleTitle}</h2>
                 <p>{dashboard.vehicle.vin}</p>
               </div>
-              <button className="secondary-button" type="button" onClick={() => setActiveArea('inventory')}>
-                ‹ Inventory
-              </button>
               <button className="secondary-button" type="button" onClick={startEditingVehicle}>
                 Edit Vehicle
               </button>
