@@ -1587,6 +1587,7 @@ function App() {
         notes: [current.notes, `Receipt readout:\n${ai.text}`].filter(Boolean).join('\n\n'),
       }))
       setMessage('Receipt read. Review fields before saving.')
+      await tryOfferDocumentVin(ai.text)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not read receipt')
     } finally {
@@ -2352,6 +2353,36 @@ function App() {
     }
   }
 
+  async function tryOfferDocumentVin(aiText: string) {
+    const rawVin = extractVin(aiText)
+    if (!rawVin) return
+    const check = validateVin(rawVin)
+    if (!check.valid) return
+    // Silent if the VIN already matches the current vehicle
+    if (dashboard?.vehicle.vin === rawVin) {
+      setMessage((prev) => `${prev} · VIN on document matches this vehicle ✓`)
+      return
+    }
+    // Look up in fleet and offer the confirm modal
+    try {
+      let foundVehicle: Vehicle | null = null
+      let decoded: VinDecode | null = null
+      try {
+        foundVehicle = await api.get<Vehicle>(`/api/vehicles/by-vin/${encodeURIComponent(rawVin)}`)
+      } catch {
+        try { decoded = await api.get<VinDecode>(`/api/vin/${encodeURIComponent(rawVin)}/decode`) } catch { /* ignore */ }
+      }
+      setVinConfirm({
+        rawVin,
+        correctedVin: rawVin,
+        foundVehicle,
+        decoded,
+        checksumValid: true,
+        scanTarget: 'documentScan',
+      })
+    } catch { /* ignore — document VIN offer is best-effort */ }
+  }
+
   async function uploadObd2Report() {
     if (!selectedWorkflow || !selectedWorkflowStep || !obd2ReportFile) return
 
@@ -2378,6 +2409,7 @@ function App() {
       setObd2ReportFile(null)
       setObd2ReportInsight(result.aiText)
       setMessage('OBD2 report read. Review the findings.')
+      await tryOfferDocumentVin(result.aiText)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not read OBD2 report')
     } finally {
@@ -2407,6 +2439,7 @@ function App() {
       setWorkflowReceiptDocumentId(result.document.id)
       setWorkflowStepNotes([workflowStepNotes, `Receipt readout:\n${result.aiText}`].filter(Boolean).join('\n\n'))
       setMessage('Receipt stored and read. Review and save step.')
+      await tryOfferDocumentVin(result.aiText)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not read receipt')
     } finally {
