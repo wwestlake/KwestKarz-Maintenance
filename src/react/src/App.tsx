@@ -1331,12 +1331,26 @@ function App() {
   }
 
   async function recoverVinScanNow() {
-    getVinScanClientId()
-    localStorage.setItem(vinScanPendingStorageKey, 'true')
-    localStorage.setItem(vinScanTargetStorageKey, isAddVehicleVinStep ? 'addVehicleWorkflow' : 'inventory')
+    const clientId = getVinScanClientId()
+    setLoading(true)
     setMessage('Checking last VIN scan...')
     setWorkingMessage('Checking last VIN scan...')
-    await recoverLatestVinScan(true, true)
+    try {
+      const latest = await readLatestVinScan(clientId, true)
+      const scannedVin = latest.vin?.trim().toUpperCase()
+      if (scannedVin) {
+        localStorage.setItem(vinScanTargetStorageKey, isAddVehicleVinStep ? 'addVehicleWorkflow' : 'inventory')
+        await applyScannedVin(scannedVin)
+      } else {
+        setMessage('No recent VIN scan found. Scan a VIN first.')
+        setWorkingMessage('')
+      }
+    } catch {
+      setMessage('Could not retrieve last scan. Try scanning again.')
+      setWorkingMessage('')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function lookupVehicleByVin(vinToLookup: string) {
