@@ -621,6 +621,42 @@ label span,
 .vehicle-list-item.selected-row { border-color: var(--teal-dark); background: var(--surface-hover); }
 .vehicle-list-item small    { color: var(--text-muted); }
 
+.fleet-search {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 15px;
+}
+
+.fleet-pager {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.fleet-pager-status {
+  color: var(--text-muted);
+  font-size: 13px;
+  min-width: 110px;
+  text-align: center;
+}
+
+.fleet-page-size {
+  margin-left: auto;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
 /* ── Lock boxes ─────────────────────────────────────────────────────────────── */
 .lockbox-list {
   display: grid;

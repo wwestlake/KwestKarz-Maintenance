@@ -60,6 +60,7 @@ const workflowCatalog = [
 const areaTitles: Record<AppArea, string> = {
   home: 'Today',
   inventory: 'Inventory',
+  vehicle: 'Vehicle',
   workflows: 'Workflows',
   jobs: 'Jobs',
   ledger: 'Ledger',
@@ -148,6 +149,9 @@ function App() {
   const vinRecoveryActiveRef = useRef(false)
   const complianceRecoveryActiveRef = useRef(false)
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [fleetPage, setFleetPage] = useState(0)
+  const [fleetPageSize, setFleetPageSize] = useState(10)
+  const [fleetSearch, setFleetSearch] = useState('')
   const [lockBoxes, setLockBoxes] = useState<LockBox[]>([])
   const [vin, setVin] = useState('')
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
@@ -1048,7 +1052,7 @@ function App() {
   }
 
   async function openVehicle(vehicle: Vehicle) {
-    setActiveArea('inventory')
+    setActiveArea('vehicle')
     setLoading(true)
     setMessage('Loading vehicle...')
     setDecoded(null)
@@ -1064,22 +1068,6 @@ function App() {
     } finally {
       setLoading(false)
     }
-  }
-
-  function showFleet() {
-    setActiveArea('inventory')
-    setDashboard(null)
-    setDecoded(null)
-    setVin('')
-    setShowMaintenanceForm(false)
-    setShowEditVehicle(false)
-    setShowTirePressurePanel(false)
-    setShowLockBoxManager(false)
-    setEditingLockBoxId('')
-    setEditingComplianceId('')
-    localStorage.removeItem(selectedVehicleStorageKey)
-    localStorage.removeItem(tirePanelStorageKey)
-    setMessage('Ready')
   }
 
   function startEditingVehicle() {
@@ -1277,11 +1265,13 @@ function App() {
       const vehicle = await api.get<Vehicle>(`/api/vehicles/by-vin/${encodeURIComponent(nextVin)}`)
       localStorage.setItem(selectedVehicleStorageKey, vehicle.id)
       await loadDashboard(vehicle.id)
+      setActiveArea('vehicle')
       setMessage('Vehicle loaded')
     } catch {
       setMessage('VIN not found. Decoding basics...')
       const decode = await api.get<VinDecode>(`/api/vin/${encodeURIComponent(nextVin)}/decode`)
       setDecoded(decode)
+      setActiveArea('vehicle')
       setVehicleForm({
         ...emptyVehicleForm,
         vin: nextVin,
@@ -2320,6 +2310,23 @@ function App() {
     }
   }
 
+  const fleetQuery = fleetSearch.trim().toLowerCase()
+  const filteredVehicles = fleetQuery
+    ? vehicles.filter((v) =>
+        [v.vin, v.make, v.model, v.year, v.fleetPositionNumber, v.licensePlate, v.status]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(fleetQuery),
+      )
+    : vehicles
+  const fleetPageCount = Math.max(1, Math.ceil(filteredVehicles.length / fleetPageSize))
+  const safeFleetPage = Math.min(Math.max(fleetPage, 0), fleetPageCount - 1)
+  const pagedVehicles = filteredVehicles.slice(
+    safeFleetPage * fleetPageSize,
+    safeFleetPage * fleetPageSize + fleetPageSize,
+  )
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -2331,7 +2338,11 @@ function App() {
       </header>
       <nav className="app-nav" aria-label="Main areas">
         {[
-          ...baseAreas.slice(0, -1),
+          ...baseAreas.slice(0, -1).flatMap((area) =>
+            area.id === 'inventory' && dashboard
+              ? [area, { id: 'vehicle' as AppArea, label: vehicleTitle || 'Vehicle' }]
+              : [area],
+          ),
           ...(profile?.role === 'admin' ? [{ id: 'users' as AppArea, label: 'Users' }] : []),
           baseAreas[baseAreas.length - 1],
         ].map((area) => (
@@ -2819,8 +2830,9 @@ function App() {
         </section>
       )}
 
-      {activeArea === 'inventory' && (
+      {(activeArea === 'inventory' || activeArea === 'vehicle') && (
         <>
+      {activeArea === 'inventory' && (
       <section className="lookup-band">
         <form className="lookup-form" onSubmit={lookupVehicle}>
           <label htmlFor="vin">VIN Lookup / Add Vehicle</label>
@@ -2851,8 +2863,9 @@ function App() {
           </div>
         </form>
       </section>
+      )}
 
-      {!dashboard && !decoded && (
+      {activeArea === 'inventory' && (
         <>
         <section className="panel fleet-panel">
           <div className="section-heading">
@@ -2871,9 +2884,24 @@ function App() {
               </button>
             </div>
           </div>
+          {vehicles.length > 0 && (
+            <input
+              className="fleet-search"
+              type="search"
+              value={fleetSearch}
+              onChange={(event) => {
+                setFleetSearch(event.target.value)
+                setFleetPage(0)
+              }}
+              placeholder="Search by VIN, make, model, plate, position #"
+            />
+          )}
           <div className="vehicle-list">
             {vehicles.length === 0 && <p className="empty">No vehicles yet. Scan or enter a VIN to add one.</p>}
-            {vehicles.map((vehicle) => {
+            {vehicles.length > 0 && filteredVehicles.length === 0 && (
+              <p className="empty">No vehicles match "{fleetSearch}".</p>
+            )}
+            {pagedVehicles.map((vehicle) => {
               const title = [vehicle.fleetPositionNumber, vehicle.year, vehicle.make, vehicle.model]
                 .filter(Boolean)
                 .join(' ')
@@ -2888,6 +2916,43 @@ function App() {
               )
             })}
           </div>
+          {filteredVehicles.length > fleetPageSize && (
+            <div className="fleet-pager">
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={safeFleetPage === 0}
+                onClick={() => setFleetPage(safeFleetPage - 1)}
+              >
+                ‹ Prev
+              </button>
+              <span className="fleet-pager-status">
+                {safeFleetPage * fleetPageSize + 1}–
+                {Math.min((safeFleetPage + 1) * fleetPageSize, filteredVehicles.length)} of {filteredVehicles.length}
+              </span>
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={safeFleetPage >= fleetPageCount - 1}
+                onClick={() => setFleetPage(safeFleetPage + 1)}
+              >
+                Next ›
+              </button>
+              <select
+                className="fleet-page-size"
+                value={fleetPageSize}
+                onChange={(event) => {
+                  setFleetPageSize(Number(event.target.value))
+                  setFleetPage(0)
+                }}
+                aria-label="Vehicles per page"
+              >
+                {[10, 25, 50, 100].map((size) => (
+                  <option key={size} value={size}>{size} / page</option>
+                ))}
+              </select>
+            </div>
+          )}
         </section>
         {tireAlerts.length > 0 && (
         <section className="panel fleet-panel">
@@ -2993,7 +3058,7 @@ function App() {
         </>
       )}
 
-      {decoded && (
+      {activeArea === 'vehicle' && decoded && (
         <section className="panel">
           <div className="section-heading">
             <h2>Create Vehicle</h2>
@@ -3034,7 +3099,7 @@ function App() {
         </section>
       )}
 
-      {dashboard && (
+      {activeArea === 'vehicle' && dashboard && (
         <section className="dashboard-grid">
           <div className="summary-panel">
             <div className="section-heading">
@@ -3042,8 +3107,8 @@ function App() {
                 <h2>{vehicleTitle}</h2>
                 <p>{dashboard.vehicle.vin}</p>
               </div>
-              <button className="secondary-button" type="button" onClick={showFleet}>
-                Fleet
+              <button className="secondary-button" type="button" onClick={() => setActiveArea('inventory')}>
+                ‹ Inventory
               </button>
               <button className="secondary-button" type="button" onClick={startEditingVehicle}>
                 Edit Vehicle
