@@ -132,6 +132,7 @@ function App() {
   const [rentalInspectionKind, setRentalInspectionKind] = useState('Pre')
   const [workflowStepNotes, setWorkflowStepNotes] = useState('')
   const [obd2ReportFile, setObd2ReportFile] = useState<File | null>(null)
+  const [obd2ReportUrl, setObd2ReportUrl] = useState('')
   const [obd2ReportInsight, setObd2ReportInsight] = useState('')
   const [workflowReceiptFile, setWorkflowReceiptFile] = useState<File | null>(null)
   const [workflowReceiptInsight, setWorkflowReceiptInsight] = useState('')
@@ -2418,6 +2419,33 @@ function App() {
     }
   }
 
+  async function uploadObd2ReportFromUrl() {
+    if (!selectedWorkflow || !selectedWorkflowStep || !obd2ReportUrl.trim()) return
+
+    setLoading(true)
+    setMessage('Fetching OBD2 report from link...')
+    setWorkingMessage('Fetching OBD2 report from link...')
+
+    try {
+      const result = await api.post<Obd2ReportUploadResponse>(
+        `/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}/obd2-report-url`,
+        { url: obd2ReportUrl.trim() }
+      )
+      setWorkflows((current) => current.map((item) => (item.id === result.workflow.id ? result.workflow : item)))
+      setSelectedWorkflowId(result.workflow.id)
+      setSelectedWorkflowStepKey(selectedWorkflowStep.stepKey)
+      setObd2ReportUrl('')
+      setObd2ReportInsight(result.aiText)
+      setMessage('OBD2 report read. Review the findings.')
+      await tryOfferDocumentVin(result.aiText)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not fetch OBD2 report')
+    } finally {
+      setWorkingMessage('')
+      setLoading(false)
+    }
+  }
+
   async function readWorkflowReceipt() {
     if (!workflowReceiptFile || !selectedWorkflow?.vehicleId) return
 
@@ -2694,6 +2722,7 @@ function App() {
           rentalInspectionKind={rentalInspectionKind}
           workflowStepNotes={workflowStepNotes}
           obd2ReportFile={obd2ReportFile}
+          obd2ReportUrl={obd2ReportUrl}
           obd2ReportInsight={obd2ReportInsight}
           workflowReceiptFile={workflowReceiptFile}
           workflowReceiptInsight={workflowReceiptInsight}
@@ -2715,6 +2744,8 @@ function App() {
           setWorkflowStepNotes={setWorkflowStepNotes}
           setObd2ReportFile={setObd2ReportFile}
           uploadObd2Report={uploadObd2Report}
+          setObd2ReportUrl={setObd2ReportUrl}
+          uploadObd2ReportFromUrl={uploadObd2ReportFromUrl}
           setWorkflowReceiptFile={setWorkflowReceiptFile}
           readWorkflowReceipt={readWorkflowReceipt}
           setDamageEstimateAmount={setDamageEstimateAmount}

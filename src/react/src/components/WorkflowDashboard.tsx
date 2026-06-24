@@ -20,6 +20,7 @@ type WorkflowDashboardProps = {
   rentalInspectionKind: string
   workflowStepNotes: string
   obd2ReportFile: File | null
+  obd2ReportUrl: string
   obd2ReportInsight: string
   workflowReceiptFile: File | null
   workflowReceiptInsight: string
@@ -41,6 +42,8 @@ type WorkflowDashboardProps = {
   setWorkflowStepNotes: (notes: string) => void
   setObd2ReportFile: (file: File | null) => void
   uploadObd2Report: () => void
+  setObd2ReportUrl: (url: string) => void
+  uploadObd2ReportFromUrl: () => void
   setWorkflowReceiptFile: (file: File | null) => void
   readWorkflowReceipt: () => void
   setDamageEstimateAmount: (v: string) => void
@@ -92,7 +95,7 @@ function stepGuidance(workflow: WorkflowInstance, step: WorkflowStep): { summary
     underHood: { summary: 'Open the hood and look for anything obvious — leaks, broken parts, loose wires. No tools needed, just your eyes.', checklist: ['Any leaks dripping', 'Belts and hoses look okay', 'Nothing loose or broken', 'Oil and coolant look okay visually'] },
     fluids: { summary: 'Check the fluid levels under the hood. Each one has a dipstick or a clear tank with MIN and MAX lines.', checklist: ['Engine oil', 'Coolant', 'Brake fluid', 'Washer fluid'] },
     batteryCharging: { summary: 'Check if the battery looks old or corroded. Note any charging or battery warning lights on the dashboard.', checklist: ['Battery terminals are clean', 'No cracks or swelling', 'Battery warning light status', 'Voltage if you have a tester'] },
-    obd2Scan: { summary: 'Plug the Innova scanner into the port under the dashboard on the driver side. Run a scan and export the report as a PDF, then upload it here.', checklist: ['Plug scanner in and run scan', 'Export the report as a PDF', 'Upload the PDF here', 'Read the AI summary below'] },
+    obd2Scan: { summary: 'Plug the Innova scanner into the port under the dashboard on the driver side. Run a scan and export the report. Paste the shared link here — the app will download and read it for you.', checklist: ['Plug scanner in and run scan', 'Export or share the report', 'Paste the link or upload the PDF', 'Read the AI summary below'] },
     idleRoadCheck: { summary: 'Start the car and listen at idle. Then drive it briefly to check that acceleration, brakes, and steering all feel normal.', checklist: ['Idle sounds smooth', 'Acceleration feels normal', 'Brakes work properly', 'Steering responds well', 'No new warning lights'] },
     issues: { summary: 'Write down every problem you found. For each one, decide if it needs a maintenance job or a damage review.', checklist: ['Every problem listed in notes', 'Maintenance issues flagged', 'Damage issues flagged', 'Safety issues flagged', 'Next action decided'] },
   }
@@ -149,6 +152,7 @@ export function WorkflowDashboard({
   rentalInspectionKind,
   workflowStepNotes,
   obd2ReportFile,
+  obd2ReportUrl,
   obd2ReportInsight,
   workflowReceiptFile,
   workflowReceiptInsight,
@@ -170,6 +174,8 @@ export function WorkflowDashboard({
   setWorkflowStepNotes,
   setObd2ReportFile,
   uploadObd2Report,
+  setObd2ReportUrl,
+  uploadObd2ReportFromUrl,
   setWorkflowReceiptFile,
   readWorkflowReceipt,
   setDamageEstimateAmount,
@@ -306,19 +312,39 @@ export function WorkflowDashboard({
           {selectedWorkflowStep.stepKey === 'obd2Scan' && (
             <div className="wf-wiz-inputs">
               <label>
-                <span>RepairSolutions2 / Innova PDF</span>
-                <input type="file" accept="application/pdf,.pdf" onChange={(e) => setObd2ReportFile(e.target.files?.[0] ?? null)} />
+                <span>Shared Report Link</span>
+                <input
+                  type="url"
+                  value={obd2ReportUrl}
+                  onChange={(e) => setObd2ReportUrl(e.target.value)}
+                  placeholder="Paste the link to your OBD2 report PDF"
+                />
               </label>
               <div className="wf-wiz-input-actions">
-                <button className="secondary-button" type="button" disabled={!obd2ReportFile || loading} onClick={uploadObd2Report}>
-                  Read OBD2 Report
+                <button
+                  type="button"
+                  disabled={!obd2ReportUrl.trim() || loading}
+                  onClick={uploadObd2ReportFromUrl}
+                >
+                  Fetch &amp; Read Report
                 </button>
-                {selectedWorkflowStepDocumentId && (
-                  <a className="secondary-button" href={`/api/documents/${selectedWorkflowStepDocumentId}/content`} target="_blank" rel="noreferrer">
-                    View PDF
-                  </a>
-                )}
               </div>
+              <details className="obd2-upload-alt">
+                <summary>Upload a PDF file instead</summary>
+                <div className="obd2-upload-alt-body">
+                  <input type="file" accept="application/pdf,.pdf" onChange={(e) => setObd2ReportFile(e.target.files?.[0] ?? null)} />
+                  <div className="wf-wiz-input-actions">
+                    <button className="secondary-button" type="button" disabled={!obd2ReportFile || loading} onClick={uploadObd2Report}>
+                      Read OBD2 Report
+                    </button>
+                    {selectedWorkflowStepDocumentId && (
+                      <a className="secondary-button" href={`/api/documents/${selectedWorkflowStepDocumentId}/content`} target="_blank" rel="noreferrer">
+                        View PDF
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </details>
               {(obd2ReportInsight || selectedWorkflowStepAiText) && (
                 <pre className="receipt-insight">{obd2ReportInsight || selectedWorkflowStepAiText}</pre>
               )}

@@ -47,3 +47,6 @@ type Obd2ReportUploadResponse =
       DocumentId: Guid
       AiText: string
       ExtractedText: string }
+
+type Obd2ReportUrlRequest =
+    { Url: string }

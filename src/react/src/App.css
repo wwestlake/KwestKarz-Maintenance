@@ -1430,6 +1430,11 @@ label span,
 
 .wf-wiz-notes-label { display: flex; flex-direction: column; gap: 6px; }
 .wf-wiz-notes-label span { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+
+.obd2-upload-alt { border: 1px solid var(--border); border-radius: 6px; padding: 0; overflow: hidden; }
+.obd2-upload-alt > summary { padding: 10px 12px; cursor: pointer; font-size: 13px; color: var(--text-secondary); user-select: none; }
+.obd2-upload-alt > summary:hover { color: var(--text-primary); }
+.obd2-upload-alt-body { display: flex; flex-direction: column; gap: 10px; padding: 10px 12px 12px; border-top: 1px solid var(--border); }
 .wf-wiz-notes-label textarea { min-height: 80px; resize: vertical; }
 
 /* Actions */

@@ -2,6 +2,7 @@ namespace KwestKarz.Api
 
 open System
 open System.IO
+open System.Net.Http
 open System.Text
 open System.Text.Json
 open System.Threading.Tasks
@@ -529,6 +530,105 @@ module WorkflowEndpoints =
                                           AiText = aiResponse.Text
                                           ExtractedText = truncate 12000 pdfText }
                                     )
+                })
+        )
+        |> ignore
+
+        group.MapPost(
+            "/{workflowId:guid}/steps/{stepKey}/obd2-report-url",
+            Func<Guid, string, Obd2ReportUrlRequest, IDocumentRepository, IAIConnection, IDiagnosticReportRepository, NpgsqlDataSource, IHttpClientFactory, HttpContext, Task<IResult>>(fun workflowId stepKey request documents ai diagnosticReports dataSource httpClientFactory httpContext ->
+                task {
+                    if stepKey <> "obd2Scan" then
+                        return Results.BadRequest("OBD2 reports can only be uploaded to the obd2Scan step.")
+                    elif String.IsNullOrWhiteSpace(request.Url) then
+                        return Results.BadRequest("A 'url' field is required.")
+                    else
+                        let mutable parsedUri: Uri = null
+                        let validUrl =
+                            Uri.TryCreate(request.Url, UriKind.Absolute, &parsedUri) &&
+                            (parsedUri.Scheme = "http" || parsedUri.Scheme = "https")
+                        if not validUrl then
+                            return Results.BadRequest("URL must be an absolute http or https URL.")
+                        else
+                            try
+                                let client = httpClientFactory.CreateClient()
+                                client.Timeout <- TimeSpan.FromSeconds(60.0)
+                                use! response = client.GetAsync(request.Url, httpContext.RequestAborted)
+                                if not response.IsSuccessStatusCode then
+                                    return Results.BadRequest($"Could not download report: HTTP {int response.StatusCode}.")
+                                else
+                                    let contentType =
+                                        let ct = response.Content.Headers.ContentType
+                                        if isNull ct || isNull ct.MediaType then "application/pdf" else ct.MediaType
+                                    let fileName =
+                                        let last = parsedUri.Segments |> Array.last
+                                        let decoded = Uri.UnescapeDataString(last).Split('?').[0]
+                                        if decoded.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase) then decoded
+                                        else "obd2-report.pdf"
+                                    if not (contentType.Contains("pdf", StringComparison.OrdinalIgnoreCase) ||
+                                            fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase)) then
+                                        return Results.BadRequest("The URL does not appear to point to a PDF file.")
+                                    else
+                                        let! contentBytes = response.Content.ReadAsByteArrayAsync(httpContext.RequestAborted)
+                                        let pdfText = MaintenanceLogic.extractPdfText contentBytes
+                                        let operator = httpContext.Request.Headers.TryGetValue("X-Operator") |> (fun (ok, v) -> if ok then Some(v.ToString()) else None)
+                                        let newDocument =
+                                            { OwnerType = DocumentOwnerType.DiagnosticReport
+                                              OwnerId = workflowId
+                                              Kind = DocumentKind.Obd2Report
+                                              OriginalFileName = fileName
+                                              ContentType = contentType
+                                              StoragePath = ""
+                                              SizeBytes = int64 contentBytes.Length
+                                              Description = Some "OBD2 diagnostic scan report"
+                                              CreatedBy = operator
+                                              ContentBytes = Some contentBytes }
+                                        let! document = documents.CreateAsync(newDocument, httpContext.RequestAborted)
+                                        let! aiResponse =
+                                            ai.CompleteAsync(
+                                                { SystemInstructions = Some "You extract structured fleet maintenance facts from OBD2 diagnostic reports. Return JSON only. Be conservative and do not invent facts."
+                                                  UserMessage = MaintenanceLogic.obd2Prompt fileName pdfText },
+                                                httpContext.RequestAborted
+                                            )
+                                        let data =
+                                            JsonSerializer.Serialize(
+                                                {| documentId = document.Id
+                                                   fileName = document.OriginalFileName
+                                                   contentType = document.ContentType
+                                                   uploadedAt = document.CreatedAt
+                                                   extractedTextPreview = truncate 4000 pdfText
+                                                   aiText = aiResponse.Text |}
+                                            )
+                                        use! connection = dataSource.OpenConnectionAsync(httpContext.RequestAborted)
+                                        let! rows = updateStepDataAsync connection workflowId stepKey "NeedsReview" data httpContext.RequestAborted
+                                        if rows = 0 then
+                                            return Results.NotFound()
+                                        else
+                                            do! insertEventAsync connection workflowId (Some stepKey) "Obd2ReportUploaded" (Some fileName) data operator httpContext.RequestAborted
+                                            let! workflow = fetchWorkflowAsync dataSource workflowId httpContext.RequestAborted
+                                            match workflow.Value.VehicleId with
+                                            | Some vehicleId ->
+                                                let! _ =
+                                                    diagnosticReports.CreateAsync(
+                                                        { VehicleId = vehicleId
+                                                          WorkflowId = Some workflowId
+                                                          DocumentId = Some document.Id
+                                                          ReportedAt = DateTimeOffset.UtcNow
+                                                          FileName = fileName
+                                                          AiSummary = aiResponse.Text },
+                                                        httpContext.RequestAborted
+                                                    )
+                                                ()
+                                            | None -> ()
+                                            return
+                                                Results.Ok(
+                                                    { Workflow = workflow.Value
+                                                      DocumentId = document.Id
+                                                      AiText = aiResponse.Text
+                                                      ExtractedText = truncate 12000 pdfText }
+                                                )
+                            with ex ->
+                                return Results.Problem($"Failed to download PDF: {ex.Message}")
                 })
         )
         |> ignore
