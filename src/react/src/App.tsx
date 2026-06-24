@@ -26,7 +26,7 @@ import type {
   RentalInspection, TuroTripImportResponse, TuroMaintenanceSignal,
   TuroImportRecord, TuroTripRecord, WorkflowEvent, DiagnosticReport, ServiceSchedule,
   InspectionReport, TireFleetAlert,
-  VinDecode, CreateVehicleForm, EditVehicleForm, NotifLogEntry,
+  VinDecode, EditVehicleForm, NotifLogEntry,
 } from './types'
 import { api, getAuthHeaders } from './api'
 import { useAuth } from './AuthContext'
@@ -72,20 +72,6 @@ const areaTitles: Record<AppArea, string> = {
   lockboxes: 'Lock Boxes',
   users: 'Users',
   settings: 'Settings',
-}
-
-const emptyVehicleForm: CreateVehicleForm = {
-  vin: '',
-  year: '',
-  make: '',
-  model: '',
-  trim: '',
-  color: '',
-  licensePlate: '',
-  licensePlateState: '',
-  currentOdometer: '',
-  fleetPositionNumber: '',
-  notes: '',
 }
 
 const activeAreaStorageKey = 'kwestkarz.activeArea'
@@ -160,8 +146,7 @@ function App() {
   const [showAddVehicle, setShowAddVehicle] = useState(false)
   const [vin, setVin] = useState('')
   const [dashboard, setDashboard] = useState<Dashboard | null>(null)
-  const [decoded, setDecoded] = useState<VinDecode | null>(null)
-  const [vehicleForm, setVehicleForm] = useState<CreateVehicleForm>(emptyVehicleForm)
+
   const [maintenanceForm, setMaintenanceForm] = useState({
     eventType: 'Oil Change',
     datePerformed: new Date().toISOString().slice(0, 10),
@@ -1241,15 +1226,6 @@ function App() {
     const vinToUse = confirm.correctedVin.trim().toUpperCase()
     setVinConfirm(null)
     setVin(vinToUse)
-    setDecoded(confirm.decoded)
-    setVehicleForm({
-      ...emptyVehicleForm,
-      vin: vinToUse,
-      year: confirm.decoded?.year?.toString() ?? '',
-      make: confirm.decoded?.make ?? '',
-      model: confirm.decoded?.model ?? '',
-      trim: confirm.decoded?.trim ?? '',
-    })
     setActiveArea('inventory')
     setMessage('Fill in vehicle details to add to fleet.')
   }
@@ -1434,63 +1410,6 @@ function App() {
       clearVinScanPending()
       setWorkingMessage('')
       setMessage(error instanceof Error ? error.message : 'Could not read VIN photo')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function createVehicle(event: FormEvent) {
-    event.preventDefault()
-    setLoading(true)
-    setMessage('Creating vehicle...')
-
-    try {
-      const vehicle = await api.post<Vehicle>('/api/vehicles', {
-        vin: vehicleForm.vin.trim().toUpperCase(),
-        year: vehicleForm.year ? Number(vehicleForm.year) : null,
-        make: vehicleForm.make || null,
-        model: vehicleForm.model || null,
-        trim: vehicleForm.trim || null,
-        color: vehicleForm.color || null,
-        licensePlate: vehicleForm.licensePlate || null,
-        licensePlateState: vehicleForm.licensePlateState || null,
-        status: 'Active',
-        currentOdometer: vehicleForm.currentOdometer ? Number(vehicleForm.currentOdometer) : null,
-        fleetPositionNumber: vehicleForm.fleetPositionNumber || null,
-        notes: vehicleForm.notes || null,
-      })
-
-      setVin(vehicle.vin)
-      setDecoded(null)
-      setShowMaintenanceForm(false)
-      localStorage.setItem(selectedVehicleStorageKey, vehicle.id)
-      await loadDashboard(vehicle.id)
-      await refreshVehicles()
-      await refreshLockBoxes()
-      if (selectedWorkflow?.workflowType === 'AddVehicle') {
-        const stepToComplete =
-          selectedWorkflow.steps.find((step) => step.stepKey === 'vehicleBasics' && step.status !== 'Complete') ??
-          selectedWorkflow.steps.find((step) => step.stepKey === 'vin' && step.status !== 'Complete')
-
-        if (stepToComplete) {
-          let workflow = await api.put<WorkflowInstance>(`/api/workflows/${selectedWorkflow.id}/steps/${stepToComplete.stepKey}`, {
-            status: 'Complete',
-            makeCurrent: true,
-            data: {
-              ...(stepToComplete.data ?? {}),
-              vehicleId: vehicle.id,
-              vin: vehicle.vin,
-              notes: workflowStepNotes,
-            },
-          })
-          workflow = await advanceWorkflowFromStep(workflow, stepToComplete.stepKey)
-          setWorkflows((current) => current.map((item) => (item.id === workflow.id ? workflow : item)))
-          selectWorkflow(workflow)
-        }
-      }
-      setMessage('Vehicle created')
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Could not create vehicle')
     } finally {
       setLoading(false)
     }
