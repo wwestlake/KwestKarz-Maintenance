@@ -41,6 +41,12 @@ cd src\react
 npm run build
 ```
 
+If `npm` is not found on this machine, Node 22 is installed at:
+
+```powershell
+$env:Path = "D:\tools\node22\node-v22.20.0-win-x64;$env:Path"
+```
+
 ## Local App
 
 Run the backend:
@@ -82,14 +88,23 @@ Authentication is **enabled in all environments**. The app uses Firebase phone a
 Required user secrets:
 
 ```powershell
-dotnet user-secrets set --project src\backend\KwestKarz.Api\KwestKarz.Api.fsproj "Auth:AdminPhone" "+1<your-phone>"
+dotnet user-secrets set --project src\backend\KwestKarz.Api\KwestKarz.Api.fsproj "Auth:AdminPhoneNumber" "+1<your-phone>"
 ```
 
-Firebase project config is in `appsettings.json` under `Firebase:ProjectId` and `Firebase:Issuer`.
+Firebase project config is in `appsettings.json` under `Auth:FirebaseProjectId`.
 
 ### Role System
 
-Three roles: `admin`, `manager`, `worker`. Roles are set as custom claims in Firebase and forwarded as the `X-Role` header by server-side middleware.
+Three roles: `admin`, `manager`, `worker`. Roles are stored in `kwestkarzbusinessdata.users` after account approval. Middleware forwards the stored role as the `X-Role` header.
+
+## Branch and Release Flow
+
+- `main` is stable and release-ready.
+- `develop` is the integration branch for completed work.
+- Feature branches are created from `develop` and named by project area/task, for example `codex/ux/73-sticky-edit-actions`.
+- Completed feature branches are merged directly into `develop`.
+- Release PRs are opened from `develop` to `main` only when a stable batch is ready.
+- The user approves and merges `develop` -> `main`.
 
 ## Local File Storage
 
@@ -124,16 +139,18 @@ The backend uses the OpenAI Responses API through the server-side `IAIConnection
 - `GET /api/vehicles`
 - `GET /api/vehicles/by-vin/{vin}`
 - `POST /api/vehicles`
+- `PUT /api/vehicles/{vehicleId}`
 - `GET /api/vehicles/{vehicleId}/dashboard`
 
 ### Maintenance
 - `GET /api/vehicles/{vehicleId}/maintenance`
 - `POST /api/vehicles/{vehicleId}/maintenance`
-- `PUT /api/vehicles/{vehicleId}/maintenance/{recordId}`
+- `POST /api/vehicles/{vehicleId}/maintenance/{recordId}/receipt`
+- `GET /api/maintenance/service-schedules`
 - `GET /api/maintenance/templates`
+- `GET /api/maintenance/templates/all`
 - `POST /api/maintenance/templates`
 - `PUT /api/maintenance/templates/{templateId}`
-- `DELETE /api/maintenance/templates/{templateId}`
 - `GET /api/maintenance/fleet-summary`
 
 ### Documents
@@ -148,7 +165,7 @@ The backend uses the OpenAI Responses API through the server-side `IAIConnection
 - `PUT /api/vehicles/{vehicleId}/tire-pressure/spec`
 - `POST /api/vehicles/{vehicleId}/tire-pressure/spec/photo`
 - `POST /api/vehicles/{vehicleId}/tire-pressure/logs`
-- `GET /api/tire-pressure/fleet-alerts`
+- `GET /api/fleet/tire-alerts`
 
 ### Compliance
 - `GET /api/vehicles/{vehicleId}/compliance`
@@ -159,31 +176,45 @@ The backend uses the OpenAI Responses API through the server-side `IAIConnection
 - `PUT /api/vehicles/{vehicleId}/compliance/{recordId}`
 
 ### Diagnostic Reports
-- `GET /api/vehicles/{vehicleId}/diagnostics`
-- `POST /api/vehicles/{vehicleId}/diagnostics`
-- `GET /api/vehicles/{vehicleId}/diagnostics/{reportId}`
+- `GET /api/vehicles/{vehicleId}/diagnostic-reports`
+- `POST /api/vehicles/{vehicleId}/diagnostic-reports/upload`
 
 ### Ledger
-- `GET /api/vehicles/{vehicleId}/ledger`
-- `POST /api/vehicles/{vehicleId}/ledger`
+- `GET /api/ledger/accounts`
+- `GET /api/ledger/entries`
+- `POST /api/ledger/entries`
+- `GET /api/ledger/worker-earnings`
+- `POST /api/ledger/entries/{entryId}/mark-paid`
+- `GET /api/ledger/pnl`
 
 ### Rental Inspections
-- `GET /api/vehicles/{vehicleId}/inspections`
-- `POST /api/vehicles/{vehicleId}/inspections`
-- `GET /api/vehicles/{vehicleId}/inspections/{inspectionId}`
+- `GET /api/workflows/{workflowId}/rental-inspection`
+- `PUT /api/workflows/{workflowId}/rental-inspection`
+- `POST /api/workflows/{workflowId}/rental-inspection/photos/{slotKey}`
+- `GET /api/workflows/{workflowId}/rental-inspection/report`
 
 ### Turo Import
-- `POST /api/turo/import`
+- `POST /api/imports/turo-trip-earnings`
+- `GET /api/imports/turo-trip-earnings`
+- `GET /api/imports/turo-trip-earnings/maintenance-signals`
+- `GET /api/vehicles/{vehicleId}/turo-trips`
 
 ### Users
-- `GET /api/users`
-- `POST /api/users`
-- `GET /api/users/me`
+- `POST /api/users/me`
 - `PUT /api/users/me/display-name`
-- `PUT /api/users/{userId}/role`
+- `GET /api/users/me/notifications`
+- `PUT /api/users/me/notifications`
+- `GET /api/users/pending`
+- `POST /api/users/{userId}/approve`
+- `POST /api/users/{userId}/suspend`
 
 ### Jobs
+- `GET /api/jobs`
+- `POST /api/jobs`
 - `GET /api/jobs/{jobId}`
+- `POST /api/jobs/{jobId}/claim`
+- `POST /api/jobs/{jobId}/complete`
+- `POST /api/jobs/{jobId}/cancel`
 
 ### Lock Boxes
 - `GET /api/lock-boxes`
@@ -198,7 +229,12 @@ The backend uses the OpenAI Responses API through the server-side `IAIConnection
 - `GET /api/workflows/{workflowId}`
 - `PUT /api/workflows/{workflowId}/steps/{stepKey}`
 - `POST /api/workflows/{workflowId}/steps/{stepKey}/obd2-report`
+- `POST /api/workflows/{workflowId}/steps/{stepKey}/obd2-report-url`
+- `GET /api/workflows/{workflowId}/events`
 - `PUT /api/workflows/{workflowId}/status`
+
+### Notifications
+- `GET /api/notifications/log`
 
 ### AI
 - `POST /api/ai/chat`
