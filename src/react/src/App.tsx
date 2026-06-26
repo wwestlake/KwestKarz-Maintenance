@@ -2728,6 +2728,12 @@ function App() {
           </div>
           {editingLockBoxId && (
             <form className="lockbox-form" onSubmit={saveLockBox}>
+              <div className="form-actions wide sticky-form-actions">
+                <button type="submit" disabled={loading}>Save Lock Box</button>
+                <button className="secondary-button" type="button" onClick={() => setEditingLockBoxId('')}>
+                  Cancel
+                </button>
+              </div>
               <label>
                 <span>Serial #</span>
                 <input
@@ -2771,10 +2777,6 @@ function App() {
                   onChange={(event) => setLockBoxForm({ ...lockBoxForm, notes: event.target.value })}
                 />
               </label>
-              <button type="submit" disabled={loading}>Save Lock Box</button>
-              <button className="secondary-button" type="button" onClick={() => setEditingLockBoxId('')}>
-                Cancel
-              </button>
             </form>
           )}
         </section>
@@ -3146,6 +3148,12 @@ function App() {
           </div>
           {editingLockBoxId && (
             <form className="lockbox-form" onSubmit={saveLockBox}>
+              <div className="form-actions wide sticky-form-actions">
+                <button type="submit" disabled={loading}>Save Lock Box</button>
+                <button className="secondary-button" type="button" onClick={() => setEditingLockBoxId('')}>
+                  Cancel
+                </button>
+              </div>
               <label>
                 <span>Serial #</span>
                 <input
@@ -3189,10 +3197,6 @@ function App() {
                   onChange={(event) => setLockBoxForm({ ...lockBoxForm, notes: event.target.value })}
                 />
               </label>
-              <button type="submit" disabled={loading}>Save Lock Box</button>
-              <button className="secondary-button" type="button" onClick={() => setEditingLockBoxId('')}>
-                Cancel
-              </button>
             </form>
           )}
         </section>
@@ -3314,6 +3318,12 @@ function App() {
                 event.preventDefault()
                 saveRentalInspectionDetails(selectedWorkflowStep?.stepKey === 'odometerFuel')
               }}>
+                <div className="form-actions wide sticky-form-actions">
+                  <button type="submit" disabled={loading}>Save Inspection</button>
+                  <button className="secondary-button" type="button" disabled={loading} onClick={() => saveRentalInspectionDetails(true)}>
+                    Save + Continue
+                  </button>
+                </div>
                 <label>
                   <span>Inspection Type</span>
                   <select
@@ -3359,12 +3369,6 @@ function App() {
                     onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, notes: event.target.value })}
                   />
                 </label>
-                <div className="form-actions wide">
-                  <button type="submit" disabled={loading}>Save Inspection</button>
-                  <button className="secondary-button" type="button" disabled={loading} onClick={() => saveRentalInspectionDetails(true)}>
-                    Save + Continue
-                  </button>
-                </div>
               </form>
 
               <div className="inspection-photo-grid">
@@ -3506,6 +3510,12 @@ function App() {
             )}
             {editingLockBoxId && (
               <form className="lockbox-form compact" onSubmit={saveLockBox}>
+                <div className="form-actions wide sticky-form-actions">
+                  <button type="submit" disabled={loading}>Save Lock Box</button>
+                  <button className="secondary-button" type="button" onClick={() => setEditingLockBoxId('')}>
+                    Cancel
+                  </button>
+                </div>
                 <label>
                   <span>Serial #</span>
                   <input
@@ -3549,10 +3559,6 @@ function App() {
                     onChange={(event) => setLockBoxForm({ ...lockBoxForm, notes: event.target.value })}
                   />
                 </label>
-                <button type="submit" disabled={loading}>Save Lock Box</button>
-                <button className="secondary-button" type="button" onClick={() => setEditingLockBoxId('')}>
-                  Cancel
-                </button>
               </form>
             )}
           </div>
@@ -3641,6 +3647,12 @@ function App() {
                 <div className="wide form-heading">
                   <strong>Editing {formatComplianceType(editingComplianceRecord?.recordType ?? 'Compliance')}</strong>
                   <span>Review scanned fields before saving.</span>
+                </div>
+                <div className="form-actions wide sticky-form-actions">
+                  <button type="submit" disabled={loading}>Save Compliance</button>
+                  <button className="secondary-button" type="button" onClick={() => setEditingComplianceId('')}>
+                    Cancel
+                  </button>
                 </div>
                 <label>
                   <span>Provider</span>
@@ -3741,10 +3753,6 @@ function App() {
                     onChange={(event) => setComplianceForm({ ...complianceForm, notes: event.target.value })}
                   />
                 </label>
-                <button type="submit" disabled={loading}>Save Compliance</button>
-                <button className="secondary-button" type="button" onClick={() => setEditingComplianceId('')}>
-                  Cancel
-                </button>
               </form>
             )}
           </div>

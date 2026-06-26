@@ -161,6 +161,15 @@ export function AddVehicleModal({ onClose, onCreated }: Props) {
           <button className="secondary-button" type="button" onClick={onClose} disabled={loading}>Cancel</button>
         </div>
 
+        <div className="add-veh-actions sticky-form-actions">
+          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
+            Cancel
+          </button>
+          <button type="button" disabled={loading || !form.vin.trim()} onClick={() => void handleCreate()}>
+            Create Vehicle
+          </button>
+        </div>
+
         <div className="add-veh-scans">
           <button
             type="button"
@@ -313,14 +322,6 @@ export function AddVehicleModal({ onClose, onCreated }: Props) {
           </label>
         </div>
 
-        <div className="add-veh-actions">
-          <button type="button" className="secondary-button" onClick={onClose} disabled={loading}>
-            Cancel
-          </button>
-          <button type="button" disabled={loading || !form.vin.trim()} onClick={() => void handleCreate()}>
-            Create Vehicle
-          </button>
-        </div>
       </div>
     </div>
   )

@@ -912,6 +912,25 @@ label span,
 .rental-inspection-form .wide, .form-actions.wide { grid-column: 1 / -1; }
 .form-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 
+.sticky-form-actions {
+  position: sticky;
+  top: calc(58px + env(safe-area-inset-top));
+  z-index: 6;
+  align-items: center;
+  justify-content: flex-end;
+  grid-column: 1 / -1;
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.sticky-form-actions button { min-width: 132px; }
+
+.camera-modal .sticky-form-actions { top: 0; }
+
 .inspection-photo-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

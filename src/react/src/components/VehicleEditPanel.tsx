@@ -21,6 +21,12 @@ export function VehicleEditPanel({ form, loading, onChange, onSubmit, onCancel }
         </button>
       </div>
       <form className="vehicle-edit-form" onSubmit={onSubmit}>
+        <div className="form-actions sticky-form-actions">
+          <button type="submit" disabled={loading}>Save Changes</button>
+          <button className="secondary-button" type="button" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
         <label>
           <span>Color</span>
           <input
@@ -83,12 +89,6 @@ export function VehicleEditPanel({ form, loading, onChange, onSubmit, onCancel }
             onChange={(e) => onChange({ ...form, notes: e.target.value })}
           />
         </label>
-        <div className="form-actions">
-          <button type="submit" disabled={loading}>Save Changes</button>
-          <button className="secondary-button" type="button" onClick={onCancel}>
-            Cancel
-          </button>
-        </div>
       </form>
     </div>
   )
