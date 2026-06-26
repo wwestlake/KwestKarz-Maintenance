@@ -99,6 +99,7 @@ Three roles: `admin`, `manager`, `worker`. Roles are stored in `kwestkarzbusines
 
 ## Branch and Release Flow
 
+- Authoritative GitHub project board: `KwestKarz Development` (#16), linked to `wwestlake/KwestKarz-Maintenance`.
 - `main` is stable and release-ready.
 - `develop` is the integration branch for completed work.
 - Feature branches are created from `develop` and named by project area/task, for example `codex/ux/73-sticky-edit-actions`.

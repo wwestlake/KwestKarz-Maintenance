@@ -96,6 +96,8 @@ All colours and spacing are CSS custom properties. Never add hardcoded hex value
 | `WorkflowDashboard.tsx` | Workflow creation, step editor, and wizard-style continuation |
 
 ## Branch and Release Flow
+- Authoritative GitHub project board: `KwestKarz Development` (#16), linked to `wwestlake/KwestKarz-Maintenance`.
+- If project context is unclear, inspect project #16 first. Do not create a new project board or duplicate plan items without explicit user approval.
 - `main` is the stable release branch. Do not commit feature work directly to `main`.
 - `develop` is the integration branch. Completed work is merged into `develop` by the agent.
 - Create feature branches from `develop`, named for the project section and issue/task, for example `codex/ux/73-sticky-edit-actions`.
