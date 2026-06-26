@@ -76,6 +76,12 @@ export function MaintenanceForm({
         </button>
       </div>
       <form className="maintenance-form" onSubmit={onSubmit}>
+        <div className="form-actions wide sticky-form-actions">
+          <button type="submit" disabled={loading}>Save Maintenance</button>
+          <button className="secondary-button" type="button" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
         <div className="quick-actions wide">
           <button className="type-picker-button" type="button" onClick={() => setShowMaintenanceTypes(!showMaintenanceTypes)}>
             Maintenance Type
@@ -155,7 +161,6 @@ export function MaintenanceForm({
           </button>
           {receiptInsight && <pre className="receipt-insight">{receiptInsight}</pre>}
         </div>
-        <button type="submit" disabled={loading}>Save Maintenance</button>
       </form>
     </div>
   )

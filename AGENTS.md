@@ -10,6 +10,7 @@
 ## Server Commands
 - **Backend**: `dotnet run` in `src/backend/KwestKarz.Api` — runs on port 5081 (HTTP)
 - **Frontend**: `npm run dev` in `src/react` — runs on HTTPS port 5175, proxies /api to backend
+- Node 22 is available at `D:\tools\node22\node-v22.20.0-win-x64`. If `npm` is not found, prepend that folder to `PATH` for the session.
 
 ## Ports
 - Backend API: http://localhost:5081
@@ -44,15 +45,15 @@ Cast each task to `Threading.Tasks.Task` base type for the array.
 - Auth is **enabled in all environments** including local dev — there is no bypass.
 - Firebase phone auth: JWT validated via JWKS endpoint (`googleapis.com`).
 - Admin phone number is in .NET user secrets (never in appsettings).
-- User secrets key: `Auth:AdminPhone`
-- Firebase config is in `appsettings.json` under `Firebase:ProjectId` / `Firebase:Issuer`.
+- User secrets key: `Auth:AdminPhoneNumber`
+- Firebase config is in `appsettings.json` under `Auth:FirebaseProjectId`.
 
 ## Role System
 Three roles: `admin`, `manager`, `worker`
-- Roles come from the `role` custom claim in the Firebase JWT.
+- Roles are stored in `kwestkarzbusinessdata.users` after account approval.
 - Middleware sets `X-Operator` (user's display name/phone) and `X-Role` headers on every request.
 - Use `httpContext.Request.Headers["X-Role"]` to read the caller's role in endpoints.
-- Role policy names in ASP.NET: `"admin"`, `"manager"`, `"worker"`.
+- Current endpoint role checks are mostly explicit `X-Role` checks; ASP.NET policies are `Admin` and legacy `Helper`.
 
 ## CSS Variable System
 All colours and spacing are CSS custom properties. Never add hardcoded hex values.
@@ -86,15 +87,28 @@ All colours and spacing are CSS custom properties. Never add hardcoded hex value
 |---|---|
 | `FleetMaintenancePanel.tsx` | Fleet-level maintenance status table (overdue/due-soon) |
 | `DocumentLibraryPanel.tsx` | All-documents view across owner types for a vehicle |
-| `MaintenanceTemplatePanel.tsx` | Schedule template management |
+| `MaintenanceTemplateManager.tsx` | Schedule template management |
 | `TirePressurePanel.tsx` | Tire spec + pressure logs + fleet alerts |
-| `CompliancePanel.tsx` | Compliance record management with camera capture |
-| `DiagnosticReportPanel.tsx` | OBD2 report upload and AI review display |
+| `AddVehicleModal.tsx` | Add vehicle flow with document scans, state dropdown, and fleet ID preview |
+| `VinConfirmModal.tsx` | VIN scan confirmation, checksum result, and fleet lookup actions |
+| `JobsPanel.tsx` | Job dispatch, claim, complete, and cancel workflow |
+| `LedgerPanel.tsx` | Ledger entries, P&L, and worker earnings |
+| `WorkflowDashboard.tsx` | Workflow creation, step editor, and wizard-style continuation |
+
+## Branch and Release Flow
+- Authoritative GitHub project board: `KwestKarz Development` (#16), linked to `wwestlake/KwestKarz-Maintenance`.
+- If project context is unclear, inspect project #16 first. Do not create a new project board or duplicate plan items without explicit user approval.
+- `main` is the stable release branch. Do not commit feature work directly to `main`.
+- `develop` is the integration branch. Completed work is merged into `develop` by the agent.
+- Create feature branches from `develop`, named for the project section and issue/task, for example `codex/ux/73-sticky-edit-actions`.
+- Merge completed feature branches back into `develop`; no PR is required for these internal merges.
+- When `develop` is stable and ready to roll out, open a PR from `develop` to `main`.
+- The user approves and merges the `develop` -> `main` PR.
 
 ## Workflow Rules
-- Build before committing. TypeScript check before committing frontend.
+- Build before merging to `develop`. TypeScript check before committing frontend.
 - Never commit .env.local or secrets.
-- Always close issues and update the GitHub project board after completing a feature.
+- Always close issues after completing and merging a feature to `develop`. Update the GitHub project board when an issue has a project item.
 - PostgreSQL schema is `kwestkarzbusinessdata` — always qualify table names in raw SQL.
 
 ## Do Not
