@@ -100,6 +100,10 @@ export function MaintenanceTemplateManager() {
 
       {(isNew || editing) && (
         <form onSubmit={save} style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div className="form-actions sticky-form-actions">
+            <button className="btn-primary" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+            <button className="btn-secondary" type="button" onClick={cancel}>Cancel</button>
+          </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
             <div className="form-row" style={{ flex: 2, minWidth: 180 }}>
               <label>Event Type Name</label>
@@ -136,10 +140,6 @@ export function MaintenanceTemplateManager() {
             <input type="checkbox" checked={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))} />
             Active (shows in maintenance form)
           </label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn-primary" type="submit" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
-            <button className="btn-secondary" type="button" onClick={cancel}>Cancel</button>
-          </div>
         </form>
       )}
 
