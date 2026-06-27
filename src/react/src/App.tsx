@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { Home, Menu, X } from 'lucide-react'
 import './App.css'
 import { WorkflowDashboard } from './components/WorkflowDashboard'
 import { GuidedCameraModal } from './components/GuidedCameraModal'
@@ -173,6 +174,7 @@ function App() {
     notes: '',
   })
   const [showTirePressurePanel, setShowTirePressurePanel] = useState(false)
+  const [appMenuOpen, setAppMenuOpen] = useState(false)
   const [showLockBoxManager, setShowLockBoxManager] = useState(false)
   const [selectedLockBoxId, setSelectedLockBoxId] = useState('')
   const [editingLockBoxId, setEditingLockBoxId] = useState('')
@@ -2490,26 +2492,75 @@ function App() {
         </div>
         <span className={loading ? 'status busy' : 'status'}>{message}</span>
       </header>
-      <nav className="app-nav" aria-label="Main areas">
-        {[
-          ...baseAreas.slice(0, -1),
-          ...(profile?.role === 'admin' ? [{ id: 'users' as AppArea, label: 'Users' }] : []),
-          baseAreas[baseAreas.length - 1],
-        ].map((area) => (
-          <button
-            key={area.id}
-            className={
-              activeArea === area.id || (area.id === 'inventory' && activeArea === 'vehicle')
-                ? 'nav-button selected'
-                : 'nav-button'
-            }
-            type="button"
-            onClick={() => setActiveArea(area.id)}
-          >
-            {area.label}
+      <div className="app-nav-shell">
+        <button
+          className="app-nav-toggle"
+          type="button"
+          aria-label={appMenuOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={appMenuOpen}
+          aria-controls="employee-main-menu"
+          onClick={() => setAppMenuOpen((value) => !value)}
+        >
+          {appMenuOpen ? <X size={18} strokeWidth={2.2} /> : <Menu size={18} strokeWidth={2.2} />}
+        </button>
+
+        <nav className="app-nav" aria-label="Main areas">
+          <button className="nav-button" type="button" onClick={() => window.location.assign('/')}>
+            <Home size={16} strokeWidth={2.2} />
+            Public Site
           </button>
-        ))}
-      </nav>
+          {[
+            ...baseAreas.slice(0, -1),
+            ...(profile?.role === 'admin' ? [{ id: 'users' as AppArea, label: 'Users' }] : []),
+            baseAreas[baseAreas.length - 1],
+          ].map((area) => (
+            <button
+              key={area.id}
+              className={
+                activeArea === area.id || (area.id === 'inventory' && activeArea === 'vehicle')
+                  ? 'nav-button selected'
+                  : 'nav-button'
+              }
+              type="button"
+              onClick={() => setActiveArea(area.id)}
+            >
+              {area.label}
+            </button>
+          ))}
+        </nav>
+
+        <nav
+          id="employee-main-menu"
+          className={`app-nav-mobile${appMenuOpen ? ' is-open' : ''}`}
+          aria-label="Mobile main areas"
+        >
+          <button className="nav-button" type="button" onClick={() => { window.location.assign('/'); setAppMenuOpen(false) }}>
+            <Home size={16} strokeWidth={2.2} />
+            Public Site
+          </button>
+          {[
+            ...baseAreas.slice(0, -1),
+            ...(profile?.role === 'admin' ? [{ id: 'users' as AppArea, label: 'Users' }] : []),
+            baseAreas[baseAreas.length - 1],
+          ].map((area) => (
+            <button
+              key={area.id}
+              className={
+                activeArea === area.id || (area.id === 'inventory' && activeArea === 'vehicle')
+                  ? 'nav-button selected'
+                  : 'nav-button'
+              }
+              type="button"
+              onClick={() => {
+                setActiveArea(area.id)
+                setAppMenuOpen(false)
+              }}
+            >
+              {area.label}
+            </button>
+          ))}
+        </nav>
+      </div>
       {activeArea !== 'workflows' && selectedWorkflow && selectedWorkflowStep && (
         <section className="workflow-context-banner" aria-label="Active workflow context">
           <div>

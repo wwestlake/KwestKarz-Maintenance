@@ -162,6 +162,43 @@ a:focus-visible {
   border-bottom: 1px solid var(--border);
 }
 
+.app-nav-shell {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 8px;
+  padding: 10px clamp(16px, 4vw, 40px);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-nav-toggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid var(--border-input);
+  border-radius: var(--radius);
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.app-nav-mobile {
+  display: none;
+  grid-column: 1 / -1;
+  gap: 8px;
+  padding-top: 2px;
+}
+
+.app-nav-mobile.is-open {
+  display: grid;
+}
+
 .nav-button {
   flex: 0 0 auto;
   min-height: 36px;
@@ -2694,6 +2731,23 @@ label span,
 
   .wf-main { grid-template-columns: 1fr; }
   .wf-catalog { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .app-nav-shell {
+    grid-template-columns: auto 1fr;
+  }
+
+  .app-nav-toggle {
+    display: inline-flex;
+  }
+
+  .app-nav {
+    display: none;
+  }
+
+  .app-nav-mobile .nav-button {
+    width: 100%;
+    justify-content: flex-start;
+  }
 
   .public-menu-toggle {
     display: inline-flex;
