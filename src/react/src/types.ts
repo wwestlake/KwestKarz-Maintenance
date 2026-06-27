@@ -90,9 +90,24 @@ export type Vehicle = {
   licensePlate?: string
   licensePlateState?: string
   status: string
+  turoListingUrl?: string
+  turoListingStatus?: string
   currentOdometer?: number
   fleetPositionNumber?: string
   notes?: string
+}
+
+export type PublicVehicle = {
+  id: string
+  year?: number
+  make?: string
+  model?: string
+  trim?: string
+  color?: string
+  status: string
+  turoListingStatus?: string
+  turoListingUrl?: string
+  fleetPositionNumber?: string
 }
 
 export type MaintenanceRecord = {
@@ -399,6 +414,7 @@ export type CreateVehicleForm = {
   color: string
   licensePlate: string
   licensePlateState: string
+  turoListingUrl: string
   currentOdometer: string
   fleetPositionNumber: string
   notes: string
@@ -409,6 +425,7 @@ export type EditVehicleForm = {
   licensePlate: string
   licensePlateState: string
   status: string
+  turoListingUrl: string
   currentOdometer: string
   fleetPositionNumber: string
   notes: string

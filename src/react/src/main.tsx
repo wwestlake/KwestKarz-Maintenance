@@ -1,10 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import './App.css'
 import App from './App.tsx'
 import { AuthProvider, useAuth } from './AuthContext.tsx'
 import { LoginScreen } from './components/LoginScreen.tsx'
 import { PendingApprovalScreen } from './components/PendingApprovalScreen.tsx'
+import { ContactPage } from './components/ContactPage.tsx'
+import { PublicLandingPage } from './components/PublicLandingPage.tsx'
 
 function AppShell() {
   const { state } = useAuth()
@@ -24,10 +27,21 @@ function AppShell() {
   return <App />
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+function RootShell() {
+  const pathname = window.location.pathname
+  if (pathname.startsWith('/contact')) return <ContactPage />
+  const isEmployeePath = pathname.startsWith('/employee')
+  if (!isEmployeePath) return <PublicLandingPage />
+
+  return (
     <AuthProvider>
       <AppShell />
     </AuthProvider>
+  )
+}
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <RootShell />
   </StrictMode>,
 )

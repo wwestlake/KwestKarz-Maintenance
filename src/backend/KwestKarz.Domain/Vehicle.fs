@@ -44,6 +44,7 @@ type Vehicle =
       Status: VehicleStatus
       TuroListingId: string option
       TuroListingStatus: string option
+      TuroListingUrl: string option
       CurrentOdometer: int option
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
@@ -65,6 +66,7 @@ type NewVehicle =
       Status: VehicleStatus
       TuroListingId: string option
       TuroListingStatus: string option
+      TuroListingUrl: string option
       CurrentOdometer: int option
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
@@ -75,6 +77,7 @@ type UpdateVehicle =
       LicensePlate: string option
       LicensePlateState: string option
       Status: VehicleStatus
+      TuroListingUrl: string option
       CurrentOdometer: int option
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
