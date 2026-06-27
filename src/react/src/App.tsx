@@ -244,6 +244,8 @@ function App() {
   const [workingMessage, setWorkingMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [vinConfirm, setVinConfirm] = useState<VinConfirm | null>(null)
+  const [workflowSuspendOpen, setWorkflowSuspendOpen] = useState(false)
+  const [workflowSuspendReason, setWorkflowSuspendReason] = useState('waiting on part')
   const [guidedCapture, setGuidedCapture] = useState<GuidedCaptureConfig | null>(null)
   const [guidedStream, setGuidedStream] = useState<MediaStream | null>(null)
   const [guidedPhotoUrl, setGuidedPhotoUrl] = useState('')
@@ -679,6 +681,23 @@ function App() {
       overlay: 'vin',
       onPhoto: scanVinFromPhoto,
       onCancel: clearVinScanPending,
+    })
+  }
+
+  function openWorkflowReceiptCamera() {
+    if (!selectedWorkflow?.vehicleId) {
+      setMessage('Choose or load the vehicle before capturing a receipt.')
+      return
+    }
+
+    openGuidedCamera({
+      title: 'Capture Receipt',
+      instructions: 'Hold the receipt flat and fill the frame. Keep it readable, then capture to store it in the workflow.',
+      overlay: 'document',
+      onPhoto: (file) => {
+        setWorkflowReceiptFile(file)
+        void readWorkflowReceipt(file)
+      },
     })
   }
 
@@ -1755,23 +1774,46 @@ function App() {
     setDamageRepairStatus(typeof step.data?.repairStatus === 'string' ? step.data.repairStatus : 'Pending')
   }
 
-  async function pauseAndExitWorkflow() {
-    if (selectedWorkflow && selectedWorkflowStep && selectedWorkflowStep.status !== 'Complete') {
-      try {
-        setLoading(true)
-        const saved = await api.put<WorkflowInstance>(
-          `/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}`,
-          { status: 'InProgress', makeCurrent: true, data: { ...(selectedWorkflowStep.data ?? {}), notes: workflowStepNotes } },
-        )
-        setWorkflows((current) => current.map((w) => (w.id === saved.id ? saved : w)))
-      } catch { /* navigate out regardless */ } finally {
-        setLoading(false)
-      }
+  function pauseAndExitWorkflow() {
+    if (!selectedWorkflow || !selectedWorkflowStep || selectedWorkflowStep.status === 'Complete') return
+    setWorkflowSuspendReason(typeof selectedWorkflowStep.data?.pauseReason === 'string' ? selectedWorkflowStep.data.pauseReason : 'waiting on part')
+    setWorkflowSuspendOpen(true)
+  }
+
+  async function confirmWorkflowSuspend() {
+    if (!selectedWorkflow || !selectedWorkflowStep) return
+    const pauseReason = workflowSuspendReason.trim() || 'waiting on part'
+    try {
+      setLoading(true)
+      setMessage('Suspending workflow...')
+      const saved = await api.put<WorkflowInstance>(
+        `/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}`,
+        {
+          status: 'InProgress',
+          makeCurrent: true,
+          data: {
+            ...(selectedWorkflowStep.data ?? {}),
+            notes: workflowStepNotes,
+            pauseReason,
+          },
+        },
+      )
+      setWorkflows((current) => current.map((w) => (w.id === saved.id ? saved : w)))
+      const suspended = await api.put<WorkflowInstance>(`/api/workflows/${saved.id}/status`, {
+        status: 'Waiting',
+        currentStepKey: selectedWorkflowStep.stepKey,
+      })
+      setWorkflows((current) => current.map((w) => (w.id === suspended.id ? suspended : w)))
+      setSelectedWorkflowId(suspended.id)
+      setSelectedWorkflowStepKey(suspended.currentStepKey)
+      setWorkflowSuspendOpen(false)
+      setActiveArea('home')
+      setMessage(`Workflow suspended: ${pauseReason}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not suspend workflow')
+    } finally {
+      setLoading(false)
     }
-    setSelectedWorkflowId('')
-    setSelectedWorkflowStepKey('')
-    localStorage.removeItem(selectedWorkflowStorageKey)
-    localStorage.removeItem(selectedWorkflowStepStorageKey)
   }
 
   function selectWorkflow(workflow: WorkflowInstance) {
@@ -2363,15 +2405,15 @@ function App() {
     }
   }
 
-  async function readWorkflowReceipt() {
-    if (!workflowReceiptFile || !selectedWorkflow?.vehicleId) return
+  async function readWorkflowReceipt(file = workflowReceiptFile) {
+    if (!file || !selectedWorkflow?.vehicleId) return
 
     setLoading(true)
     setMessage('Reading receipt...')
 
     try {
       const form = new FormData()
-      form.append('file', workflowReceiptFile)
+      form.append('file', file)
 
       const response = await fetch(
         `/api/vehicles/${selectedWorkflow.vehicleId}/documents/receipt`,
@@ -2437,7 +2479,7 @@ function App() {
   )
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell ${selectedWorkflow ? 'app-shell--workflow' : ''}`}>
       <header className="topbar">
         <div>
           <p className="eyebrow">KwestKarz Maintenance</p>
@@ -2476,7 +2518,7 @@ function App() {
           </div>
           <div className="workflow-context-actions">
             <button className="secondary-button" type="button" disabled={loading} onClick={() => setActiveArea('workflows')}>
-              View Steps
+              Resume Workflow
             </button>
             <button className="secondary-button" type="button" disabled={loading} onClick={() => saveWorkflowStep('Complete')}>
               Mark Step Done
@@ -2501,6 +2543,48 @@ function App() {
           onScanAgain={() => { dismissVinConfirm(); openVinCamera() }}
           onDismiss={dismissVinConfirm}
         />
+      )}
+
+      {workflowSuspendOpen && selectedWorkflow && selectedWorkflowStep && (
+        <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Suspend workflow">
+          <div className="panel workflow-suspend-panel">
+            <div className="section-heading">
+              <div>
+                <h2>Suspend Workflow</h2>
+                <p>{selectedWorkflow.title}</p>
+              </div>
+            </div>
+            <div className="workflow-suspend-body">
+              <label>
+                <span>Reason code</span>
+                <select value={workflowSuspendReason} onChange={(e) => setWorkflowSuspendReason(e.target.value)}>
+                  <option value="waiting on part">Waiting on part</option>
+                  <option value="waiting on customer">Waiting on customer</option>
+                  <option value="waiting on vehicle">Waiting on vehicle</option>
+                  <option value="waiting on approval">Waiting on approval</option>
+                  <option value="waiting on materials">Waiting on materials</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label>
+                <span>Notes</span>
+                <textarea
+                  value={workflowStepNotes}
+                  onChange={(e) => setWorkflowStepNotes(e.target.value)}
+                  placeholder="Optional notes for when this workflow resumes"
+                />
+              </label>
+            </div>
+            <div className="workflow-suspend-actions">
+              <button className="secondary-button" type="button" disabled={loading} onClick={() => setWorkflowSuspendOpen(false)}>
+                Cancel
+              </button>
+              <button type="button" disabled={loading} onClick={confirmWorkflowSuspend}>
+                Suspend Workflow
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {guidedCapture && (
@@ -2656,6 +2740,7 @@ function App() {
           setVin={setVin}
           setRentalInspectionKind={setRentalInspectionKind}
           openWorkflowVinCamera={openWorkflowVinCamera}
+          openWorkflowReceiptCamera={openWorkflowReceiptCamera}
           recoverVinScanNow={recoverVinScanNow}
           continueAddVehicleVin={continueAddVehicleVin}
           setWorkflowStepNotes={setWorkflowStepNotes}

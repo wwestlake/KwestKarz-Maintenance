@@ -47,29 +47,47 @@ If `npm` is not found on this machine, Node 22 is installed at:
 $env:Path = "D:\tools\node22\node-v22.20.0-win-x64;$env:Path"
 ```
 
+If you want to run the frontend build with the local Node toolchain explicitly:
+
+```powershell
+$env:Path = "D:\tools\node22\node-v22.20.0-win-x64;$env:Path"
+$env:npm_config_cache = "D:\tools\npm-cache"
+cd src\react
+npm run build
+```
+
 ## Local App
 
 Run the backend:
 
 ```powershell
-dotnet run --project src\backend\KwestKarz.Api\KwestKarz.Api.fsproj --launch-profile http
+dotnet run --project src\backend\KwestKarz.Api\KwestKarz.Api.fsproj --urls http://0.0.0.0:5081
 ```
 
 Run the frontend:
 
 ```powershell
 cd src\react
+$env:Path = "D:\tools\node22\node-v22.20.0-win-x64;$env:Path"
+$env:npm_config_cache = "D:\tools\npm-cache"
 npm run dev -- --host 0.0.0.0 --port 5175 --strictPort
 ```
 
 Local URL:
 
 ```text
-https://localhost:5175
-https://KwestKarz:5175
+https://192.168.0.171:5175
+http://192.168.0.171:5081
 ```
 
-For guided in-app camera access on a phone, the browser must trust the local dev CA in `certs\dev\kwestkarz-rootCA.crt` and the internal hostname `KwestKarz` must resolve to the PC's LAN IP. The Vite dev server uses `certs\dev\kwestkarz.crt` and `certs\dev\kwestkarz.key` when those files exist, and proxies `/api` to the local backend.
+For phone testing over Wi-Fi, the app machine must have its firewall permission approved for ports `5175` and `5081`. The browser must trust the local dev CA in `certs\dev\kwestkarz-rootCA.crt` if you want guided camera access over HTTPS. The Vite dev server uses `certs\dev\kwestkarz.crt` and `certs\dev\kwestkarz.key` when those files exist, and proxies `/api` to the backend on `http://0.0.0.0:5081`.
+
+### Smoke Test Checklist
+
+1. Start the backend and frontend using the commands above.
+2. Approve Windows Defender or firewall prompts for the dev ports.
+3. Open `https://192.168.0.171:5175` from a phone on the same Wi-Fi network.
+4. Confirm the workflow screen loads and the app border changes in workflow mode.
 
 ## Local Database
 
