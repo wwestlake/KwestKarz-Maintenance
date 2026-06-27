@@ -4,6 +4,7 @@
     sans-serif;
   color: #172026;
   background: #f7f8f5;
+  color-scheme: light;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -13,12 +14,7 @@
 html {
   overflow-x: hidden;
   background: #f7f8f5;
-}
-
-@media (prefers-color-scheme: dark) {
-  html {
-    background: #0d1810;
-  }
+  color-scheme: light;
 }
 
 body {
