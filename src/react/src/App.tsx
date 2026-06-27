@@ -275,6 +275,10 @@ function App() {
   const selectedWorkflowStepIndex = selectedWorkflow && selectedWorkflowStep
     ? selectedWorkflow.steps.findIndex((step) => step.stepKey === selectedWorkflowStep.stepKey)
     : -1
+  const selectedWorkflowPreviousStep =
+    selectedWorkflow && selectedWorkflowStepIndex > 0
+      ? selectedWorkflow.steps[selectedWorkflowStepIndex - 1]
+      : null
   const activeWorkflows = workflows.filter((workflow) => workflow.status !== 'Complete' && workflow.status !== 'Canceled')
   const completedWorkflows = workflows.filter((workflow) => workflow.status === 'Complete')
   const selectedWorkflowStepDocumentId =
@@ -3379,9 +3383,25 @@ function App() {
                       : selectedWorkflow.title}
                   </p>
                 </div>
-                <button className="secondary-button" type="button" disabled={loading} onClick={() => setActiveArea('workflows')}>
-                  View Flow
-                </button>
+                <div className="form-actions">
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={loading}
+                    onClick={() => {
+                      if (selectedWorkflowPreviousStep) {
+                        jumpToWorkflowStep(selectedWorkflow, selectedWorkflowPreviousStep)
+                      } else {
+                        setActiveArea('workflows')
+                      }
+                    }}
+                  >
+                    Back
+                  </button>
+                  <button className="secondary-button" type="button" disabled={loading} onClick={() => setActiveArea('workflows')}>
+                    View Flow
+                  </button>
+                </div>
               </div>
               {workingIndicator}
               <div className="workflow-guidance rental-guidance">
@@ -3399,96 +3419,127 @@ function App() {
                   </strong>
                 </div>
               </div>
-              <form className="rental-inspection-form compact" onSubmit={(event) => {
-                event.preventDefault()
-                saveRentalInspectionDetails(selectedWorkflowStep?.stepKey === 'odometerFuel')
-              }}>
+              <form
+                className="rental-inspection-form compact"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  saveRentalInspectionDetails(false)
+                }}
+              >
                 <div className="form-actions wide sticky-form-actions">
-                  <button type="submit" disabled={loading}>Save Inspection</button>
+                  <button type="submit" disabled={loading}>Save Step</button>
                   <button className="secondary-button" type="button" disabled={loading} onClick={() => saveRentalInspectionDetails(true)}>
                     Save + Continue
                   </button>
                 </div>
-                <label>
-                  <span>Inspection Type</span>
-                  <select
-                    value={rentalInspectionForm.inspectionKind}
-                    onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, inspectionKind: event.target.value })}
-                  >
-                    <option value="Pre">Pre</option>
-                    <option value="Post">Post</option>
-                    <option value="Both">Both</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Odometer</span>
-                  <input
-                    inputMode="numeric"
-                    value={rentalInspectionForm.odometer}
-                    onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, odometer: event.target.value.replace(/\D/g, '') })}
-                  />
-                </label>
-                <label>
-                  <span>Fuel / Charge</span>
-                  <input
-                    value={rentalInspectionForm.fuelLevel}
-                    placeholder="Full, 7/8, 62%, etc."
-                    onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, fuelLevel: event.target.value })}
-                  />
-                </label>
-                <label>
-                  <span>Damage Found</span>
-                  <select
-                    value={rentalInspectionForm.damageFound}
-                    onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, damageFound: event.target.value })}
-                  >
-                    <option value="">Not checked</option>
-                    <option value="false">No visible damage</option>
-                    <option value="true">Damage found</option>
-                  </select>
-                </label>
-                <label className="wide">
-                  <span>Inspection Notes</span>
-                  <textarea
-                    value={rentalInspectionForm.notes}
-                    onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, notes: event.target.value })}
-                  />
-                </label>
+                {selectedWorkflowStep?.stepKey === 'inspectionKind' && (
+                  <label>
+                    <span>Inspection Type</span>
+                    <select
+                      value={rentalInspectionForm.inspectionKind}
+                      onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, inspectionKind: event.target.value })}
+                    >
+                      <option value="Pre">Pre</option>
+                      <option value="Post">Post</option>
+                      <option value="Both">Both</option>
+                    </select>
+                  </label>
+                )}
+                {selectedWorkflowStep?.stepKey === 'odometerFuel' && (
+                  <>
+                    <label>
+                      <span>Odometer</span>
+                      <input
+                        inputMode="numeric"
+                        value={rentalInspectionForm.odometer}
+                        onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, odometer: event.target.value.replace(/\D/g, '') })}
+                      />
+                    </label>
+                    <label>
+                      <span>Fuel / Charge</span>
+                      <input
+                        value={rentalInspectionForm.fuelLevel}
+                        placeholder="Full, 7/8, 62%, etc."
+                        onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, fuelLevel: event.target.value })}
+                      />
+                    </label>
+                  </>
+                )}
+                {selectedWorkflowStep?.stepKey === 'damage' && (
+                  <>
+                    <label>
+                      <span>Damage Found</span>
+                      <select
+                        value={rentalInspectionForm.damageFound}
+                        onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, damageFound: event.target.value })}
+                      >
+                        <option value="">Not checked</option>
+                        <option value="false">No visible damage</option>
+                        <option value="true">Damage found</option>
+                      </select>
+                    </label>
+                    <label className="wide">
+                      <span>Inspection Notes</span>
+                      <textarea
+                        value={rentalInspectionForm.notes}
+                        onChange={(event) => setRentalInspectionForm({ ...rentalInspectionForm, notes: event.target.value })}
+                      />
+                    </label>
+                  </>
+                )}
+                {selectedWorkflowStep?.stepKey === 'review' && (
+                  <div className="rental-review-summary">
+                    <div className="section-heading">
+                      <div>
+                        <h3>Review Snapshot</h3>
+                        <p>Check the saved details before finishing the workflow.</p>
+                      </div>
+                    </div>
+                    <div className="report-fields">
+                      <div><span>Inspection Type</span><strong>{rentalInspectionForm.inspectionKind || rentalInspectionKind || '—'}</strong></div>
+                      <div><span>Odometer</span><strong>{rentalInspectionForm.odometer || '—'}</strong></div>
+                      <div><span>Fuel / Charge</span><strong>{rentalInspectionForm.fuelLevel || '—'}</strong></div>
+                      <div><span>Damage Found</span><strong>{rentalInspectionForm.damageFound === '' ? '—' : rentalInspectionForm.damageFound === 'true' ? 'Yes' : 'No'}</strong></div>
+                    </div>
+                  </div>
+                )}
               </form>
 
-              <div className="inspection-photo-grid">
-                {rentalInspectionPhotoSlots.map(([slotKey, label]) => {
-                  const savedPhoto = rentalInspection?.photos.find((photo) => photo.slotKey === slotKey)
-                  return (
-                    <div key={slotKey} className={savedPhoto ? 'inspection-photo-slot complete' : 'inspection-photo-slot'}>
-                      <div>
-                        <strong>{label}</strong>
-                        <span>{savedPhoto ? 'Saved' : 'Needed'}</span>
+              {(selectedWorkflowStep?.stepKey === 'photos' || selectedWorkflowStep?.stepKey === 'review') && (
+                <div className="inspection-photo-grid">
+                  {rentalInspectionPhotoSlots.map(([slotKey, label]) => {
+                    const savedPhoto = rentalInspection?.photos.find((photo) => photo.slotKey === slotKey)
+                    return (
+                      <div key={slotKey} className={savedPhoto ? 'inspection-photo-slot complete' : 'inspection-photo-slot'}>
+                        <div>
+                          <strong>{label}</strong>
+                          <span>{savedPhoto ? 'Saved' : 'Needed'}</span>
+                        </div>
+                        {savedPhoto && (
+                          <a href={`/api/documents/${savedPhoto.documentId}/content`} target="_blank" rel="noreferrer">
+                            View
+                          </a>
+                        )}
+                        <button
+                          className="secondary-button"
+                          type="button"
+                          disabled={loading}
+                          onClick={() =>
+                            openGuidedCamera({
+                              title: label,
+                              instructions: `Capture the ${label.toLowerCase()} photo for this inspection.`,
+                              overlay: 'document',
+                              onPhoto: (file) => uploadRentalInspectionPhoto(slotKey, file),
+                            })
+                          }
+                        >
+                          {savedPhoto ? 'Replace Photo' : 'Take Photo'}
+                        </button>
                       </div>
-                      {savedPhoto && (
-                        <a href={`/api/documents/${savedPhoto.documentId}/content`} target="_blank" rel="noreferrer">
-                          View
-                        </a>
-                      )}
-                      <button
-                        className="secondary-button"
-                        type="button"
-                        disabled={loading}
-                        onClick={() =>
-                          openGuidedCamera({
-                            title: label,
-                            instructions: `Capture the ${label.toLowerCase()} photo for this inspection.`,
-                            overlay: 'document',
-                            onPhoto: (file) => uploadRentalInspectionPhoto(slotKey, file),
-                          })
-                        }
-                      >
-                        {savedPhoto ? 'Replace Photo' : 'Take Photo'}
-                      </button>
-                    </div>
-                  )
-                })}
-              </div>
+                    )
+                  })}
+                </div>
+              )}
 
               {rentalInspection && (rentalInspection.status === 'NeedsReview' || rentalInspection.status === 'Complete') && (
                 <div className="form-actions" style={{ marginTop: '12px' }}>
