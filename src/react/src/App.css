@@ -2584,6 +2584,14 @@ label span,
   text-align: left;
 }
 
+.public-cache-test-banner span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .public-actions {
   display: flex;
   flex-wrap: wrap;
