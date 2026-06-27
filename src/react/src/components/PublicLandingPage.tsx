@@ -11,7 +11,8 @@ export function PublicLandingPage() {
       <PublicSiteHeader menuOpen={menuOpen} onToggleMenu={() => setMenuOpen((value) => !value)} />
 
       <div className="public-cache-test-banner">
-        Cache check: this is the newest root page build.
+        <strong>Build marker:</strong> the latest root page is live.
+        <span> Refresh this page and you should still see this message.</span>
       </div>
 
       <section className="public-feature">
