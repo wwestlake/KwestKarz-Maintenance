@@ -234,7 +234,10 @@ module Program =
                 task {
                     let path = context.Request.Path.ToString()
                     let isUserRegistration = path = "/api/users/me" && context.Request.Method = "POST"
-                    let isPublic = path = "/api/health" || isUserRegistration
+                    let isPublic =
+                        path = "/api/health" ||
+                        path.StartsWith("/api/public", StringComparison.OrdinalIgnoreCase) ||
+                        isUserRegistration
 
                     if isPublic || not context.User.Identity.IsAuthenticated then
                         do! next.Invoke()
