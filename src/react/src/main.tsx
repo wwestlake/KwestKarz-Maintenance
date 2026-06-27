@@ -7,6 +7,9 @@ import { AuthProvider, useAuth } from './AuthContext.tsx'
 import { LoginScreen } from './components/LoginScreen.tsx'
 import { PendingApprovalScreen } from './components/PendingApprovalScreen.tsx'
 import { ContactPage } from './components/ContactPage.tsx'
+import { PublicAboutTuroPage } from './components/PublicAboutTuroPage.tsx'
+import { PublicCarsPage } from './components/PublicCarsPage.tsx'
+import { PublicHelpPage } from './components/PublicHelpPage.tsx'
 import { PublicLandingPage } from './components/PublicLandingPage.tsx'
 
 function AppShell() {
@@ -29,6 +32,9 @@ function AppShell() {
 
 function RootShell() {
   const pathname = window.location.pathname
+  if (pathname.startsWith('/cars')) return <PublicCarsPage />
+  if (pathname.startsWith('/about-turo')) return <PublicAboutTuroPage />
+  if (pathname.startsWith('/help')) return <PublicHelpPage />
   if (pathname.startsWith('/contact')) return <ContactPage />
   const isEmployeePath = pathname.startsWith('/employee')
   if (!isEmployeePath) return <PublicLandingPage />

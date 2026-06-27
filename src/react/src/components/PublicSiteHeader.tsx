@@ -16,22 +16,19 @@ type PublicMenuItem = {
 
 const publicMenuItems: PublicMenuItem[] = [
   {
-    href: 'https://turo.com/us/en/drivers/45519639',
+    href: '/cars',
     label: 'Our Cars',
     icon: <CarFront size={18} strokeWidth={2.2} />,
-    external: true,
   },
   {
-    href: 'https://turo.com',
+    href: '/about-turo',
     label: 'About Turo',
     icon: <Info size={18} strokeWidth={2.2} />,
-    external: true,
   },
   {
-    href: 'https://help.turo.com',
+    href: '/help',
     label: 'Help',
     icon: <CircleHelp size={18} strokeWidth={2.2} />,
-    external: true,
   },
   {
     href: '/contact',
@@ -70,8 +67,6 @@ export function PublicSiteHeader({ menuOpen, onToggleMenu }: PublicSiteHeaderPro
             key={item.href}
             className="public-menu-link"
             href={item.href}
-            target={item.external ? '_blank' : undefined}
-            rel={item.external ? 'noreferrer' : undefined}
           >
             <span className="public-menu-link-icon" aria-hidden="true">
               {item.icon}
@@ -99,8 +94,6 @@ export function PublicSiteHeader({ menuOpen, onToggleMenu }: PublicSiteHeaderPro
               <a
                 className="public-menu-link"
                 href={item.href}
-                target={item.external ? '_blank' : undefined}
-                rel={item.external ? 'noreferrer' : undefined}
               >
                 <span className="public-menu-link-icon" aria-hidden="true">
                   {item.icon}
