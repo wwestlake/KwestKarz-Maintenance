@@ -64,6 +64,14 @@ export function VehicleEditPanel({ form, loading, onChange, onSubmit, onCancel }
           </select>
         </label>
         <label>
+          <span>Turo Listing URL</span>
+          <input
+            value={form.turoListingUrl}
+            onChange={(e) => onChange({ ...form, turoListingUrl: e.target.value })}
+            placeholder="https://turo.com/us/en/..."
+          />
+        </label>
+        <label>
           <span>Odometer</span>
           <input
             type="number"

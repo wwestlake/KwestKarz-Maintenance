@@ -6,6 +6,7 @@ import { GuidedCameraModal } from './components/GuidedCameraModal'
 import { VinConfirmModal } from './components/VinConfirmModal'
 import type { VinConfirm } from './components/VinConfirmModal'
 import { VehicleEditPanel } from './components/VehicleEditPanel'
+import { VehiclePublicMediaPanel } from './components/VehiclePublicMediaPanel'
 import { AddVehicleModal } from './components/AddVehicleModal'
 import { TuroImportPanel } from './components/TuroImportPanel'
 import { PendingApprovalsPanel } from './components/PendingApprovalsPanel'
@@ -166,6 +167,7 @@ function App() {
     licensePlate: '',
     licensePlateState: '',
     status: 'Active',
+    turoListingUrl: '',
     currentOdometer: '',
     fleetPositionNumber: '',
     notes: '',
@@ -1097,6 +1099,7 @@ function App() {
       licensePlate: v.licensePlate ?? '',
       licensePlateState: v.licensePlateState ?? '',
       status: v.status,
+      turoListingUrl: v.turoListingUrl ?? '',
       currentOdometer: v.currentOdometer?.toString() ?? '',
       fleetPositionNumber: v.fleetPositionNumber ?? '',
       notes: v.notes ?? '',
@@ -1117,6 +1120,7 @@ function App() {
         licensePlate: editVehicleForm.licensePlate || null,
         licensePlateState: editVehicleForm.licensePlateState || null,
         status: editVehicleForm.status || 'Active',
+        turoListingUrl: editVehicleForm.turoListingUrl || null,
         currentOdometer: editVehicleForm.currentOdometer ? Number(editVehicleForm.currentOdometer) : null,
         currentOdometerRecordedAt: editVehicleForm.currentOdometer ? new Date().toISOString() : null,
         fleetPositionNumber: editVehicleForm.fleetPositionNumber || null,
@@ -3366,6 +3370,15 @@ function App() {
               onCancel={() => setShowEditVehicle(false)}
             />
           )}
+
+          <VehiclePublicMediaPanel
+            vehicleId={dashboard.vehicle.id}
+            documents={dashboard.documents}
+            loading={loading}
+            onRefresh={async () => {
+              await loadDashboard(dashboard.vehicle.id)
+            }}
+          />
 
           {selectedWorkflow?.workflowType === 'RentalInspection' && (
             <div className="panel rental-inspection-panel">

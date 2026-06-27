@@ -7,8 +7,33 @@ open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Http
 
 module VehicleEndpoints =
+    let private isPublicVehicle (vehicle: Vehicle) =
+        match vehicle.Status with
+        | VehicleStatus.Active
+        | VehicleStatus.Staging -> true
+        | _ -> false
+
     let mapVehicleEndpoints (app: WebApplication) =
         let group = app.MapGroup("/api/vehicles")
+        let publicGroup = app.MapGroup("/api/public")
+
+        let publicVehiclesRoute =
+            publicGroup.MapGet(
+            "/vehicles",
+            Func<IVehicleRepository, HttpContext, Task<IResult>>(fun repository httpContext ->
+                task {
+                    let! vehicles = repository.ListAsync(httpContext.RequestAborted)
+                    let publicVehicles =
+                        vehicles
+                        |> List.filter isPublicVehicle
+                        |> List.map PublicVehicleResponse.fromDomain
+                        |> List.toArray
+
+                    return Results.Ok publicVehicles
+                })
+        )
+        publicVehiclesRoute.AllowAnonymous()
+        |> ignore
 
         group.MapGet(
             "/",

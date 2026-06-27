@@ -17,6 +17,7 @@ type CreateVehicleRequest =
       Status: string option
       TuroListingId: string option
       TuroListingStatus: string option
+      TuroListingUrl: string option
       CurrentOdometer: int option
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
@@ -37,6 +38,7 @@ module CreateVehicleRequest =
           Status = request.Status |> Option.map VehicleStatus.fromStorageValue |> Option.defaultValue VehicleStatus.Active
           TuroListingId = request.TuroListingId
           TuroListingStatus = request.TuroListingStatus
+          TuroListingUrl = request.TuroListingUrl
           CurrentOdometer = request.CurrentOdometer
           CurrentOdometerRecordedAt = request.CurrentOdometerRecordedAt
           FleetPositionNumber = request.FleetPositionNumber
@@ -47,6 +49,7 @@ type UpdateVehicleRequest =
       LicensePlate: string option
       LicensePlateState: string option
       Status: string option
+      TuroListingUrl: string option
       CurrentOdometer: int option
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
@@ -58,6 +61,7 @@ module UpdateVehicleRequest =
           LicensePlate = request.LicensePlate
           LicensePlateState = request.LicensePlateState
           Status = request.Status |> Option.map VehicleStatus.fromStorageValue |> Option.defaultValue VehicleStatus.Active
+          TuroListingUrl = request.TuroListingUrl
           CurrentOdometer = request.CurrentOdometer
           CurrentOdometerRecordedAt = request.CurrentOdometerRecordedAt
           FleetPositionNumber = request.FleetPositionNumber
@@ -78,6 +82,7 @@ type VehicleResponse =
       Status: string
       TuroListingId: string option
       TuroListingStatus: string option
+      TuroListingUrl: string option
       CurrentOdometer: int option
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
@@ -101,9 +106,35 @@ module VehicleResponse =
           Status = VehicleStatus.toStorageValue vehicle.Status
           TuroListingId = vehicle.TuroListingId
           TuroListingStatus = vehicle.TuroListingStatus
+          TuroListingUrl = vehicle.TuroListingUrl
           CurrentOdometer = vehicle.CurrentOdometer
           CurrentOdometerRecordedAt = vehicle.CurrentOdometerRecordedAt
           FleetPositionNumber = vehicle.FleetPositionNumber
           Notes = vehicle.Notes
           CreatedAt = vehicle.CreatedAt
           UpdatedAt = vehicle.UpdatedAt }
+
+type PublicVehicleResponse =
+    { Id: Guid
+      Year: int option
+      Make: string option
+      Model: string option
+      Trim: string option
+      Color: string option
+      Status: string
+      TuroListingStatus: string option
+      TuroListingUrl: string option
+      FleetPositionNumber: string option }
+
+module PublicVehicleResponse =
+    let fromDomain (vehicle: Vehicle) : PublicVehicleResponse =
+        { Id = vehicle.Id
+          Year = vehicle.Year
+          Make = vehicle.Make
+          Model = vehicle.Model
+          Trim = vehicle.Trim
+          Color = vehicle.Color
+          Status = VehicleStatus.toStorageValue vehicle.Status
+          TuroListingStatus = vehicle.TuroListingStatus
+          TuroListingUrl = vehicle.TuroListingUrl
+          FleetPositionNumber = vehicle.FleetPositionNumber }

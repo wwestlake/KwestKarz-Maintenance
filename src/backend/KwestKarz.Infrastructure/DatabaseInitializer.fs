@@ -26,6 +26,7 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                     status text not null,
                     turo_listing_id text null,
                     turo_listing_status text null,
+                    turo_listing_url text null,
                     current_odometer integer null,
                     current_odometer_recorded_at timestamptz null,
                     fleet_position_number text null,
@@ -39,6 +40,9 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
 
                 create index if not exists ix_vehicles_status
                     on kwestkarzbusinessdata.vehicles(status);
+
+                alter table if exists kwestkarzbusinessdata.vehicles
+                    add column if not exists turo_listing_url text null;
 
                 create table if not exists kwestkarzbusinessdata.lock_boxes (
                     id uuid primary key,

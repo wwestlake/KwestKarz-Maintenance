@@ -12,6 +12,7 @@ type Form = {
   color: string
   licensePlate: string
   licensePlateState: string
+  turoListingUrl: string
   currentOdometer: string
   fleetIdOverride: string
 }
@@ -24,7 +25,7 @@ type Props = {
 const empty: Form = {
   vin: '', year: '', make: '', model: '', trim: '',
   color: '', licensePlate: '', licensePlateState: '',
-  currentOdometer: '', fleetIdOverride: '',
+  turoListingUrl: '', currentOdometer: '', fleetIdOverride: '',
 }
 
 function extractJson(text: string): Record<string, unknown> {
@@ -141,6 +142,7 @@ export function AddVehicleModal({ onClose, onCreated }: Props) {
         color: form.color || null,
         licensePlate: form.licensePlate || null,
         licensePlateState: form.licensePlateState || null,
+        turoListingUrl: form.turoListingUrl || null,
         status: 'Active',
         currentOdometer: form.currentOdometer ? Number(form.currentOdometer) : null,
         fleetPositionNumber: fleetId || null,
@@ -307,6 +309,15 @@ export function AddVehicleModal({ onClose, onCreated }: Props) {
               </select>
             </label>
           </div>
+
+          <label className="add-veh-full">
+            <span>Turo Listing URL</span>
+            <input
+              value={form.turoListingUrl}
+              placeholder="https://turo.com/us/en/..."
+              onChange={(e) => patch({ turoListingUrl: e.target.value })}
+            />
+          </label>
 
           {/* Fleet ID */}
           <label className="add-veh-full">
