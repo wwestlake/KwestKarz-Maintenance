@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { CarFront, CircleHelp, Info, LogIn, Mail } from 'lucide-react'
 import logoAsset from '../assets/kwestkarz-logo.jpg'
+import { ThemeToggle } from './ThemeToggle'
 
 type PublicSiteHeaderProps = {
   menuOpen: boolean
@@ -59,6 +60,10 @@ export function PublicSiteHeader({ menuOpen, onToggleMenu }: PublicSiteHeaderPro
         <a className="public-brand-link" href="/" aria-label="KwestKarz home">
           <img className="public-logo" src={logoAsset} alt="KwestKarz" />
         </a>
+      </div>
+
+      <div className="public-topbar-actions">
+        <ThemeToggle />
       </div>
 
       <nav className="public-desktop-nav" aria-label="Primary">
