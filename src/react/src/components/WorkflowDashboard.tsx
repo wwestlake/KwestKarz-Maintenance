@@ -265,8 +265,10 @@ export function WorkflowDashboard({
 }: WorkflowDashboardProps) {
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({})
   const [showStartNew, setShowStartNew] = useState(false)
+  const [showTaskList, setShowTaskList] = useState(true)
 
   useEffect(() => { setCheckedItems({}) }, [selectedWorkflowStepKey])
+  useEffect(() => { setShowTaskList(true) }, [selectedWorkflowId])
 
   const isWizardMode = !!selectedWorkflow && !!selectedWorkflowStep
 
@@ -288,6 +290,14 @@ export function WorkflowDashboard({
   const isDamageEstimateStep = selectedWorkflow?.workflowType === 'DamageReview' && selectedWorkflowStep?.stepKey === 'estimate'
   const isDamageRepairStep = selectedWorkflow?.workflowType === 'DamageReview' && selectedWorkflowStep?.stepKey === 'repair'
   const navigatesAway = !!selectedWorkflowStep && NAVIGATE_STEPS.has(selectedWorkflowStep.stepKey)
+  function openWorkflowStep(step: WorkflowStep) {
+    setShowTaskList(false)
+    jumpToStep(selectedWorkflow!, step)
+  }
+
+  function returnToTaskList() {
+    setShowTaskList(true)
+  }
   if (isWizardMode && selectedWorkflow && selectedWorkflowStep) {
     return (
       <div className="wf-shell" ref={workflowEditorRef}>
@@ -309,7 +319,8 @@ export function WorkflowDashboard({
           <div className="wf-shell-track-fill" style={{ width: `${progressPct}%` }} />
         </div>
 
-        <div className="wf-shell-layout">
+        <div className={`wf-shell-layout ${showTaskList ? '' : 'wf-shell-layout--focused'}`}>
+          {showTaskList && (
           <aside className="wf-shell-sidebar" aria-label="Workflow tasks">
             <div className="wf-shell-sidebar-head">
               <div>
@@ -335,7 +346,7 @@ export function WorkflowDashboard({
                     ].filter(Boolean).join(' ')}
                     title={availability.available ? step.title : `Requires: ${availability.lockedBy.join(', ')}`}
                     disabled={loading || (!availability.available && !isCurrent)}
-                    onClick={() => jumpToStep(selectedWorkflow, step)}
+                    onClick={() => openWorkflowStep(step)}
                   >
                     <span className="wf-shell-step-index">Step {index + 1}</span>
                     <strong>{step.title}</strong>
@@ -348,16 +359,28 @@ export function WorkflowDashboard({
               })}
             </div>
           </aside>
+          )}
 
           <section className="wf-shell-stage" aria-label="Active workflow step">
             <div className="wf-wiz-step-heading">
               <div>
                 <h2 className="wf-wiz-step-title">{selectedWorkflowStep.title}</h2>
-                <p className="wf-shell-stage-meta">Use the task list to move around. The current step stays in focus here.</p>
+                <p className="wf-shell-stage-meta">
+                  {showTaskList
+                    ? 'Use the task list to move around. The current step stays in focus here.'
+                    : 'The task list is hidden while this step is open. Use Back to return.'}
+                </p>
               </div>
-              <span className={`wf-wiz-status wf-wiz-status--${selectedWorkflowStep.status.toLowerCase()}`}>
-                {stepIcon(selectedWorkflowStep.status)} {selectedWorkflowStep.status}
-              </span>
+              <div className="wf-shell-stage-actions">
+                {!showTaskList && (
+                  <button className="secondary-button" type="button" disabled={loading} onClick={returnToTaskList}>
+                    Back to Task List
+                  </button>
+                )}
+                <span className={`wf-wiz-status wf-wiz-status--${selectedWorkflowStep.status.toLowerCase()}`}>
+                  {stepIcon(selectedWorkflowStep.status)} {selectedWorkflowStep.status}
+                </span>
+              </div>
             </div>
 
             {guidance && (
@@ -514,7 +537,10 @@ export function WorkflowDashboard({
                   className="wf-wiz-go-btn"
                   type="button"
                   disabled={loading}
-                  onClick={() => activateWorkflowStep(selectedWorkflow, selectedWorkflowStep)}
+                  onClick={() => {
+                    setShowTaskList(false)
+                    activateWorkflowStep(selectedWorkflow!, selectedWorkflowStep)
+                  }}
                 >
                   Go Do This Step →
                 </button>
@@ -546,14 +572,14 @@ export function WorkflowDashboard({
                 type="button"
                 className="secondary-button"
                 disabled={!prevStep || loading}
-                onClick={() => prevStep && jumpToStep(selectedWorkflow, prevStep)}
+                onClick={() => prevStep && openWorkflowStep(prevStep)}
               >
                 ‹ {prevStep ? prevStep.title : 'Previous'}
               </button>
               <button
                 type="button"
                 disabled={!nextStep || loading}
-                onClick={() => nextStep && jumpToStep(selectedWorkflow, nextStep)}
+                onClick={() => nextStep && openWorkflowStep(nextStep)}
               >
                 {nextStep ? nextStep.title : 'Next'} ›
               </button>

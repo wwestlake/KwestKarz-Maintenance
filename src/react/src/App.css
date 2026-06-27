@@ -1947,6 +1947,10 @@ label span,
   align-items: start;
 }
 
+.wf-shell-layout--focused {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .wf-shell-sidebar,
 .wf-shell-stage {
   display: grid;
@@ -2030,6 +2034,14 @@ label span,
   gap: 14px;
 }
 
+.wf-shell-stage-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .wf-shell-stage-meta {
   color: var(--text-secondary);
   font-size: 13px;
@@ -2053,6 +2065,10 @@ label span,
 
   .wf-shell-layout {
     grid-template-columns: 1fr;
+  }
+
+  .wf-shell-stage-actions {
+    justify-content: flex-start;
   }
 }
 
