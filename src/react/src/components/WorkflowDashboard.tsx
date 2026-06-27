@@ -37,6 +37,7 @@ type WorkflowDashboardProps = {
   setVin: (vin: string) => void
   setRentalInspectionKind: (kind: string) => void
   openWorkflowVinCamera: () => void
+  openWorkflowReceiptCamera: () => void
   recoverVinScanNow: () => void
   continueAddVehicleVin: () => void
   setWorkflowStepNotes: (notes: string) => void
@@ -60,6 +61,52 @@ const NAVIGATE_STEPS = new Set([
   'odometerFuel', 'returnState', 'inspectionKind', 'registration', 'insurance',
   'plate', 'tires',
 ])
+
+const WORKFLOW_STEP_DEPENDENCIES: Record<string, Record<string, string[]>> = {
+  AddVehicle: {
+    vehicleBasics: ['vin'],
+    licensePlate: ['vin'],
+    registration: ['vin', 'vehicleBasics'],
+    insurance: ['vin', 'vehicleBasics'],
+    lockBox: ['vin', 'vehicleBasics'],
+    photosOdometer: ['vin', 'vehicleBasics'],
+    review: ['vin', 'vehicleBasics', 'licensePlate', 'registration', 'insurance', 'lockBox', 'photosOdometer'],
+  },
+  RentalInspection: {
+    odometerFuel: ['vehicle', 'inspectionKind'],
+    photos: ['vehicle', 'inspectionKind', 'odometerFuel'],
+    tires: ['vehicle', 'inspectionKind', 'odometerFuel'],
+    damage: ['vehicle', 'inspectionKind', 'photos'],
+    review: ['vehicle', 'inspectionKind', 'odometerFuel', 'photos', 'tires', 'damage'],
+  },
+  MaintenanceIntake: {
+    service: ['vehicle'],
+    receipt: ['vehicle', 'service'],
+    followUp: ['vehicle', 'service', 'receipt'],
+    review: ['vehicle', 'service', 'receipt', 'followUp'],
+  },
+  DamageReview: {
+    photos: ['vehicle'],
+    estimate: ['vehicle', 'photos'],
+    repair: ['vehicle', 'estimate'],
+    review: ['vehicle', 'photos', 'estimate', 'repair'],
+  },
+  ComplianceRenewal: {
+    registration: ['vehicle'],
+    insurance: ['vehicle'],
+    plate: ['vehicle', 'registration'],
+    review: ['vehicle', 'registration', 'insurance', 'plate'],
+  },
+  TechnicalCheck: {
+    underHood: ['returnIntake'],
+    fluids: ['returnIntake', 'underHood'],
+    batteryCharging: ['returnIntake', 'underHood'],
+    obd2Scan: ['returnIntake', 'underHood', 'fluids', 'batteryCharging'],
+    idleRoadCheck: ['returnIntake', 'underHood', 'fluids', 'batteryCharging'],
+    issues: ['returnIntake', 'underHood', 'fluids', 'batteryCharging', 'obd2Scan', 'idleRoadCheck'],
+    review: ['returnIntake', 'underHood', 'fluids', 'batteryCharging', 'obd2Scan', 'idleRoadCheck', 'issues'],
+  },
+}
 
 function stepGuidance(workflow: WorkflowInstance, step: WorkflowStep): { summary: string; checklist: string[] } {
   const kind = workflow.steps
@@ -136,6 +183,36 @@ function stepIcon(status: string) {
   return '○'
 }
 
+function stepPrerequisites(workflow: WorkflowInstance, step: WorkflowStep): string[] {
+  const explicit = WORKFLOW_STEP_DEPENDENCIES[workflow.workflowType]?.[step.stepKey]
+  if (explicit) return explicit
+  const raw = step.data?.prerequisites
+  if (!Array.isArray(raw)) return []
+  return raw.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+}
+
+function stepAvailability(
+  workflow: WorkflowInstance,
+  steps: WorkflowStep[],
+  step: WorkflowStep,
+  selectedWorkflowStepKey: string,
+): { available: boolean; lockedBy: string[] } {
+  if (step.stepKey === selectedWorkflowStepKey || step.status === 'Complete') {
+    return { available: true, lockedBy: [] }
+  }
+
+  const prerequisites = stepPrerequisites(workflow, step)
+  if (prerequisites.length === 0) {
+    return { available: true, lockedBy: [] }
+  }
+
+  const completedStepKeys = new Set(
+    steps.filter((item) => item.status === 'Complete').map((item) => item.stepKey),
+  )
+  const lockedBy = prerequisites.filter((key) => !completedStepKeys.has(key))
+  return { available: lockedBy.length === 0, lockedBy }
+}
+
 export function WorkflowDashboard({
   workflowCatalog,
   activeWorkflows,
@@ -169,6 +246,7 @@ export function WorkflowDashboard({
   setVin,
   setRentalInspectionKind,
   openWorkflowVinCamera,
+  openWorkflowReceiptCamera,
   recoverVinScanNow,
   continueAddVehicleVin,
   setWorkflowStepNotes,
@@ -210,6 +288,300 @@ export function WorkflowDashboard({
   const isDamageEstimateStep = selectedWorkflow?.workflowType === 'DamageReview' && selectedWorkflowStep?.stepKey === 'estimate'
   const isDamageRepairStep = selectedWorkflow?.workflowType === 'DamageReview' && selectedWorkflowStep?.stepKey === 'repair'
   const navigatesAway = !!selectedWorkflowStep && NAVIGATE_STEPS.has(selectedWorkflowStep.stepKey)
+  if (isWizardMode && selectedWorkflow && selectedWorkflowStep) {
+    return (
+      <div className="wf-shell" ref={workflowEditorRef}>
+        <header className="wf-shell-header">
+          <div className="wf-shell-header-copy">
+            <span className="wf-shell-kicker">Workflow mode</span>
+            <h2 className="wf-shell-title">{selectedWorkflow.title}</h2>
+            <p className="wf-shell-meta">Step {currentStepIdx + 1} of {totalSteps}</p>
+          </div>
+          <div className="wf-shell-header-actions">
+            <span className="wf-shell-progress">{progressPct}%</span>
+            <button className="wf-shell-pause" type="button" disabled={loading} onClick={pauseAndExit}>
+              Suspend Workflow
+            </button>
+          </div>
+        </header>
+
+        <div className="wf-shell-track" aria-hidden="true">
+          <div className="wf-shell-track-fill" style={{ width: `${progressPct}%` }} />
+        </div>
+
+        <div className="wf-shell-layout">
+          <aside className="wf-shell-sidebar" aria-label="Workflow tasks">
+            <div className="wf-shell-sidebar-head">
+              <div>
+                <span className="wf-shell-kicker">Task list</span>
+                <h3>Open work</h3>
+              </div>
+              <span className="tag">{sortedSteps.length}</span>
+            </div>
+            <div className="wf-shell-step-list">
+              {sortedSteps.map((step, index) => {
+                const availability = stepAvailability(selectedWorkflow, sortedSteps, step, selectedWorkflowStepKey)
+                const isCurrent = step.stepKey === selectedWorkflowStepKey
+                return (
+                  <button
+                    key={step.id}
+                    type="button"
+                    className={[
+                      'wf-shell-step',
+                      step.status === 'Complete' ? 'wf-shell-step--done' : '',
+                      isCurrent ? 'wf-shell-step--current' : '',
+                      step.status === 'NeedsReview' ? 'wf-shell-step--review' : '',
+                      !availability.available && !isCurrent ? 'wf-shell-step--locked' : '',
+                    ].filter(Boolean).join(' ')}
+                    title={availability.available ? step.title : `Requires: ${availability.lockedBy.join(', ')}`}
+                    disabled={loading || (!availability.available && !isCurrent)}
+                    onClick={() => jumpToStep(selectedWorkflow, step)}
+                  >
+                    <span className="wf-shell-step-index">Step {index + 1}</span>
+                    <strong>{step.title}</strong>
+                    <span className="wf-shell-step-meta">{isCurrent ? 'Current' : step.status}</span>
+                    {!availability.available && !isCurrent && availability.lockedBy.length > 0 && (
+                      <small className="wf-shell-step-lock">Needs: {availability.lockedBy.join(', ')}</small>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </aside>
+
+          <section className="wf-shell-stage" aria-label="Active workflow step">
+            <div className="wf-wiz-step-heading">
+              <div>
+                <h2 className="wf-wiz-step-title">{selectedWorkflowStep.title}</h2>
+                <p className="wf-shell-stage-meta">Use the task list to move around. The current step stays in focus here.</p>
+              </div>
+              <span className={`wf-wiz-status wf-wiz-status--${selectedWorkflowStep.status.toLowerCase()}`}>
+                {stepIcon(selectedWorkflowStep.status)} {selectedWorkflowStep.status}
+              </span>
+            </div>
+
+            {guidance && (
+              <div className="wf-wiz-instruction">
+                <span className="wf-wiz-instruction-label">What to do</span>
+                <p className="wf-wiz-instruction-text">{guidance.summary}</p>
+              </div>
+            )}
+
+            {guidance && guidance.checklist.length > 0 && (
+              <div className="wf-wiz-checks">
+                <span className="wf-wiz-checks-label">Check each one off as you go:</span>
+                {guidance.checklist.map((item) => (
+                  <label key={item} className="wf-wiz-check-item">
+                    <input
+                      type="checkbox"
+                      checked={!!checkedItems[item]}
+                      onChange={() => setCheckedItems((prev) => ({ ...prev, [item]: !prev[item] }))}
+                    />
+                    <span>{item}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            {isAddVehicleVinStep && (
+              <div className="wf-wiz-inputs">
+                <label>
+                  <span>VIN - 17 characters</span>
+                  <input
+                    value={vin}
+                    onChange={(e) => setVin(e.target.value.toUpperCase())}
+                    placeholder="Scan or type the VIN"
+                    autoCapitalize="characters"
+                    className="wf-wiz-vin-input"
+                  />
+                </label>
+                <div className="wf-wiz-input-actions">
+                  <button className="secondary-button" type="button" disabled={loading} onClick={openWorkflowVinCamera}>
+                    Scan VIN with Camera
+                  </button>
+                  <button className="secondary-button" type="button" disabled={loading} onClick={recoverVinScanNow}>
+                    Use Last Scan
+                  </button>
+                  <button type="button" disabled={loading || vin.trim().length < 11} onClick={continueAddVehicleVin}>
+                    Find / Create Vehicle →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {selectedWorkflowStep.stepKey === 'obd2Scan' && (
+              <div className="wf-wiz-inputs">
+                <label>
+                  <span>Shared Report Link</span>
+                  <input
+                    type="url"
+                    value={obd2ReportUrl}
+                    onChange={(e) => setObd2ReportUrl(e.target.value)}
+                    placeholder="Paste the link to your OBD2 report PDF"
+                  />
+                </label>
+                <div className="wf-wiz-input-actions">
+                  <button type="button" disabled={!obd2ReportUrl.trim() || loading} onClick={uploadObd2ReportFromUrl}>
+                    Fetch &amp; Read Report
+                  </button>
+                </div>
+                <details className="obd2-upload-alt">
+                  <summary>Upload a PDF file instead</summary>
+                  <div className="obd2-upload-alt-body">
+                    <input type="file" accept="application/pdf,.pdf" onChange={(e) => setObd2ReportFile(e.target.files?.[0] ?? null)} />
+                    <div className="wf-wiz-input-actions">
+                      <button className="secondary-button" type="button" disabled={!obd2ReportFile || loading} onClick={uploadObd2Report}>
+                        Read OBD2 Report
+                      </button>
+                      {selectedWorkflowStepDocumentId && (
+                        <a className="secondary-button" href={`/api/documents/${selectedWorkflowStepDocumentId}/content`} target="_blank" rel="noreferrer">
+                          View PDF
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </details>
+                {(obd2ReportInsight || selectedWorkflowStepAiText) && (
+                  <pre className="receipt-insight">{obd2ReportInsight || selectedWorkflowStepAiText}</pre>
+                )}
+              </div>
+            )}
+
+            {isMaintenanceReceiptStep && (
+              <div className="wf-wiz-inputs">
+                <label>
+                  <span>Receipt or Invoice Photo</span>
+                  <input type="file" accept="image/*" onChange={(e) => setWorkflowReceiptFile(e.target.files?.[0] ?? null)} />
+                </label>
+                <div className="wf-wiz-input-actions">
+                  <button className="secondary-button" type="button" disabled={loading} onClick={openWorkflowReceiptCamera}>
+                    Capture Receipt
+                  </button>
+                  <button className="secondary-button" type="button" disabled={!workflowReceiptFile || loading} onClick={readWorkflowReceipt}>
+                    Read &amp; Store Receipt
+                  </button>
+                  {workflowReceiptDocumentId && (
+                    <a className="secondary-button" href={`/api/documents/${workflowReceiptDocumentId}/content`} target="_blank" rel="noreferrer">
+                      View Receipt
+                    </a>
+                  )}
+                </div>
+                {workflowReceiptInsight && <pre className="receipt-insight">{workflowReceiptInsight}</pre>}
+              </div>
+            )}
+
+            {isDamageEstimateStep && (
+              <div className="wf-wiz-inputs">
+                <label>
+                  <span>Estimate Amount ($)</span>
+                  <input inputMode="decimal" value={damageEstimateAmount} onChange={(e) => setDamageEstimateAmount(e.target.value)} placeholder="0.00" />
+                </label>
+                <label>
+                  <span>Shop or Adjuster Name</span>
+                  <input value={damageEstimateVendor} onChange={(e) => setDamageEstimateVendor(e.target.value)} placeholder="Shop name or adjuster" />
+                </label>
+              </div>
+            )}
+
+            {isDamageRepairStep && (
+              <div className="wf-wiz-inputs">
+                <label>
+                  <span>Repair Status</span>
+                  <select value={damageRepairStatus} onChange={(e) => setDamageRepairStatus(e.target.value)}>
+                    <option value="Pending">Waiting to start</option>
+                    <option value="InProgress">In progress</option>
+                    <option value="Complete">Done</option>
+                    <option value="Deferred">Put on hold</option>
+                  </select>
+                </label>
+              </div>
+            )}
+
+            {!isAddVehicleVinStep && (
+              <label className="wf-wiz-notes-label">
+                <span>Notes for this step</span>
+                <textarea
+                  value={workflowStepNotes}
+                  onChange={(e) => setWorkflowStepNotes(e.target.value)}
+                  placeholder="Write anything useful here..."
+                />
+              </label>
+            )}
+
+            <div className="wf-wiz-actions">
+              {navigatesAway && !isAddVehicleVinStep && (
+                <button
+                  className="wf-wiz-go-btn"
+                  type="button"
+                  disabled={loading}
+                  onClick={() => activateWorkflowStep(selectedWorkflow, selectedWorkflowStep)}
+                >
+                  Go Do This Step →
+                </button>
+              )}
+              <button className="wf-wiz-done-btn" type="button" disabled={loading} onClick={() => saveWorkflowStep('Complete')}>
+                ✓ Mark Done
+              </button>
+              <div className="wf-wiz-secondary-actions">
+                <button className="secondary-button" type="button" disabled={loading} onClick={() => saveWorkflowStep('InProgress')}>
+                  Save Draft
+                </button>
+                <button className="secondary-button" type="button" disabled={loading} onClick={() => saveWorkflowStep('NeedsReview')}>
+                  Flag for Review
+                </button>
+              </div>
+            </div>
+
+            <div className="wf-wiz-workflow-actions">
+              <button className="secondary-button" type="button" disabled={loading} onClick={() => updateWorkflowStatus('Canceled')}>
+                Cancel This Workflow
+              </button>
+              <button className="primary-action" type="button" disabled={loading} onClick={() => updateWorkflowStatus('Complete')}>
+                Complete Workflow
+              </button>
+            </div>
+
+            <div className="wf-wiz-nav">
+              <button
+                type="button"
+                className="secondary-button"
+                disabled={!prevStep || loading}
+                onClick={() => prevStep && jumpToStep(selectedWorkflow, prevStep)}
+              >
+                ‹ {prevStep ? prevStep.title : 'Previous'}
+              </button>
+              <button
+                type="button"
+                disabled={!nextStep || loading}
+                onClick={() => nextStep && jumpToStep(selectedWorkflow, nextStep)}
+              >
+                {nextStep ? nextStep.title : 'Next'} ›
+              </button>
+            </div>
+
+            {workflowEvents.length > 0 && (
+              <details className="wf-wiz-timeline">
+                <summary>Event history ({workflowEvents.length})</summary>
+                <ol className="workflow-timeline">
+                  {workflowEvents.map((event) => (
+                    <li key={event.id} className="timeline-event">
+                      <span className="timeline-time">
+                        {new Date(event.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      <span className={`timeline-type event-type-${event.eventType.toLowerCase()}`}>{event.eventType}</span>
+                      {event.stepKey && <span className="timeline-step">{event.stepKey}</span>}
+                      {event.message && <span className="timeline-message">{event.message}</span>}
+                      {event.createdBy && <span className="audit-meta">by {event.createdBy}</span>}
+                    </li>
+                  ))}
+                </ol>
+              </details>
+            )}
+          </section>
+        </div>
+      </div>
+    )
+  }
 
   // ── WIZARD MODE ────────────────────────────────────────────────────────────
   if (isWizardMode && selectedWorkflow && selectedWorkflowStep) {
@@ -223,7 +595,7 @@ export function WorkflowDashboard({
             <span className="wf-wiz-step-count">Step {currentStepIdx + 1} of {totalSteps}</span>
           </div>
           <button className="wf-wiz-pause" type="button" disabled={loading} onClick={pauseAndExit}>
-            ✕ Pause &amp; Exit
+            ✕ Suspend Workflow
           </button>
         </div>
 

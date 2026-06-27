@@ -15,6 +15,9 @@
   --accent-hover: #b0432c;
   --accent-bg:    #ffe4df;
   --accent-text:  #8a2f1e;
+  --workflow-border:     #3f73d9;
+  --workflow-border-soft:#dce6fb;
+  --workflow-border-bg:  #edf3ff;
   --color-ok:     #245d32;
   --color-ok-bg:  #e8f4e8;
   --color-warn:   #a06c08;
@@ -50,6 +53,9 @@
     --accent-hover: #e0724f;
     --accent-bg:    #3a1a14;
     --accent-text:  #f0a090;
+    --workflow-border:     #6ca0ff;
+    --workflow-border-soft:#22304d;
+    --workflow-border-bg:  #10213d;
     --color-ok:     #6fcf97;
     --color-ok-bg:  #0f2e1a;
     --color-warn:   #f2c94c;
@@ -128,6 +134,10 @@ a:focus-visible {
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
+}
+
+.app-shell--workflow {
+  box-shadow: inset 0 0 0 4px var(--workflow-border);
 }
 
 .topbar {
@@ -897,6 +907,35 @@ label span,
 .workflow-context-banner p { color: var(--text-secondary); }
 
 .workflow-context-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.workflow-suspend-panel {
+  width: min(520px, calc(100vw - 32px));
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.workflow-suspend-body {
+  display: grid;
+  gap: 12px;
+}
+
+.workflow-suspend-body label {
+  display: grid;
+  gap: 6px;
+}
+
+.workflow-suspend-body span {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.workflow-suspend-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
 
 /* ── Rental inspection ──────────────────────────────────────────────────────── */
 .rental-inspection-panel { display: grid; grid-column: 1 / -1; gap: 14px; }
@@ -1831,6 +1870,192 @@ label span,
 }
 
 /* ── Workflow Redesign ──────────────────────────────────────────────────────── */
+.wf-shell {
+  display: grid;
+  gap: 12px;
+  padding: 0 clamp(16px, 4vw, 40px) 24px;
+}
+
+.wf-shell-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 16px;
+}
+
+.wf-shell-header-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wf-shell-kicker {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.wf-shell-title {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.15;
+}
+
+.wf-shell-meta {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.wf-shell-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.wf-shell-progress {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--workflow-border);
+}
+
+.wf-shell-pause {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.wf-shell-track {
+  height: 6px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--border);
+}
+
+.wf-shell-track-fill {
+  height: 100%;
+  background: var(--workflow-border);
+}
+
+.wf-shell-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.wf-shell-sidebar,
+.wf-shell-stage {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 14px;
+}
+
+.wf-shell-sidebar-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wf-shell-sidebar-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.wf-shell-step-list {
+  display: grid;
+  gap: 8px;
+}
+
+.wf-shell-step {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  color: var(--text);
+}
+
+.wf-shell-step:hover:not(:disabled) {
+  border-color: var(--workflow-border);
+}
+
+.wf-shell-step--current {
+  border-color: var(--workflow-border);
+  background: var(--workflow-border-bg);
+}
+
+.wf-shell-step--done {
+  border-color: var(--border-input);
+}
+
+.wf-shell-step--review {
+  border-color: var(--warn);
+}
+
+.wf-shell-step--locked {
+  opacity: 0.72;
+}
+
+.wf-shell-step-index,
+.wf-shell-step-meta,
+.wf-shell-step-lock {
+  font-size: 12px;
+}
+
+.wf-shell-step strong {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.wf-shell-step-meta {
+  color: var(--text-secondary);
+}
+
+.wf-shell-step-lock {
+  color: var(--text-secondary);
+}
+
+.wf-shell-stage {
+  gap: 14px;
+}
+
+.wf-shell-stage-meta {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.wf-shell-stage .wf-wiz-step-heading {
+  padding: 0;
+}
+
+.wf-shell-stage .wf-wiz-step-title {
+  font-size: 20px;
+}
+
+@media (max-width: 980px) {
+  .wf-shell-header,
+  .wf-shell-header-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .wf-shell-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .wf-start-panel { margin-bottom: 0; }
 
 .wf-catalog {
