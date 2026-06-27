@@ -1181,9 +1181,8 @@ function App() {
       },
     })
     workflow = await advanceWorkflowFromStep(workflow, 'vin')
-    setWorkflows((current) => current.map((item) => (item.id === workflow.id ? workflow : item)))
-    setSelectedWorkflowId(workflow.id)
-    setSelectedWorkflowStepKey(workflow.currentStepKey)
+    replaceWorkflowInState(workflow)
+    applyWorkflowSelection(workflow)
     return true
   }
 
@@ -1802,14 +1801,13 @@ function App() {
           },
         },
       )
-      setWorkflows((current) => current.map((w) => (w.id === saved.id ? saved : w)))
+      replaceWorkflowInState(saved)
       const suspended = await api.put<WorkflowInstance>(`/api/workflows/${saved.id}/status`, {
         status: 'Waiting',
         currentStepKey: selectedWorkflowStep.stepKey,
       })
-      setWorkflows((current) => current.map((w) => (w.id === suspended.id ? suspended : w)))
-      setSelectedWorkflowId(suspended.id)
-      setSelectedWorkflowStepKey(suspended.currentStepKey)
+      replaceWorkflowInState(suspended)
+      applyWorkflowSelection(suspended)
       setWorkflowSuspendOpen(false)
       setActiveArea('home')
       setMessage(`Workflow suspended: ${pauseReason}`)
@@ -1820,10 +1818,10 @@ function App() {
     }
   }
 
-  function selectWorkflow(workflow: WorkflowInstance) {
+  function applyWorkflowSelection(workflow: WorkflowInstance, stepKey = workflow.currentStepKey) {
+    const step = workflow.steps.find((item) => item.stepKey === stepKey)
     setSelectedWorkflowId(workflow.id)
-    setSelectedWorkflowStepKey(workflow.currentStepKey)
-    const step = workflow.steps.find((item) => item.stepKey === workflow.currentStepKey)
+    setSelectedWorkflowStepKey(step?.stepKey ?? stepKey)
     const notes = typeof step?.data?.notes === 'string' ? step.data.notes : ''
     setWorkflowStepNotes(notes)
     setObd2ReportFile(null)
@@ -1837,6 +1835,14 @@ function App() {
     setWorkflowEvents([])
     setInspectionReport(null)
     loadWorkflowEvents(workflow.id)
+  }
+
+  function replaceWorkflowInState(workflow: WorkflowInstance) {
+    setWorkflows((current) => current.map((item) => (item.id === workflow.id ? workflow : item)))
+  }
+
+  function selectWorkflow(workflow: WorkflowInstance) {
+    applyWorkflowSelection(workflow)
     window.setTimeout(() => {
       workflowEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 0)
@@ -1869,18 +1875,9 @@ function App() {
 
     try {
       const freshWorkflow = await api.get<WorkflowInstance>(`/api/workflows/${workflow.id}`)
-      setWorkflows((current) => current.map((item) => (item.id === freshWorkflow.id ? freshWorkflow : item)))
-      setSelectedWorkflowId(freshWorkflow.id)
       const freshStep = freshWorkflow.steps.find((item) => item.stepKey === step.stepKey) ?? step
-      setSelectedWorkflowStepKey(freshStep.stepKey)
-      setWorkflowStepNotes(typeof freshStep.data?.notes === 'string' ? freshStep.data.notes : '')
-      setObd2ReportFile(null)
-      setObd2ReportInsight(typeof freshStep.data?.aiText === 'string' ? freshStep.data.aiText : '')
-      setWorkflowReceiptFile(null)
-      setWorkflowReceiptInsight('')
-      setDamageEstimateAmount(typeof freshStep.data?.estimateAmount === 'string' ? freshStep.data.estimateAmount : '')
-      setDamageEstimateVendor(typeof freshStep.data?.estimateVendor === 'string' ? freshStep.data.estimateVendor : '')
-      setDamageRepairStatus(typeof freshStep.data?.repairStatus === 'string' ? freshStep.data.repairStatus : 'Pending')
+      replaceWorkflowInState(freshWorkflow)
+      applyWorkflowSelection(freshWorkflow, freshStep.stepKey)
 
       if (freshWorkflow.workflowType === 'AddVehicle' && freshStep.stepKey === 'vin') {
         setActiveArea('workflows')
@@ -2021,7 +2018,7 @@ function App() {
     })
 
     updatedWorkflow = await advanceWorkflowFromStep(updatedWorkflow, step.stepKey)
-    setWorkflows((current) => current.map((item) => (item.id === updatedWorkflow.id ? updatedWorkflow : item)))
+    replaceWorkflowInState(updatedWorkflow)
     selectWorkflow(updatedWorkflow)
   }
 
@@ -2053,7 +2050,7 @@ function App() {
       if (status === 'Complete') {
         workflow = await advanceWorkflowFromStep(workflow, selectedWorkflowStep.stepKey)
       }
-      setWorkflows((current) => current.map((item) => (item.id === workflow.id ? workflow : item)))
+      replaceWorkflowInState(workflow)
       selectWorkflow(workflow)
       setMessage(status === 'Complete' ? 'Step complete. Moved to next task.' : 'Workflow step saved')
     } catch (error) {
@@ -2081,7 +2078,7 @@ function App() {
       })
       applyRentalInspectionForm(inspection)
       const workflow = await api.get<WorkflowInstance>(`/api/workflows/${selectedWorkflow.id}`)
-      setWorkflows((current) => current.map((item) => (item.id === workflow.id ? workflow : item)))
+      replaceWorkflowInState(workflow)
       if (advance && selectedWorkflowStep) {
         const completedWorkflow = await api.put<WorkflowInstance>(`/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}`, {
           status: 'Complete',
@@ -2094,7 +2091,7 @@ function App() {
           },
         })
         const advancedWorkflow = await advanceWorkflowFromStep(completedWorkflow, selectedWorkflowStep.stepKey)
-        setWorkflows((current) => current.map((item) => (item.id === advancedWorkflow.id ? advancedWorkflow : item)))
+        replaceWorkflowInState(advancedWorkflow)
         selectWorkflow(advancedWorkflow)
         setMessage('Inspection details saved. Moved to next task.')
       } else {
@@ -2367,9 +2364,8 @@ function App() {
       if (!response.ok) throw new Error(await response.text())
 
       const result = (await response.json()) as Obd2ReportUploadResponse
-      setWorkflows((current) => current.map((item) => (item.id === result.workflow.id ? result.workflow : item)))
-      setSelectedWorkflowId(result.workflow.id)
-      setSelectedWorkflowStepKey(selectedWorkflowStep.stepKey)
+      replaceWorkflowInState(result.workflow)
+      applyWorkflowSelection(result.workflow, selectedWorkflowStep.stepKey)
       setObd2ReportFile(null)
       setObd2ReportInsight(result.aiText)
       setMessage('OBD2 report read. Review the findings.')
@@ -2394,9 +2390,8 @@ function App() {
         `/api/workflows/${selectedWorkflow.id}/steps/${selectedWorkflowStep.stepKey}/obd2-report-url`,
         { url: obd2ReportUrl.trim() }
       )
-      setWorkflows((current) => current.map((item) => (item.id === result.workflow.id ? result.workflow : item)))
-      setSelectedWorkflowId(result.workflow.id)
-      setSelectedWorkflowStepKey(selectedWorkflowStep.stepKey)
+      replaceWorkflowInState(result.workflow)
+      applyWorkflowSelection(result.workflow, selectedWorkflowStep.stepKey)
       setObd2ReportUrl('')
       setObd2ReportInsight(result.aiText)
       setMessage('OBD2 report read. Review the findings.')

@@ -30,7 +30,7 @@ Mobile-first fleet maintenance, document management, compliance, and AI assistan
 - Turo trip import from CSV export
 - User provisioning, roles (admin / manager / worker), display names
 - Lock box inventory, combos, styles, and vehicle assignment
-- Workflow dashboard with active/completed workflows and step-level continuation
+- Workflow dashboard with active/completed workflows, guided step navigation, and workflow-specific step screens
 - Dark mode via OS preference (CSS custom properties throughout)
 
 ## Local Verification
@@ -87,7 +87,7 @@ For phone testing over Wi-Fi, the app machine must have its firewall permission 
 1. Start the backend and frontend using the commands above.
 2. Approve Windows Defender or firewall prompts for the dev ports.
 3. Open `https://192.168.0.171:5175` from a phone on the same Wi-Fi network.
-4. Confirm the workflow screen loads and the app border changes in workflow mode.
+4. Confirm the workflow screen loads, the app border changes in workflow mode, and workflow steps open in the focused step panel.
 
 ## Local Database
 
