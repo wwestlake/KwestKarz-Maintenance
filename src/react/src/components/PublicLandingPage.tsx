@@ -10,6 +10,10 @@ export function PublicLandingPage() {
     <main className="public-page">
       <PublicSiteHeader menuOpen={menuOpen} onToggleMenu={() => setMenuOpen((value) => !value)} />
 
+      <div className="public-cache-test-banner">
+        Cache check: this is the newest root page build.
+      </div>
+
       <section className="public-feature">
         <div className="public-hero-image-wrap">
           <img className="public-hero-image" src={carHeroAsset} alt="KwestKarz vehicle" />

@@ -190,9 +190,18 @@ a:focus-visible {
 
 .app-nav-mobile {
   display: none;
-  grid-column: 1 / -1;
+  position: absolute;
+  left: clamp(16px, 4vw, 40px);
+  top: calc(100% + 8px);
+  z-index: 12;
+  width: max-content;
+  max-width: calc(100vw - 32px);
   gap: 8px;
-  padding-top: 2px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
 .app-nav-mobile.is-open {
@@ -2462,13 +2471,14 @@ label span,
   padding: 0;
   margin: 0;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 0;
 }
 
 .public-menu-item {
-  display: contents;
+  display: block;
 }
 
 .public-menu-divider {
@@ -2486,10 +2496,17 @@ label span,
 
 .public-mobile-nav {
   display: none;
-  width: 100%;
-  padding: 10px 16px 12px;
-  border-bottom: 1px solid var(--border);
+  position: absolute;
+  left: 12px;
+  top: calc(100% + 8px);
+  z-index: 25;
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
 .public-feature {
@@ -2554,6 +2571,19 @@ label span,
   text-underline-offset: 3px;
 }
 
+.public-cache-test-banner {
+  width: min(980px, calc(100% - 32px));
+  margin: 14px auto 0;
+  padding: 10px 14px;
+  border: 1px solid var(--workflow-border);
+  border-radius: var(--radius);
+  background: var(--workflow-border-bg);
+  color: var(--workflow-border);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+}
+
 .public-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2588,11 +2618,12 @@ label span,
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
+  width: auto;
   min-height: 0;
   gap: 8px;
-  padding: 0;
+  padding: 10px 12px;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--text);
   font-weight: 700;
@@ -2600,9 +2631,8 @@ label span,
 }
 
 .public-menu-link:hover {
-  background: transparent;
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  background: var(--surface-hover);
+  text-decoration: none;
 }
 
 .public-menu-link-icon {
@@ -2807,7 +2837,8 @@ label span,
   }
 
   .app-nav-mobile .nav-button {
-    width: 100%;
+    display: flex;
+    width: max-content;
     justify-content: flex-start;
   }
 
@@ -2833,7 +2864,7 @@ label span,
   }
 
   .public-brand-link {
-    justify-self: center;
+    justify-self: start;
   }
 
   .public-logo {
@@ -2847,15 +2878,15 @@ label span,
 
   .public-mobile-nav .public-menu-list {
     display: grid;
-    gap: 8px;
-    justify-items: stretch;
+    gap: 0;
+    justify-items: start;
     align-items: stretch;
   }
 
   .public-menu-divider-row {
     display: flex;
-    justify-content: center;
-    padding: 4px 0;
+    justify-content: flex-start;
+    padding: 8px 0 4px;
   }
 
   .public-menu-divider {
@@ -2865,20 +2896,18 @@ label span,
 
   .public-menu-link {
     display: flex;
-    width: 100%;
-    min-height: 48px;
-    padding: 12px 4px;
-    border-bottom: 1px solid var(--border);
+    width: max-content;
+    min-height: 44px;
+    padding: 10px 12px;
     text-decoration: none;
   }
 
   .public-mobile-nav .public-menu-link {
-    border-bottom: 1px solid var(--border);
-    width: 100%;
+    width: max-content;
   }
 
   .public-mobile-nav .public-menu-link:hover {
-    background: transparent;
+    background: var(--surface-hover);
   }
 
   .public-feature {
