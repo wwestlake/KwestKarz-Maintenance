@@ -2596,27 +2596,6 @@ label span,
   text-underline-offset: 3px;
 }
 
-.public-cache-test-banner {
-  width: min(980px, calc(100% - 32px));
-  margin: 14px auto 0;
-  padding: 10px 14px;
-  border: 1px solid var(--workflow-border);
-  border-radius: var(--radius);
-  background: var(--workflow-border-bg);
-  color: var(--workflow-border);
-  font-size: 13px;
-  font-weight: 800;
-  text-align: left;
-}
-
-.public-cache-test-banner span {
-  display: block;
-  margin-top: 4px;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-
 .public-actions {
   display: flex;
   flex-wrap: wrap;
