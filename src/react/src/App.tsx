@@ -17,6 +17,7 @@ import { MaintenanceTemplateManager } from './components/MaintenanceTemplateMana
 import { FleetMaintenancePanel } from './components/FleetMaintenancePanel'
 import { DocumentLibraryPanel } from './components/DocumentLibraryPanel'
 import { MaintenanceForm } from './components/MaintenanceForm'
+import { OrientationPanel } from './components/OrientationPanel'
 import { TirePressurePanel } from './components/TirePressurePanel'
 import { ThemeToggle } from './components/ThemeToggle'
 import type {
@@ -46,6 +47,7 @@ const baseAreas: { id: AppArea; label: string }[] = [
   { id: 'home', label: 'Home' },
   { id: 'inventory', label: 'Inventory' },
   { id: 'workflows', label: 'Workflows' },
+  { id: 'orientation', label: 'Orientation' },
   { id: 'jobs', label: 'Jobs' },
   { id: 'ledger', label: 'Ledger' },
   { id: 'maintenance', label: 'Maintenance' },
@@ -68,6 +70,7 @@ const areaTitles: Record<AppArea, string> = {
   inventory: 'Inventory',
   vehicle: 'Vehicle',
   workflows: 'Workflows',
+  orientation: 'Orientation',
   jobs: 'Jobs',
   ledger: 'Ledger',
   maintenance: 'Maintenance',
@@ -2816,6 +2819,7 @@ function App() {
           updateWorkflowStatus={updateWorkflowStatus}
         />
       )}
+      {activeArea === 'orientation' && <OrientationPanel />}
 
       {activeArea === 'maintenance' && (
         <section className="panel area-panel">
