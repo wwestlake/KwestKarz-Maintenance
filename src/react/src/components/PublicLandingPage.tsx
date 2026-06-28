@@ -10,11 +10,6 @@ export function PublicLandingPage() {
     <main className="public-page">
       <PublicSiteHeader menuOpen={menuOpen} onToggleMenu={() => setMenuOpen((value) => !value)} />
 
-      <div className="public-cache-test-banner">
-        <strong>Build marker:</strong> the latest root page is live.
-        <span> Refresh this page and you should still see this message.</span>
-      </div>
-
       <section className="public-feature">
         <div className="public-hero-image-wrap">
           <img className="public-hero-image" src={carHeroAsset} alt="KwestKarz vehicle" />
