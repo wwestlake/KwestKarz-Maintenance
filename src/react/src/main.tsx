@@ -11,6 +11,7 @@ import { PublicAboutTuroPage } from './components/PublicAboutTuroPage.tsx'
 import { PublicCarsPage } from './components/PublicCarsPage.tsx'
 import { PublicHelpPage } from './components/PublicHelpPage.tsx'
 import { PublicLandingPage } from './components/PublicLandingPage.tsx'
+import { ThemeProvider } from './ThemeContext'
 
 function AppShell() {
   const { state } = useAuth()
@@ -48,6 +49,8 @@ function RootShell() {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <RootShell />
+    <ThemeProvider>
+      <RootShell />
+    </ThemeProvider>
   </StrictMode>,
 )
