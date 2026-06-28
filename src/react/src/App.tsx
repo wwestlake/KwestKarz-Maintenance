@@ -18,6 +18,7 @@ import { FleetMaintenancePanel } from './components/FleetMaintenancePanel'
 import { DocumentLibraryPanel } from './components/DocumentLibraryPanel'
 import { MaintenanceForm } from './components/MaintenanceForm'
 import { TirePressurePanel } from './components/TirePressurePanel'
+import { ThemeToggle } from './components/ThemeToggle'
 import type {
   AppArea, GuidedCaptureConfig, Obd2ReportUploadResponse,
   WorkflowInstance, WorkflowStep,
@@ -2490,7 +2491,10 @@ function App() {
           <p className="eyebrow">KwestKarz Maintenance</p>
           <h1>{activeArea === 'vehicle' ? areaTitles['inventory'] : areaTitles[activeArea]}</h1>
         </div>
-        <span className={loading ? 'status busy' : 'status'}>{message}</span>
+        <div className="topbar-actions">
+          <ThemeToggle />
+          <span className={loading ? 'status busy' : 'status'}>{message}</span>
+        </div>
       </header>
       <div className="app-nav-shell">
         <button
