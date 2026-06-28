@@ -2811,6 +2811,256 @@ label span,
   border: 0;
 }
 
+.orientation-grid {
+  grid-template-columns: minmax(280px, 0.92fr) minmax(0, 1.08fr);
+}
+
+.orientation-library,
+.orientation-player {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.orientation-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.orientation-summary-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+}
+
+.orientation-summary-card svg,
+.orientation-lesson-heading svg,
+.orientation-stage-heading svg,
+.orientation-footer svg,
+.orientation-quiz-result svg {
+  color: var(--accent);
+}
+
+.orientation-summary-card strong {
+  font-size: 16px;
+}
+
+.orientation-summary-card span,
+.orientation-lesson-summary,
+.orientation-stage-body,
+.orientation-bullets li {
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.orientation-lesson-list {
+  display: grid;
+  gap: 10px;
+}
+
+.orientation-lesson-button {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.orientation-lesson-button.selected {
+  border-color: var(--teal-dark);
+  background: var(--surface-hover);
+}
+
+.orientation-lesson-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.orientation-lesson-tags,
+.orientation-links,
+.orientation-actions,
+.orientation-footer,
+.orientation-stage-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.orientation-stage-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.orientation-stage-pill {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+}
+
+.orientation-stage-pill span {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: var(--surface-hover);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.orientation-stage-pill strong {
+  font-size: 13px;
+  text-transform: capitalize;
+}
+
+.orientation-stage-pill.active {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.orientation-stage-pill.complete {
+  border-color: var(--color-ok-bg);
+}
+
+.orientation-progress {
+  height: 10px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--surface-hover);
+}
+
+.orientation-progress-fill {
+  height: 100%;
+  background: var(--accent);
+}
+
+.orientation-stage-card {
+  display: grid;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+}
+
+.orientation-stage-body {
+  margin: 0;
+}
+
+.orientation-bullets {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.orientation-links {
+  align-items: stretch;
+}
+
+.orientation-link {
+  color: var(--text);
+}
+
+.orientation-do-box {
+  display: grid;
+  gap: 10px;
+}
+
+.orientation-checklist {
+  display: grid;
+  gap: 10px;
+}
+
+.orientation-check-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.orientation-check-item input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.orientation-quiz {
+  display: grid;
+  gap: 12px;
+}
+
+.orientation-quiz-question {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.orientation-quiz-options {
+  display: grid;
+  gap: 8px;
+}
+
+.orientation-quiz-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.orientation-quiz-option.selected {
+  border-color: var(--accent);
+  background: var(--surface-hover);
+}
+
+.orientation-quiz-option input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+.orientation-quiz-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+}
+
+.orientation-actions {
+  justify-content: space-between;
+}
+
+.orientation-actions .secondary-button,
+.orientation-actions .primary-action {
+  min-width: 160px;
+}
+
+.orientation-footer {
+  justify-content: space-between;
+}
+
 @media (max-width: 820px) {
   .topbar { align-items: flex-start; flex-direction: column; }
 
@@ -2820,6 +3070,12 @@ label span,
   .tire-grid, .tire-card, .rental-inspection-form,
   .inspection-photo-grid, .import-summary, .assign-row,
   .receipt-panel, .metrics, .report-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .orientation-grid,
+  .orientation-summary-grid,
+  .orientation-stage-bar {
     grid-template-columns: 1fr;
   }
 
@@ -2939,6 +3195,17 @@ label span,
 
   .public-copy-lead {
     font-size: 18px;
+  }
+
+  .orientation-actions,
+  .orientation-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .orientation-actions .secondary-button,
+  .orientation-actions .primary-action {
+    width: 100%;
   }
 }
 
