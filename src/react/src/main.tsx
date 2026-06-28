@@ -11,7 +11,6 @@ import { PublicAboutTuroPage } from './components/PublicAboutTuroPage.tsx'
 import { PublicCarsPage } from './components/PublicCarsPage.tsx'
 import { PublicHelpPage } from './components/PublicHelpPage.tsx'
 import { PublicLandingPage } from './components/PublicLandingPage.tsx'
-import { PublicSupportersPage } from './components/PublicSupportersPage.tsx'
 import { ThemeProvider } from './ThemeContext'
 
 function AppShell() {
@@ -35,7 +34,6 @@ function AppShell() {
 function RootShell() {
   const pathname = window.location.pathname
   if (pathname.startsWith('/cars')) return <PublicCarsPage />
-  if (pathname.startsWith('/supporters')) return <PublicSupportersPage />
   if (pathname.startsWith('/about-turo')) return <PublicAboutTuroPage />
   if (pathname.startsWith('/help')) return <PublicHelpPage />
   if (pathname.startsWith('/contact')) return <ContactPage />

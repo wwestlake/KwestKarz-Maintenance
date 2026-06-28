@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { CarFront, CircleHelp, Info, LogIn, Mail, Users } from 'lucide-react'
+import { CarFront, CircleHelp, Info, LogIn, Mail } from 'lucide-react'
 import logoAsset from '../assets/kwestkarz-logo.jpg'
 import { ThemeToggle } from './ThemeToggle'
 
@@ -20,11 +20,6 @@ const publicMenuItems: PublicMenuItem[] = [
     href: '/cars',
     label: 'Our Cars',
     icon: <CarFront size={18} strokeWidth={2.2} />,
-  },
-  {
-    href: '/supporters',
-    label: 'Supporters',
-    icon: <Users size={18} strokeWidth={2.2} />,
   },
   {
     href: '/about-turo',
