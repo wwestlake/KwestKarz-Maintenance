@@ -287,6 +287,7 @@ module Program =
         WorkflowEndpoints.mapWorkflowEndpoints app |> ignore
         RentalInspectionEndpoints.mapRentalInspectionEndpoints app |> ignore
         TuroImportEndpoints.mapTuroImportEndpoints app |> ignore
+        BankStatementImportEndpoints.mapBankStatementImportEndpoints app |> ignore
         DiagnosticReportEndpoints.mapDiagnosticReportEndpoints app |> ignore
         NotificationEndpoints.mapNotificationEndpoints app |> ignore
 

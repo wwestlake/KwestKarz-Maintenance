@@ -461,6 +461,50 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                 create index if not exists ix_turo_trip_earnings_status
                     on kwestkarzbusinessdata.turo_trip_earnings(trip_status);
 
+                create table if not exists kwestkarzbusinessdata.bank_statement_imports (
+                    id uuid primary key,
+                    statement_year integer not null,
+                    bank_name text not null,
+                    account_number text not null,
+                    account_nickname text null,
+                    original_file_name text not null,
+                    imported_at timestamptz not null,
+                    row_count integer not null,
+                    stored_row_count integer not null,
+                    notes text null,
+                    created_by text not null
+                );
+
+                create index if not exists ix_bank_statement_imports_imported_at
+                    on kwestkarzbusinessdata.bank_statement_imports(imported_at desc);
+
+                alter table if exists kwestkarzbusinessdata.bank_statement_imports
+                    add column if not exists statement_year integer null;
+
+                update kwestkarzbusinessdata.bank_statement_imports
+                set statement_year = extract(year from imported_at)::int
+                where statement_year is null;
+
+                alter table if exists kwestkarzbusinessdata.bank_statement_imports
+                    alter column statement_year set not null;
+
+                create index if not exists ix_bank_statement_imports_statement_year
+                    on kwestkarzbusinessdata.bank_statement_imports(statement_year desc, imported_at desc);
+
+                create index if not exists ix_bank_statement_imports_bank_account
+                    on kwestkarzbusinessdata.bank_statement_imports(statement_year, bank_name, account_number, imported_at desc);
+
+                create table if not exists kwestkarzbusinessdata.bank_statement_import_rows (
+                    id uuid primary key,
+                    import_id uuid not null references kwestkarzbusinessdata.bank_statement_imports(id) on delete cascade,
+                    row_index integer not null,
+                    raw_data jsonb not null default '{}'::jsonb,
+                    created_at timestamptz not null
+                );
+
+                create index if not exists ix_bank_statement_import_rows_import_id
+                    on kwestkarzbusinessdata.bank_statement_import_rows(import_id, row_index);
+
                 alter table if exists kwestkarzbusinessdata.maintenance_records
                     add column if not exists created_by text null;
 

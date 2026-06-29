@@ -10,6 +10,7 @@ import { VehicleEditPanel } from './components/VehicleEditPanel'
 import { VehiclePublicMediaPanel } from './components/VehiclePublicMediaPanel'
 import { AddVehicleModal } from './components/AddVehicleModal'
 import { TuroImportPanel } from './components/TuroImportPanel'
+import { BankStatementImportPanel } from './components/BankStatementImportPanel'
 import { PendingApprovalsPanel } from './components/PendingApprovalsPanel'
 import { JobsPanel } from './components/JobsPanel'
 import { LedgerPanel } from './components/LedgerPanel'
@@ -31,6 +32,7 @@ import type {
   TuroImportRecord, TuroTripRecord, WorkflowEvent, DiagnosticReport, ServiceSchedule,
   InspectionReport, TireFleetAlert,
   VinDecode, EditVehicleForm, NotifLogEntry,
+  BankStatementImportRecord,
 } from './types'
 import { api, getAuthHeaders } from './api'
 import { useAuth } from './AuthContext'
@@ -235,6 +237,14 @@ function App() {
   const [turoImportResult, setTuroImportResult] = useState<TuroTripImportResponse | null>(null)
   const [turoMaintenanceSignals, setTuroMaintenanceSignals] = useState<TuroMaintenanceSignal[]>([])
   const [turoImportHistory, setTuroImportHistory] = useState<TuroImportRecord[]>([])
+  const [bankImportFile, setBankImportFile] = useState<File | null>(null)
+  const [bankImportResult, setBankImportResult] = useState<BankStatementImportRecord | null>(null)
+  const [bankImportHistory, setBankImportHistory] = useState<BankStatementImportRecord[]>([])
+  const [bankImportStatementYear, setBankImportStatementYear] = useState(String(new Date().getFullYear()))
+  const [bankImportBankName, setBankImportBankName] = useState('MSGCU')
+  const [bankImportAccountNumber, setBankImportAccountNumber] = useState('')
+  const [bankImportAccountNickname, setBankImportAccountNickname] = useState('')
+  const [bankImportNotes, setBankImportNotes] = useState('')
   const [notifyByEmail, setNotifyByEmail] = useState(false)
   const [notifyEmail, setNotifyEmail] = useState('')
   const [notifSaving, setNotifSaving] = useState(false)
@@ -261,6 +271,7 @@ function App() {
   const [guidedCameraStarting, setGuidedCameraStarting] = useState(false)
 
   const normalizedVin = vin.trim().toUpperCase()
+  const isAdmin = profile?.role === 'admin'
 
   const vehicleTitle = useMemo(() => {
     const vehicle = dashboard?.vehicle
@@ -356,11 +367,14 @@ function App() {
       loadTuroMaintenanceSignals()
       loadTuroImportHistory()
       loadNotifPrefs()
+      if (isAdmin) {
+        loadBankImportHistory()
+      }
     }
     if (activeArea === 'users') {
       loadNotifLog()
     }
-  }, [activeArea])
+  }, [activeArea, isAdmin])
 
   useEffect(() => {
     if (selectedWorkflowId) localStorage.setItem(selectedWorkflowStorageKey, selectedWorkflowId)
@@ -2212,6 +2226,66 @@ function App() {
     }
   }
 
+  async function loadBankImportHistory() {
+    try {
+      const history = await api.get<BankStatementImportRecord[]>('/api/imports/bank-statements')
+      setBankImportHistory(history)
+    } catch (error) {
+      if (error instanceof Error && /403/.test(error.message)) {
+        return
+      }
+      setMessage(error instanceof Error ? error.message : 'Could not load bank import history')
+    }
+  }
+
+  async function importBankStatements(event: FormEvent) {
+    event.preventDefault()
+    if (!bankImportFile) {
+      setMessage('Choose a bank CSV first.')
+      return
+    }
+    if (!bankImportBankName.trim()) {
+      setMessage('Choose a bank first.')
+      return
+    }
+    if (!bankImportAccountNumber.trim()) {
+      setMessage('Enter the bank account number first.')
+      return
+    }
+
+    setLoading(true)
+    setMessage('Importing bank statements...')
+
+    try {
+      const form = new FormData()
+      form.append('file', bankImportFile)
+      form.append('statementYear', bankImportStatementYear)
+      form.append('bankName', bankImportBankName.trim())
+      form.append('accountNumber', bankImportAccountNumber.trim())
+      if (bankImportAccountNickname.trim()) {
+        form.append('accountNickname', bankImportAccountNickname.trim())
+      }
+      if (bankImportNotes.trim()) {
+        form.append('notes', bankImportNotes.trim())
+      }
+      const response = await fetch('/api/imports/bank-statements', {
+        method: 'POST',
+        headers: await getAuthHeaders(),
+        body: form,
+      })
+      if (!response.ok) throw new Error(await response.text())
+      const result = (await response.json()) as BankStatementImportRecord
+      setBankImportResult(result)
+      setBankImportFile(null)
+      await loadBankImportHistory()
+      setMessage(`Imported ${result.rowCount} rows for ${result.bankName}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not import bank statements')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   async function saveDisplayName() {
     if (!operatorName.trim()) return
     setDisplayNameSaving(true)
@@ -3070,6 +3144,26 @@ function App() {
             onImport={importTuroTripEarnings}
             onRefreshSignals={loadTuroMaintenanceSignals}
           />
+          {isAdmin && (
+            <BankStatementImportPanel
+              bankImportFile={bankImportFile}
+              bankImportResult={bankImportResult}
+              bankImportHistory={bankImportHistory}
+              loading={loading}
+              statementYear={bankImportStatementYear}
+              bankName={bankImportBankName}
+              accountNumber={bankImportAccountNumber}
+              accountNickname={bankImportAccountNickname}
+              notes={bankImportNotes}
+              onStatementYearChange={setBankImportStatementYear}
+              onBankNameChange={setBankImportBankName}
+              onAccountNumberChange={setBankImportAccountNumber}
+              onAccountNicknameChange={setBankImportAccountNickname}
+              onNotesChange={setBankImportNotes}
+              onFileChange={setBankImportFile}
+              onImport={importBankStatements}
+            />
+          )}
           {turoImportHistory.length > 0 && (
             <div className="panel area-panel">
               <div className="section-heading">
