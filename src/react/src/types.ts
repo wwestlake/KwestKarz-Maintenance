@@ -311,6 +311,20 @@ export type TuroImportRecord = {
   notes?: string
 }
 
+export type BankStatementImportRecord = {
+  id: string
+  statementYear: number
+  bankName: string
+  accountNumber: string
+  accountNickname?: string
+  originalFileName: string
+  importedAt: string
+  rowCount: number
+  storedRowCount: number
+  notes?: string
+  createdBy?: string
+}
+
 export type TuroTripRecord = {
   id: string
   reservationId: string

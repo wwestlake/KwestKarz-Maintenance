@@ -17,6 +17,7 @@
     <Compile Include="WorkflowDtos.fs" />
     <Compile Include="RentalInspectionDtos.fs" />
     <Compile Include="TuroImportDtos.fs" />
+    <Compile Include="BankStatementImportDtos.fs" />
     <Compile Include="DiagnosticReportDtos.fs" />
     <Compile Include="MaintenanceLogic.fs" />
     <Compile Include="MaintenanceTemplateEndpoints.fs" />
@@ -32,6 +33,7 @@
     <Compile Include="WorkflowEndpoints.fs" />
     <Compile Include="RentalInspectionEndpoints.fs" />
     <Compile Include="TuroImportEndpoints.fs" />
+    <Compile Include="BankStatementImportEndpoints.fs" />
     <Compile Include="DiagnosticReportEndpoints.fs" />
     <Compile Include="NotificationService.fs" />
     <Compile Include="UserEndpoints.fs" />
