@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, CircleAlert } from 'lucide-react'
 import { api } from '../api'
-import type { PublicVehicle } from '../types'
+import type { PublicVehicle, DocumentRecord } from '../types'
 import { PublicSiteHeader } from './PublicSiteHeader'
 
 export function PublicCarDetailPage() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [vehicle, setVehicle] = useState<PublicVehicle | null>(null)
+  const [documents, setDocuments] = useState<DocumentRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
@@ -14,17 +15,27 @@ export function PublicCarDetailPage() {
   const vehicleId = window.location.pathname.split('/cars/')[1]
 
   useEffect(() => {
-    api.get<PublicVehicle[]>(`/api/public/vehicles`)
-      .then((vehicles) => {
+    (async () => {
+      try {
+        const [vehicles, docs] = await Promise.all([
+          api.get<PublicVehicle[]>(`/api/public/vehicles`),
+          api.get<DocumentRecord[]>(`/api/vehicles/${vehicleId}/documents`).catch(() => [])
+        ])
+
         const found = vehicles.find(v => v.id === vehicleId)
         if (found) {
           setVehicle(found)
+          const images = docs.filter(d => d.contentType?.startsWith('image/'))
+          setDocuments(images)
         } else {
           setError('Vehicle not found')
         }
-      })
-      .catch(() => setError('Could not load vehicle details'))
-      .finally(() => setLoading(false))
+      } catch {
+        setError('Could not load vehicle details')
+      } finally {
+        setLoading(false)
+      }
+    })()
   }, [vehicleId])
 
   if (loading) {
@@ -53,16 +64,21 @@ export function PublicCarDetailPage() {
     )
   }
 
-  const images = vehicle.primaryImageUrl ? [vehicle.primaryImageUrl] : []
-  const hasImages = images.length > 0
+  const hasImages = documents.length > 0
   const title = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ')
 
   const handlePrevImage = () => {
-    setCurrentImageIndex(prev => (prev - 1 + images.length) % images.length)
+    setCurrentImageIndex(prev => (prev - 1 + documents.length) % documents.length)
   }
 
   const handleNextImage = () => {
-    setCurrentImageIndex(prev => (prev + 1) % images.length)
+    setCurrentImageIndex(prev => (prev + 1) % documents.length)
+  }
+
+  const getCurrentImageUrl = () => {
+    if (!hasImages) return ''
+    const doc = documents[currentImageIndex]
+    return `/api/documents/${doc.id}/content`
   }
 
   const specs = [
@@ -86,11 +102,11 @@ export function PublicCarDetailPage() {
             {hasImages ? (
               <>
                 <img
-                  src={images[currentImageIndex]}
+                  src={getCurrentImageUrl()}
                   alt={title}
                   className="car-detail-image"
                 />
-                {images.length > 1 && (
+                {documents.length > 1 && (
                   <>
                     <button className="car-detail-nav-btn car-detail-nav-prev" onClick={handlePrevImage}>
                       <ChevronLeft size={28} />
@@ -99,13 +115,13 @@ export function PublicCarDetailPage() {
                       <ChevronRight size={28} />
                     </button>
                     <div className="car-detail-image-counter">
-                      {currentImageIndex + 1} / {images.length}
+                      {currentImageIndex + 1} / {documents.length}
                     </div>
                   </>
                 )}
               </>
             ) : (
-              <div className="car-detail-image-placeholder">No image available</div>
+              <div className="car-detail-image-placeholder">No photos available</div>
             )}
           </div>
         </div>

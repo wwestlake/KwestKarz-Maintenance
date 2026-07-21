@@ -160,6 +160,8 @@ The backend uses the OpenAI Responses API through the server-side `IAIConnection
 - `POST /api/vehicles`
 - `PUT /api/vehicles/{vehicleId}`
 - `GET /api/vehicles/{vehicleId}/dashboard`
+- `POST /api/vehicles/decode-vin` - Decode single VIN via NHTSA (returns year/make/model/trim/bodyClass/transmission)
+- `POST /api/vehicles/rescan-vins` - Admin-only: rescan all vehicle VINs and update database
 
 ### Maintenance
 - `GET /api/vehicles/{vehicleId}/maintenance`

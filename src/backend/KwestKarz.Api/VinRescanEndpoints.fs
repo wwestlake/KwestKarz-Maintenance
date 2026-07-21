@@ -112,8 +112,7 @@ module VinRescanEndpoints =
                                           CurrentOdometer = vehicle.CurrentOdometer
                                           CurrentOdometerRecordedAt = vehicle.CurrentOdometerRecordedAt
                                           FleetPositionNumber = vehicle.FleetPositionNumber
-                                          Notes = vehicle.Notes
-                                          PrimaryImageUrl = vehicle.PrimaryImageUrl }
+                                          Notes = vehicle.Notes }
                                     let! _ = repository.UpdateAsync(vehicle.Id, updateData, ct)
                                     ()
                                 | None ->

@@ -23,8 +23,7 @@ type CreateVehicleRequest =
       CurrentOdometer: int option
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
-      Notes: string option
-      PrimaryImageUrl: string option }
+      Notes: string option }
 
 module CreateVehicleRequest =
     let toDomain (request: CreateVehicleRequest) : NewVehicle =
@@ -47,8 +46,7 @@ module CreateVehicleRequest =
           CurrentOdometer = request.CurrentOdometer
           CurrentOdometerRecordedAt = request.CurrentOdometerRecordedAt
           FleetPositionNumber = request.FleetPositionNumber
-          Notes = request.Notes
-          PrimaryImageUrl = request.PrimaryImageUrl }
+          Notes = request.Notes }
 
 type UpdateVehicleRequest =
     { BodyClass: string option
@@ -61,8 +59,7 @@ type UpdateVehicleRequest =
       CurrentOdometer: int option
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
-      Notes: string option
-      PrimaryImageUrl: string option }
+      Notes: string option }
 
 module UpdateVehicleRequest =
     let toDomain (request: UpdateVehicleRequest) : UpdateVehicle =
@@ -76,8 +73,7 @@ module UpdateVehicleRequest =
           CurrentOdometer = request.CurrentOdometer
           CurrentOdometerRecordedAt = request.CurrentOdometerRecordedAt
           FleetPositionNumber = request.FleetPositionNumber
-          Notes = request.Notes
-          PrimaryImageUrl = request.PrimaryImageUrl }
+          Notes = request.Notes }
 
 type VehicleResponse =
     { Id: Guid
@@ -101,7 +97,6 @@ type VehicleResponse =
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
       Notes: string option
-      PrimaryImageUrl: string option
       CreatedAt: DateTimeOffset
       UpdatedAt: DateTimeOffset }
 
@@ -128,7 +123,6 @@ module VehicleResponse =
           CurrentOdometerRecordedAt = vehicle.CurrentOdometerRecordedAt
           FleetPositionNumber = vehicle.FleetPositionNumber
           Notes = vehicle.Notes
-          PrimaryImageUrl = vehicle.PrimaryImageUrl
           CreatedAt = vehicle.CreatedAt
           UpdatedAt = vehicle.UpdatedAt }
 
@@ -145,7 +139,6 @@ type PublicVehicleResponse =
       Status: string
       TuroListingStatus: string option
       TuroListingUrl: string option
-      PrimaryImageUrl: string option
       FleetPositionNumber: string option }
 
 module PublicVehicleResponse =
@@ -162,5 +155,4 @@ module PublicVehicleResponse =
           Status = VehicleStatus.toStorageValue vehicle.Status
           TuroListingStatus = vehicle.TuroListingStatus
           TuroListingUrl = vehicle.TuroListingUrl
-          PrimaryImageUrl = vehicle.PrimaryImageUrl
           FleetPositionNumber = vehicle.FleetPositionNumber }

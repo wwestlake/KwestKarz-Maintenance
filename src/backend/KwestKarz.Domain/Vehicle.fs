@@ -51,7 +51,6 @@ type Vehicle =
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
       Notes: string option
-      PrimaryImageUrl: string option
       CreatedAt: DateTimeOffset
       UpdatedAt: DateTimeOffset }
 
@@ -75,8 +74,7 @@ type NewVehicle =
       CurrentOdometer: int option
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
-      Notes: string option
-      PrimaryImageUrl: string option }
+      Notes: string option }
 
 type UpdateVehicle =
     { BodyClass: string option
@@ -89,8 +87,7 @@ type UpdateVehicle =
       CurrentOdometer: int option
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
-      Notes: string option
-      PrimaryImageUrl: string option }
+      Notes: string option }
 
 type IVehicleRepository =
     abstract member ListAsync: cancellationToken: CancellationToken -> Task<Vehicle list>
