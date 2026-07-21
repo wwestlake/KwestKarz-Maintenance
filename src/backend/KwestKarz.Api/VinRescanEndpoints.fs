@@ -70,80 +70,84 @@ module VinRescanEndpoints =
         }
 
     let mapVinRescanEndpoints (app: WebApplication) =
-        let group = app.MapGroup("/api/vehicles")
+        let group = app.MapGroup("/api/vehicles").RequireAuthorization()
 
         group.MapPost(
             "/rescan-vins",
-            Func<IVehicleRepository, CancellationToken, Task<IResult>>(fun repository ct ->
+            Func<IVehicleRepository, HttpContext, CancellationToken, Task<IResult>>(fun repository httpContext ct ->
                 task {
-                    try
-                        let! vehicles = repository.ListAsync(ct)
-                        let mutable results: VinRescanResult list = []
-                        let mutable successCount = 0
-                        let mutable failureCount = 0
+                    let role = httpContext.Request.Headers["X-Role"].ToString()
+                    if role <> "admin" then
+                        return Results.Forbid()
+                    else
+                        try
+                            let! vehicles = repository.ListAsync(ct)
+                            let mutable results: VinRescanResult list = []
+                            let mutable successCount = 0
+                            let mutable failureCount = 0
 
-                        for vehicle in vehicles do
-                            let! decodeData = decodeVinData vehicle.Vin ct
+                            for vehicle in vehicles do
+                                let! decodeData = decodeVinData vehicle.Vin ct
 
-                            match decodeData with
-                            | Some (bodyClass, transmission) ->
-                                successCount <- successCount + 1
-                                let result: VinRescanResult =
-                                    { VehicleId = vehicle.Id
-                                      Vin = vehicle.Vin
-                                      BodyClass = bodyClass
-                                      Transmission = transmission
-                                      Success = true
-                                      Error = None }
-                                results <- result :: results
+                                match decodeData with
+                                | Some (bodyClass, transmission) ->
+                                    successCount <- successCount + 1
+                                    let result: VinRescanResult =
+                                        { VehicleId = vehicle.Id
+                                          Vin = vehicle.Vin
+                                          BodyClass = bodyClass
+                                          Transmission = transmission
+                                          Success = true
+                                          Error = None }
+                                    results <- result :: results
 
-                                let updateData: UpdateVehicle =
-                                    { BodyClass = bodyClass
-                                      Transmission = transmission
-                                      Color = vehicle.Color
-                                      LicensePlate = vehicle.LicensePlate
-                                      LicensePlateState = vehicle.LicensePlateState
-                                      Status = vehicle.Status
-                                      TuroListingUrl = vehicle.TuroListingUrl
-                                      CurrentOdometer = vehicle.CurrentOdometer
-                                      CurrentOdometerRecordedAt = vehicle.CurrentOdometerRecordedAt
-                                      FleetPositionNumber = vehicle.FleetPositionNumber
-                                      Notes = vehicle.Notes
-                                      PrimaryImageUrl = vehicle.PrimaryImageUrl }
-                                let! _ = repository.UpdateAsync(vehicle.Id, updateData, ct)
-                                ()
-                            | None ->
-                                failureCount <- failureCount + 1
-                                let result: VinRescanResult =
-                                    { VehicleId = vehicle.Id
-                                      Vin = vehicle.Vin
-                                      BodyClass = None
-                                      Transmission = None
-                                      Success = false
-                                      Error = Some "Could not decode VIN" }
-                                results <- result :: results
+                                    let updateData: UpdateVehicle =
+                                        { BodyClass = bodyClass
+                                          Transmission = transmission
+                                          Color = vehicle.Color
+                                          LicensePlate = vehicle.LicensePlate
+                                          LicensePlateState = vehicle.LicensePlateState
+                                          Status = vehicle.Status
+                                          TuroListingUrl = vehicle.TuroListingUrl
+                                          CurrentOdometer = vehicle.CurrentOdometer
+                                          CurrentOdometerRecordedAt = vehicle.CurrentOdometerRecordedAt
+                                          FleetPositionNumber = vehicle.FleetPositionNumber
+                                          Notes = vehicle.Notes
+                                          PrimaryImageUrl = vehicle.PrimaryImageUrl }
+                                    let! _ = repository.UpdateAsync(vehicle.Id, updateData, ct)
+                                    ()
+                                | None ->
+                                    failureCount <- failureCount + 1
+                                    let result: VinRescanResult =
+                                        { VehicleId = vehicle.Id
+                                          Vin = vehicle.Vin
+                                          BodyClass = None
+                                          Transmission = None
+                                          Success = false
+                                          Error = Some "Could not decode VIN" }
+                                    results <- result :: results
 
-                        let summary: VinRescanSummary =
-                            { TotalScanned = vehicles.Length
-                              SuccessCount = successCount
-                              FailureCount = failureCount
-                              Results = results |> List.rev |> List.toArray }
+                            let summary: VinRescanSummary =
+                                { TotalScanned = vehicles.Length
+                                  SuccessCount = successCount
+                                  FailureCount = failureCount
+                                  Results = results |> List.rev |> List.toArray }
 
-                        return Results.Ok summary
-                    with ex ->
-                        let errorItem: VinRescanResult =
-                            { VehicleId = Guid.Empty
-                              Vin = ""
-                              BodyClass = None
-                              Transmission = None
-                              Success = false
-                              Error = Some ex.Message }
-                        let errorResult: VinRescanSummary =
-                            { TotalScanned = 0
-                              SuccessCount = 0
-                              FailureCount = 1
-                              Results = [| errorItem |] }
-                        return Results.BadRequest(errorResult)
+                            return Results.Ok summary
+                        with ex ->
+                            let errorItem: VinRescanResult =
+                                { VehicleId = Guid.Empty
+                                  Vin = ""
+                                  BodyClass = None
+                                  Transmission = None
+                                  Success = false
+                                  Error = Some ex.Message }
+                            let errorResult: VinRescanSummary =
+                                { TotalScanned = 0
+                                  SuccessCount = 0
+                                  FailureCount = 1
+                                  Results = [| errorItem |] }
+                            return Results.BadRequest(errorResult)
                 }
             )
         )

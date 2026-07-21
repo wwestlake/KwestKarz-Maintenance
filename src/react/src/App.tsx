@@ -20,6 +20,7 @@ import { DocumentLibraryPanel } from './components/DocumentLibraryPanel'
 import { MaintenanceForm } from './components/MaintenanceForm'
 import { OrientationPanel } from './components/OrientationPanel'
 import { TirePressurePanel } from './components/TirePressurePanel'
+import { AdminPanel } from './components/AdminPanel'
 import { ThemeToggle } from './components/ThemeToggle'
 import type {
   AppArea, GuidedCaptureConfig, Obd2ReportUploadResponse,
@@ -3145,24 +3146,27 @@ function App() {
             onRefreshSignals={loadTuroMaintenanceSignals}
           />
           {isAdmin && (
-            <BankStatementImportPanel
-              bankImportFile={bankImportFile}
-              bankImportResult={bankImportResult}
-              bankImportHistory={bankImportHistory}
-              loading={loading}
-              statementYear={bankImportStatementYear}
-              bankName={bankImportBankName}
-              accountNumber={bankImportAccountNumber}
-              accountNickname={bankImportAccountNickname}
-              notes={bankImportNotes}
-              onStatementYearChange={setBankImportStatementYear}
-              onBankNameChange={setBankImportBankName}
-              onAccountNumberChange={setBankImportAccountNumber}
-              onAccountNicknameChange={setBankImportAccountNickname}
-              onNotesChange={setBankImportNotes}
-              onFileChange={setBankImportFile}
-              onImport={importBankStatements}
-            />
+            <>
+              <AdminPanel />
+              <BankStatementImportPanel
+                bankImportFile={bankImportFile}
+                bankImportResult={bankImportResult}
+                bankImportHistory={bankImportHistory}
+                loading={loading}
+                statementYear={bankImportStatementYear}
+                bankName={bankImportBankName}
+                accountNumber={bankImportAccountNumber}
+                accountNickname={bankImportAccountNickname}
+                notes={bankImportNotes}
+                onStatementYearChange={setBankImportStatementYear}
+                onBankNameChange={setBankImportBankName}
+                onAccountNumberChange={setBankImportAccountNumber}
+                onAccountNicknameChange={setBankImportAccountNickname}
+                onNotesChange={setBankImportNotes}
+                onFileChange={setBankImportFile}
+                onImport={importBankStatements}
+              />
+            </>
           )}
           {turoImportHistory.length > 0 && (
             <div className="panel area-panel">
