@@ -224,6 +224,25 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                 create index if not exists ix_documents_owner
                     on kwestkarzbusinessdata.documents(owner_type, owner_id);
 
+                create table if not exists kwestkarzbusinessdata.vehicle_photos (
+                    id uuid primary key,
+                    vehicle_id uuid not null references kwestkarzbusinessdata.vehicles(id) on delete cascade,
+                    photo_blob bytea not null,
+                    content_type text not null,
+                    original_file_name text not null,
+                    size_bytes bigint not null,
+                    is_primary boolean not null default false,
+                    display_order integer not null default 0,
+                    created_at timestamptz not null,
+                    created_by text null
+                );
+
+                create index if not exists ix_vehicle_photos_vehicle_id
+                    on kwestkarzbusinessdata.vehicle_photos(vehicle_id);
+
+                create index if not exists ix_vehicle_photos_vehicle_primary
+                    on kwestkarzbusinessdata.vehicle_photos(vehicle_id, is_primary);
+
                 create table if not exists kwestkarzbusinessdata.vehicle_compliance_records (
                     id uuid primary key,
                     vehicle_id uuid not null references kwestkarzbusinessdata.vehicles(id) on delete cascade,
