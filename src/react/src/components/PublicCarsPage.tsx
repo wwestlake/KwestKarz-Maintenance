@@ -1,21 +1,47 @@
 import { useEffect, useState } from 'react'
 import { CircleAlert } from 'lucide-react'
 import { api } from '../api'
-import type { PublicVehicle } from '../types'
+import type { PublicVehicle, DocumentRecord } from '../types'
 import carHeroAsset from '../assets/kwestkarz-hero-car.jpg'
 import { PublicSiteHeader } from './PublicSiteHeader'
 
+type VehicleWithImage = PublicVehicle & {
+  firstImageId?: string
+}
+
 export function PublicCarsPage() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const [vehicles, setVehicles] = useState<PublicVehicle[]>([])
+  const [vehicles, setVehicles] = useState<VehicleWithImage[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    api.get<PublicVehicle[]>('/api/public/vehicles')
-      .then((rows) => setVehicles(rows))
-      .catch(() => setError('Could not load the public fleet right now.'))
-      .finally(() => setLoading(false))
+    (async () => {
+      try {
+        const rows = await api.get<PublicVehicle[]>('/api/public/vehicles')
+
+        // Fetch documents for all vehicles in parallel
+        const docsResults = await Promise.allSettled(
+          rows.map(v => api.get<DocumentRecord[]>(`/api/vehicles/${v.id}/documents`).catch(() => []))
+        )
+
+        // Map first image for each vehicle
+        const vehiclesWithImages: VehicleWithImage[] = rows.map((vehicle, idx) => {
+          const docs = docsResults[idx]?.status === 'fulfilled' ? docsResults[idx].value : []
+          const images = docs.filter(d => d.contentType?.startsWith('image/'))
+          return {
+            ...vehicle,
+            firstImageId: images[0]?.id
+          }
+        })
+
+        setVehicles(vehiclesWithImages)
+      } catch {
+        setError('Could not load the public fleet right now.')
+      } finally {
+        setLoading(false)
+      }
+    })()
   }, [])
 
   return (
@@ -46,9 +72,12 @@ export function PublicCarsPage() {
         <div className="fleet-grid">
           {vehicles.map((vehicle) => (
             <article key={vehicle.id} className="fleet-card">
-              {vehicle.primaryImageUrl && (
+              {vehicle.firstImageId && (
                 <div className="fleet-card-image">
-                  <img src={vehicle.primaryImageUrl} alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`} />
+                  <img
+                    src={`/api/documents/${vehicle.firstImageId}/content`}
+                    alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
+                  />
                 </div>
               )}
               <div className="fleet-card-content">

@@ -108,7 +108,6 @@ export type PublicVehicle = {
   status: string
   turoListingStatus?: string
   turoListingUrl?: string
-  primaryImageUrl?: string
   fleetPositionNumber?: string
   bodyClass?: string
   transmission?: string
