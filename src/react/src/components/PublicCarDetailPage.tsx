@@ -124,14 +124,16 @@ export function PublicCarDetailPage() {
 
           <div className="car-detail-actions">
             <a href="/cars" className="btn btn-secondary">Back to Fleet</a>
-            <a
-              href="https://turo.com/us/en/host/45519639"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="btn btn-primary"
-            >
-              Visit Us on Turo
-            </a>
+            {vehicle.turoListingUrl && (
+              <a
+                href={vehicle.turoListingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-primary"
+              >
+                Visit Us on Turo
+              </a>
+            )}
           </div>
         </div>
       </section>
