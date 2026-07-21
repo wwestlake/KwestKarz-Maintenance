@@ -9,6 +9,8 @@ type CreateVehicleRequest =
       Make: string option
       Model: string option
       Trim: string option
+      BodyClass: string option
+      Transmission: string option
       Color: string option
       LicensePlate: string option
       LicensePlateState: string option
@@ -31,6 +33,8 @@ module CreateVehicleRequest =
           Make = request.Make
           Model = request.Model
           Trim = request.Trim
+          BodyClass = request.BodyClass
+          Transmission = request.Transmission
           Color = request.Color
           LicensePlate = request.LicensePlate
           LicensePlateState = request.LicensePlateState
@@ -47,7 +51,9 @@ module CreateVehicleRequest =
           PrimaryImageUrl = request.PrimaryImageUrl }
 
 type UpdateVehicleRequest =
-    { Color: string option
+    { BodyClass: string option
+      Transmission: string option
+      Color: string option
       LicensePlate: string option
       LicensePlateState: string option
       Status: string option
@@ -60,7 +66,9 @@ type UpdateVehicleRequest =
 
 module UpdateVehicleRequest =
     let toDomain (request: UpdateVehicleRequest) : UpdateVehicle =
-        { Color = request.Color
+        { BodyClass = request.BodyClass
+          Transmission = request.Transmission
+          Color = request.Color
           LicensePlate = request.LicensePlate
           LicensePlateState = request.LicensePlateState
           Status = request.Status |> Option.map VehicleStatus.fromStorageValue |> Option.defaultValue VehicleStatus.Active
@@ -78,6 +86,8 @@ type VehicleResponse =
       Make: string option
       Model: string option
       Trim: string option
+      BodyClass: string option
+      Transmission: string option
       Color: string option
       LicensePlate: string option
       LicensePlateState: string option
@@ -103,6 +113,8 @@ module VehicleResponse =
           Make = vehicle.Make
           Model = vehicle.Model
           Trim = vehicle.Trim
+          BodyClass = vehicle.BodyClass
+          Transmission = vehicle.Transmission
           Color = vehicle.Color
           LicensePlate = vehicle.LicensePlate
           LicensePlateState = vehicle.LicensePlateState
@@ -126,6 +138,8 @@ type PublicVehicleResponse =
       Make: string option
       Model: string option
       Trim: string option
+      BodyClass: string option
+      Transmission: string option
       Color: string option
       LicensePlate: string option
       Status: string
@@ -141,6 +155,8 @@ module PublicVehicleResponse =
           Make = vehicle.Make
           Model = vehicle.Model
           Trim = vehicle.Trim
+          BodyClass = vehicle.BodyClass
+          Transmission = vehicle.Transmission
           Color = vehicle.Color
           LicensePlate = vehicle.LicensePlate
           Status = VehicleStatus.toStorageValue vehicle.Status

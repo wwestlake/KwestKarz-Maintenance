@@ -277,6 +277,8 @@ module Program =
         MaintenanceTemplateEndpoints.mapMaintenanceTemplateEndpoints app |> ignore
         VinEndpoints.mapVinEndpoints app |> ignore
         VehicleEndpoints.mapVehicleEndpoints app |> ignore
+        VinDecodeEndpoints.mapVinDecodeEndpoints app |> ignore
+        VinRescanEndpoints.mapVinRescanEndpoints app |> ignore
         LockBoxEndpoints.mapLockBoxEndpoints app |> ignore
         MaintenanceEndpoints.mapMaintenanceEndpoints app |> ignore
         TirePressureEndpoints.mapTirePressureEndpoints app |> ignore

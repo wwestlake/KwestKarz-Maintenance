@@ -44,6 +44,12 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
                 alter table if exists kwestkarzbusinessdata.vehicles
                     add column if not exists turo_listing_url text null;
 
+                alter table if exists kwestkarzbusinessdata.vehicles
+                    add column if not exists body_class text null;
+
+                alter table if exists kwestkarzbusinessdata.vehicles
+                    add column if not exists transmission text null;
+
                 create table if not exists kwestkarzbusinessdata.lock_boxes (
                     id uuid primary key,
                     box_number integer not null unique,
