@@ -36,6 +36,8 @@ type Vehicle =
       Make: string option
       Model: string option
       Trim: string option
+      BodyClass: string option
+      Transmission: string option
       Color: string option
       LicensePlate: string option
       LicensePlateState: string option
@@ -59,6 +61,8 @@ type NewVehicle =
       Make: string option
       Model: string option
       Trim: string option
+      BodyClass: string option
+      Transmission: string option
       Color: string option
       LicensePlate: string option
       LicensePlateState: string option
@@ -75,7 +79,9 @@ type NewVehicle =
       PrimaryImageUrl: string option }
 
 type UpdateVehicle =
-    { Color: string option
+    { BodyClass: string option
+      Transmission: string option
+      Color: string option
       LicensePlate: string option
       LicensePlateState: string option
       Status: VehicleStatus

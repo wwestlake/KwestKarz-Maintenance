@@ -55,6 +55,7 @@ export function PublicCarDetailPage() {
 
   const images = vehicle.primaryImageUrl ? [vehicle.primaryImageUrl] : []
   const hasImages = images.length > 0
+  const title = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ')
 
   const handlePrevImage = () => {
     setCurrentImageIndex(prev => (prev - 1 + images.length) % images.length)
@@ -64,72 +65,84 @@ export function PublicCarDetailPage() {
     setCurrentImageIndex(prev => (prev + 1) % images.length)
   }
 
+  const specs = [
+    { label: 'Year', value: vehicle.year },
+    { label: 'Make', value: vehicle.make },
+    { label: 'Model', value: vehicle.model },
+    { label: 'Trim', value: vehicle.trim },
+    { label: 'Color', value: vehicle.color },
+    { label: 'Body Type', value: vehicle.bodyClass },
+    { label: 'Transmission', value: vehicle.transmission },
+  ].filter(s => s.value !== undefined && s.value !== null)
+
   return (
-    <main className="public-page">
+    <main className="public-page car-detail-page">
       <PublicSiteHeader menuOpen={menuOpen} onToggleMenu={() => setMenuOpen(val => !val)} />
 
-      <section className="car-detail-hero">
-        <div className="car-detail-image-container">
-          {hasImages ? (
-            <>
-              <img
-                src={images[currentImageIndex]}
-                alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
-                className="car-detail-image"
-              />
-              {images.length > 1 && (
-                <>
-                  <button className="car-detail-nav-btn car-detail-nav-prev" onClick={handlePrevImage}>
-                    <ChevronLeft size={24} />
-                  </button>
-                  <button className="car-detail-nav-btn car-detail-nav-next" onClick={handleNextImage}>
-                    <ChevronRight size={24} />
-                  </button>
-                  <div className="car-detail-image-counter">
-                    {currentImageIndex + 1} / {images.length}
-                  </div>
-                </>
-              )}
-            </>
-          ) : (
-            <div className="car-detail-image-placeholder">No image available</div>
-          )}
+      <section className="car-detail-showcase">
+        {/* Hero Image */}
+        <div className="car-detail-hero-section">
+          <div className="car-detail-image-container">
+            {hasImages ? (
+              <>
+                <img
+                  src={images[currentImageIndex]}
+                  alt={title}
+                  className="car-detail-image"
+                />
+                {images.length > 1 && (
+                  <>
+                    <button className="car-detail-nav-btn car-detail-nav-prev" onClick={handlePrevImage}>
+                      <ChevronLeft size={28} />
+                    </button>
+                    <button className="car-detail-nav-btn car-detail-nav-next" onClick={handleNextImage}>
+                      <ChevronRight size={28} />
+                    </button>
+                    <div className="car-detail-image-counter">
+                      {currentImageIndex + 1} / {images.length}
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <div className="car-detail-image-placeholder">No image available</div>
+            )}
+          </div>
         </div>
 
-        <div className="car-detail-content">
-          <div className="car-detail-header">
-            <div>
-              <h1 className="car-detail-title">
-                {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ')}
-              </h1>
-              {vehicle.trim && <p className="car-detail-trim">{vehicle.trim}</p>}
+        {/* Vehicle Header */}
+        <div className="car-detail-content-wrapper">
+          <div className="car-detail-header-box">
+            <div className="header-left">
+              <h1 className="car-detail-title">{title}</h1>
+              {vehicle.trim && <p className="car-detail-subtitle">{vehicle.trim}</p>}
             </div>
-            {vehicle.licensePlate && <div className="car-detail-plate">{vehicle.licensePlate}</div>}
-          </div>
-
-          <div className="car-detail-specs">
-            {vehicle.color && (
-              <div className="spec-row">
-                <span className="spec-label">Exterior Color</span>
-                <span className="spec-value">{vehicle.color}</span>
-              </div>
-            )}
-            {vehicle.year && (
-              <div className="spec-row">
-                <span className="spec-label">Year</span>
-                <span className="spec-value">{vehicle.year}</span>
-              </div>
+            {vehicle.licensePlate && (
+              <div className="license-plate-badge">{vehicle.licensePlate}</div>
             )}
           </div>
 
-          <div className="car-detail-actions">
+          {/* Specs Grid */}
+          {specs.length > 0 && (
+            <div className="car-specs-grid">
+              {specs.map((spec) => (
+                <div key={spec.label} className="car-spec-item">
+                  <div className="spec-label">{spec.label}</div>
+                  <div className="spec-value">{spec.value}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* CTA Buttons */}
+          <div className="car-detail-cta">
             <a href="/cars" className="btn btn-secondary">Back to Fleet</a>
             {vehicle.turoListingUrl && (
               <a
                 href={vehicle.turoListingUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="btn btn-primary"
+                className="btn btn-primary btn-large"
               >
                 Visit Us on Turo
               </a>

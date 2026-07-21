@@ -110,6 +110,8 @@ export type PublicVehicle = {
   turoListingUrl?: string
   primaryImageUrl?: string
   fleetPositionNumber?: string
+  bodyClass?: string
+  transmission?: string
 }
 
 export type MaintenanceRecord = {
@@ -419,6 +421,17 @@ export type VinDecode = {
   trim?: string
   bodyClass?: string
   errorText?: string
+}
+
+export type VinDecodeResult = {
+  vin: string
+  year?: number
+  make?: string
+  model?: string
+  trim?: string
+  bodyClass?: string
+  transmission?: string
+  errorMessage?: string
 }
 
 export type CreateVehicleForm = {
