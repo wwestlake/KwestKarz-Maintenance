@@ -103,7 +103,8 @@ All colours and spacing are CSS custom properties. Never add hardcoded hex value
 - Create feature branches from `develop`, named for the project section and issue/task, for example `codex/ux/73-sticky-edit-actions`.
 - Merge completed feature branches back into `develop`; no PR is required for these internal merges.
 - When `develop` is stable and ready to roll out, open a PR from `develop` to `main`.
-- If the user explicitly approves the release, the agent may merge `develop` into `main` and push the result so the user can rerun the pipeline.
+- If the user explicitly approves the release, the agent may merge `develop` into `main` and push the result.
+- **CRITICAL: Merging to `main` triggers automatic deployment to production. Do NOT merge to `main` unless the code is ready for immediate production release.**
 - The user still owns the final go/no-go for production timing.
 
 ## Workflow Rules
