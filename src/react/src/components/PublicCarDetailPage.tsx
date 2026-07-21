@@ -14,8 +14,8 @@ export function PublicCarDetailPage() {
   const vehicleId = window.location.pathname.split('/cars/')[1]
 
   useEffect(() => {
-    api.get<PublicVehicle>(`/api/public/vehicles`)
-      .then((vehicles: PublicVehicle[]) => {
+    api.get<PublicVehicle[]>(`/api/public/vehicles`)
+      .then((vehicles) => {
         const found = vehicles.find(v => v.id === vehicleId)
         if (found) {
           setVehicle(found)
