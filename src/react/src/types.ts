@@ -104,9 +104,11 @@ export type PublicVehicle = {
   model?: string
   trim?: string
   color?: string
+  licensePlate?: string
   status: string
   turoListingStatus?: string
   turoListingUrl?: string
+  primaryImageUrl?: string
   fleetPositionNumber?: string
 }
 
