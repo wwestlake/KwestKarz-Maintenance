@@ -9,6 +9,7 @@ import { PendingApprovalScreen } from './components/PendingApprovalScreen.tsx'
 import { ContactPage } from './components/ContactPage.tsx'
 import { PublicAboutTuroPage } from './components/PublicAboutTuroPage.tsx'
 import { PublicCarsPage } from './components/PublicCarsPage.tsx'
+import { PublicCarDetailPage } from './components/PublicCarDetailPage.tsx'
 import { PublicHelpPage } from './components/PublicHelpPage.tsx'
 import { PublicLandingPage } from './components/PublicLandingPage.tsx'
 import { ThemeProvider } from './ThemeContext'
@@ -33,7 +34,8 @@ function AppShell() {
 
 function RootShell() {
   const pathname = window.location.pathname
-  if (pathname.startsWith('/cars')) return <PublicCarsPage />
+  if (pathname.startsWith('/cars/')) return <PublicCarDetailPage />
+  if (pathname === '/cars') return <PublicCarsPage />
   if (pathname.startsWith('/about-turo')) return <PublicAboutTuroPage />
   if (pathname.startsWith('/help')) return <PublicHelpPage />
   if (pathname.startsWith('/contact')) return <ContactPage />

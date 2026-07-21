@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CarFront, CircleAlert } from 'lucide-react'
+import { CircleAlert } from 'lucide-react'
 import { api } from '../api'
 import type { PublicVehicle } from '../types'
 import carHeroAsset from '../assets/kwestkarz-hero-car.jpg'
@@ -43,19 +43,33 @@ export function PublicCarsPage() {
           </p>
         )}
 
-        <div className="public-cars-grid">
+        <div className="fleet-grid">
           {vehicles.map((vehicle) => (
-            <article key={vehicle.id} className="public-car-card">
-              <div className="public-car-card-top">
-                <CarFront size={18} strokeWidth={2.2} />
-                <span>{vehicle.status}</span>
+            <article key={vehicle.id} className="fleet-card">
+              {vehicle.primaryImageUrl && (
+                <div className="fleet-card-image">
+                  <img src={vehicle.primaryImageUrl} alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`} />
+                </div>
+              )}
+              <div className="fleet-card-content">
+                <div className="fleet-card-header">
+                  <div>
+                    <h3 className="fleet-card-title">
+                      {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle'}
+                    </h3>
+                    {vehicle.color && <p className="fleet-card-color">{vehicle.color}</p>}
+                  </div>
+                  <div className="fleet-card-plate">{vehicle.licensePlate || '—'}</div>
+                </div>
+
+                {vehicle.trim && <p className="fleet-card-trim">{vehicle.trim}</p>}
+
+                <div className="fleet-card-actions">
+                  <a href={`/cars/${vehicle.id}`} className="btn btn-primary">
+                    Details
+                  </a>
+                </div>
               </div>
-              <strong>
-                {[vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle'}
-              </strong>
-              <p>{vehicle.trim || 'Trim not set'}</p>
-              <p>{vehicle.color ? `${vehicle.color} exterior` : 'Color not listed'}</p>
-              <p className="hint-text">Turo link coming soon.</p>
             </article>
           ))}
         </div>
