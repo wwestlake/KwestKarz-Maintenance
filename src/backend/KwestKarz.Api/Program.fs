@@ -134,6 +134,7 @@ module Program =
         builder.Services.AddScoped<ITirePressureRepository, PostgresTirePressureRepository>() |> ignore
         builder.Services.AddScoped<IDocumentRepository, PostgresDocumentRepository>() |> ignore
         builder.Services.AddScoped<IDiagnosticReportRepository, PostgresDiagnosticReportRepository>() |> ignore
+        builder.Services.AddScoped<IVehiclePhotoRepository, PostgresVehiclePhotoRepository>() |> ignore
 
         builder.Services.AddSingleton<OpenAIOptions>(fun _ ->
             { ApiKey = builder.Configuration.GetValue<string>("OpenAI:ApiKey")
@@ -279,6 +280,7 @@ module Program =
         VehicleEndpoints.mapVehicleEndpoints app |> ignore
         VinDecodeEndpoints.mapVinDecodeEndpoints app |> ignore
         VinRescanEndpoints.mapVinRescanEndpoints app |> ignore
+        VehiclePhotoEndpoints.mapVehiclePhotoEndpoints app |> ignore
         LockBoxEndpoints.mapLockBoxEndpoints app |> ignore
         MaintenanceEndpoints.mapMaintenanceEndpoints app |> ignore
         TirePressureEndpoints.mapTirePressureEndpoints app |> ignore

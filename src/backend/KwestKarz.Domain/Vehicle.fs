@@ -89,9 +89,27 @@ type UpdateVehicle =
       FleetPositionNumber: string option
       Notes: string option }
 
+type VehiclePhoto =
+    { Id: Guid
+      VehicleId: Guid
+      ContentType: string
+      OriginalFileName: string
+      SizeBytes: int64
+      IsPrimary: bool
+      DisplayOrder: int
+      CreatedAt: DateTimeOffset
+      CreatedBy: string option }
+
 type IVehicleRepository =
     abstract member ListAsync: cancellationToken: CancellationToken -> Task<Vehicle list>
     abstract member FindByIdAsync: id: Guid * cancellationToken: CancellationToken -> Task<Vehicle option>
     abstract member FindByVinAsync: vin: string * cancellationToken: CancellationToken -> Task<Vehicle option>
     abstract member CreateAsync: vehicle: NewVehicle * cancellationToken: CancellationToken -> Task<Vehicle>
     abstract member UpdateAsync: id: Guid * update: UpdateVehicle * cancellationToken: CancellationToken -> Task<Vehicle option>
+
+type IVehiclePhotoRepository =
+    abstract member ListByVehicleAsync: vehicleId: Guid * cancellationToken: CancellationToken -> Task<VehiclePhoto list>
+    abstract member GetPrimaryAsync: vehicleId: Guid * cancellationToken: CancellationToken -> Task<VehiclePhoto option>
+    abstract member GetPhotoContentAsync: photoId: Guid * vehicleId: Guid * cancellationToken: CancellationToken -> Task<byte array option>
+    abstract member AddPhotoAsync: vehicleId: Guid * photo: VehiclePhoto * blob: byte array * cancellationToken: CancellationToken -> Task<VehiclePhoto>
+    abstract member SetPrimaryAsync: photoId: Guid * vehicleId: Guid * cancellationToken: CancellationToken -> Task<unit>

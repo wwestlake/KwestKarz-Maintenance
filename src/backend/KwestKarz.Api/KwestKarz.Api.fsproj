@@ -24,6 +24,7 @@
     <Compile Include="VehicleEndpoints.fs" />
     <Compile Include="VinDecodeEndpoints.fs" />
     <Compile Include="VinRescanEndpoints.fs" />
+    <Compile Include="VehiclePhotoEndpoints.fs" />
     <Compile Include="LockBoxEndpoints.fs" />
     <Compile Include="MaintenanceEndpoints.fs" />
     <Compile Include="TirePressureEndpoints.fs" />
