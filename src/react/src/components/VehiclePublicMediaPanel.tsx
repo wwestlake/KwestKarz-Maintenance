@@ -1,13 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Upload, Camera, Link2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Upload, Camera, Star } from 'lucide-react'
 import { api } from '../api'
-import type { DocumentRecord } from '../types'
+import type { VehiclePhotoRecord } from '../types'
 
 type Props = {
   vehicleId: string
-  documents: DocumentRecord[]
   loading: boolean
-  onRefresh: () => Promise<void>
 }
 
 function isMobileDevice() {
@@ -15,10 +13,12 @@ function isMobileDevice() {
   return window.matchMedia('(pointer: coarse)').matches || navigator.maxTouchPoints > 0
 }
 
-export function VehiclePublicMediaPanel({ vehicleId, documents, loading, onRefresh }: Props) {
+export function VehiclePublicMediaPanel({ vehicleId, loading }: Props) {
   const [mobile, setMobile] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [photos, setPhotos] = useState<VehiclePhotoRecord[]>([])
+  const [photosLoading, setPhotosLoading] = useState(true)
   const uploadInputRef = useRef<HTMLInputElement | null>(null)
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -26,10 +26,21 @@ export function VehiclePublicMediaPanel({ vehicleId, documents, loading, onRefre
     setMobile(isMobileDevice())
   }, [])
 
-  const glamShots = useMemo(
-    () => documents.filter((doc) => doc.ownerType === 'Vehicle' && doc.kind === 'CarPhoto'),
-    [documents],
-  )
+  const refreshPhotos = useCallback(async () => {
+    setPhotosLoading(true)
+    try {
+      const rows = await api.get<VehiclePhotoRecord[]>(`/api/vehicles/${vehicleId}/photos`)
+      setPhotos(rows)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not load public photos.')
+    } finally {
+      setPhotosLoading(false)
+    }
+  }, [vehicleId])
+
+  useEffect(() => {
+    void refreshPhotos()
+  }, [refreshPhotos])
 
   async function uploadPhoto(file: File) {
     if (!file || file.size === 0) return
@@ -37,11 +48,10 @@ export function VehiclePublicMediaPanel({ vehicleId, documents, loading, onRefre
     setMessage('Saving public photo...')
     try {
       const form = new FormData()
-      form.append('file', file)
-      form.append('kind', 'CarPhoto')
-      form.append('description', 'Public glam shot')
-      await api.postForm(`/api/vehicles/${vehicleId}/documents`, form)
-      await onRefresh()
+      form.append('photo', file)
+      form.append('isPrimary', photos.length === 0 ? 'true' : 'false')
+      await api.postForm(`/api/vehicles/${vehicleId}/photos`, form)
+      await refreshPhotos()
       setMessage('Photo saved.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not save photo.')
@@ -52,6 +62,20 @@ export function VehiclePublicMediaPanel({ vehicleId, documents, loading, onRefre
     }
   }
 
+  async function makePrimary(photoId: string) {
+    setBusy(true)
+    setMessage('Updating primary photo...')
+    try {
+      await api.put(`/api/vehicles/${vehicleId}/photos/${photoId}/primary`, {})
+      await refreshPhotos()
+      setMessage('Primary photo updated.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not update primary photo.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="panel">
       <div className="section-heading">
@@ -59,7 +83,7 @@ export function VehiclePublicMediaPanel({ vehicleId, documents, loading, onRefre
           <h2>Public Listing Media</h2>
           <p>Upload glam shots here. On phones you can take a photo or upload one. On desktop, upload only.</p>
         </div>
-        <span className="tag">{glamShots.length}</span>
+        <span className="tag">{photos.length}</span>
       </div>
 
       <div className="public-media-actions">
@@ -122,21 +146,38 @@ export function VehiclePublicMediaPanel({ vehicleId, documents, loading, onRefre
 
       {message && <p className="hint-text">{message}</p>}
 
-      {glamShots.length === 0 ? (
+      {photosLoading ? (
+        <p className="hint-text">Loading public photos...</p>
+      ) : photos.length === 0 ? (
         <p className="hint-text">No glam shots uploaded yet.</p>
       ) : (
         <div className="public-media-grid">
-          {glamShots.map((doc) => (
-            <article key={doc.id} className="public-media-card">
-              <a href={`/api/documents/${doc.id}/content`} target="_blank" rel="noreferrer">
-                <img src={`/api/documents/${doc.id}/content`} alt={doc.description ?? doc.originalFileName} />
+          {photos.map((photo) => (
+            <article key={photo.id} className="public-media-card">
+              <a href={`/api/public/vehicles/${vehicleId}/photos/${photo.id}/content`} target="_blank" rel="noreferrer">
+                <img
+                  src={`/api/public/vehicles/${vehicleId}/photos/${photo.id}/content`}
+                  alt={photo.originalFileName}
+                />
               </a>
               <div>
-                <strong>{doc.originalFileName}</strong>
-                <p className="hint-text">
-                  <Link2 size={14} />
-                  <span>Used for public listing</span>
-                </p>
+                <strong>{photo.originalFileName}</strong>
+                {photo.isPrimary ? (
+                  <p className="hint-text">
+                    <Star size={14} />
+                    <span>Primary photo</span>
+                  </p>
+                ) : (
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    disabled={busy || loading}
+                    onClick={() => void makePrimary(photo.id)}
+                  >
+                    <Star size={14} />
+                    Make primary
+                  </button>
+                )}
               </div>
             </article>
           ))}
