@@ -1,9 +1,13 @@
 import { useEffect, useState } from 'react'
 import { CircleAlert } from 'lucide-react'
 import { api } from '../api'
-import type { PublicVehicle, DocumentRecord } from '../types'
+import type { PublicVehicle } from '../types'
 import carHeroAsset from '../assets/kwestkarz-hero-car.jpg'
 import { PublicSiteHeader } from './PublicSiteHeader'
+
+type VehiclePhoto = {
+  id: string
+}
 
 type VehicleWithImage = PublicVehicle & {
   firstImageId?: string
@@ -20,18 +24,17 @@ export function PublicCarsPage() {
       try {
         const rows = await api.get<PublicVehicle[]>('/api/public/vehicles')
 
-        // Fetch documents for all vehicles in parallel
-        const docsResults = await Promise.allSettled(
-          rows.map(v => api.get<DocumentRecord[]>(`/api/vehicles/${v.id}/documents`).catch(() => []))
+        // Fetch primary photo for all vehicles in parallel
+        const photoResults = await Promise.allSettled(
+          rows.map(v => api.get<VehiclePhoto>(`/api/public/vehicles/${v.id}/photos/primary`).catch(() => null))
         )
 
-        // Map first image for each vehicle
+        // Map primary image for each vehicle
         const vehiclesWithImages: VehicleWithImage[] = rows.map((vehicle, idx) => {
-          const docs = docsResults[idx]?.status === 'fulfilled' ? docsResults[idx].value : []
-          const images = docs.filter(d => d.contentType?.startsWith('image/'))
+          const photo = photoResults[idx]?.status === 'fulfilled' ? photoResults[idx].value : null
           return {
             ...vehicle,
-            firstImageId: images[0]?.id
+            firstImageId: photo?.id
           }
         })
 
@@ -75,7 +78,7 @@ export function PublicCarsPage() {
               {vehicle.firstImageId && (
                 <div className="fleet-card-image">
                   <img
-                    src={`/api/documents/${vehicle.firstImageId}/content`}
+                    src={`/api/public/vehicles/${vehicle.id}/photos/${vehicle.firstImageId}/content`}
                     alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
                   />
                 </div>

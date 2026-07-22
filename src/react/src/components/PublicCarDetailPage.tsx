@@ -1,13 +1,25 @@
 import { useEffect, useState } from 'react'
 import { ChevronLeft, ChevronRight, CircleAlert } from 'lucide-react'
 import { api } from '../api'
-import type { PublicVehicle, DocumentRecord } from '../types'
+import type { PublicVehicle } from '../types'
 import { PublicSiteHeader } from './PublicSiteHeader'
+
+type VehiclePhoto = {
+  id: string
+  vehicleId: string
+  contentType: string
+  originalFileName: string
+  sizeBytes: number
+  isPrimary: boolean
+  displayOrder: number
+  createdAt: string
+  createdBy: string | null
+}
 
 export function PublicCarDetailPage() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [vehicle, setVehicle] = useState<PublicVehicle | null>(null)
-  const [documents, setDocuments] = useState<DocumentRecord[]>([])
+  const [photos, setPhotos] = useState<VehiclePhoto[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
@@ -17,16 +29,15 @@ export function PublicCarDetailPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [vehicles, docs] = await Promise.all([
+        const [vehicles, vehiclePhotos] = await Promise.all([
           api.get<PublicVehicle[]>(`/api/public/vehicles`),
-          api.get<DocumentRecord[]>(`/api/vehicles/${vehicleId}/documents`).catch(() => [])
+          api.get<VehiclePhoto[]>(`/api/public/vehicles/${vehicleId}/photos`).catch(() => [])
         ])
 
         const found = vehicles.find(v => v.id === vehicleId)
         if (found) {
           setVehicle(found)
-          const images = docs.filter(d => d.contentType?.startsWith('image/'))
-          setDocuments(images)
+          setPhotos(vehiclePhotos)
         } else {
           setError('Vehicle not found')
         }
@@ -64,21 +75,21 @@ export function PublicCarDetailPage() {
     )
   }
 
-  const hasImages = documents.length > 0
+  const hasImages = photos.length > 0
   const title = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ')
 
   const handlePrevImage = () => {
-    setCurrentImageIndex(prev => (prev - 1 + documents.length) % documents.length)
+    setCurrentImageIndex(prev => (prev - 1 + photos.length) % photos.length)
   }
 
   const handleNextImage = () => {
-    setCurrentImageIndex(prev => (prev + 1) % documents.length)
+    setCurrentImageIndex(prev => (prev + 1) % photos.length)
   }
 
   const getCurrentImageUrl = () => {
     if (!hasImages) return ''
-    const doc = documents[currentImageIndex]
-    return `/api/documents/${doc.id}/content`
+    const photo = photos[currentImageIndex]
+    return `/api/public/vehicles/${vehicleId}/photos/${photo.id}/content`
   }
 
   const specs = [
@@ -106,7 +117,7 @@ export function PublicCarDetailPage() {
                   alt={title}
                   className="car-detail-image"
                 />
-                {documents.length > 1 && (
+                {photos.length > 1 && (
                   <>
                     <button className="car-detail-nav-btn car-detail-nav-prev" onClick={handlePrevImage}>
                       <ChevronLeft size={28} />
@@ -115,7 +126,7 @@ export function PublicCarDetailPage() {
                       <ChevronRight size={28} />
                     </button>
                     <div className="car-detail-image-counter">
-                      {currentImageIndex + 1} / {documents.length}
+                      {currentImageIndex + 1} / {photos.length}
                     </div>
                   </>
                 )}

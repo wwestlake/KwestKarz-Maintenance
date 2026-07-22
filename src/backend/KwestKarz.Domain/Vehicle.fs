@@ -110,5 +110,6 @@ type IVehicleRepository =
 type IVehiclePhotoRepository =
     abstract member ListByVehicleAsync: vehicleId: Guid * cancellationToken: CancellationToken -> Task<VehiclePhoto list>
     abstract member GetPrimaryAsync: vehicleId: Guid * cancellationToken: CancellationToken -> Task<VehiclePhoto option>
+    abstract member GetPhotoContentAsync: photoId: Guid * vehicleId: Guid * cancellationToken: CancellationToken -> Task<byte array option>
     abstract member AddPhotoAsync: vehicleId: Guid * photo: VehiclePhoto * blob: byte array * cancellationToken: CancellationToken -> Task<VehiclePhoto>
     abstract member SetPrimaryAsync: photoId: Guid * vehicleId: Guid * cancellationToken: CancellationToken -> Task<unit>
