@@ -22,6 +22,7 @@ type VehiclePhotoResponse =
 module VehiclePhotoEndpoints =
     let mapVehiclePhotoEndpoints (app: WebApplication) =
         let group = app.MapGroup("/api/vehicles/{vehicleId}/photos").RequireAuthorization()
+        let publicGroup = app.MapGroup("/api/public/vehicles/{vehicleId}/photos")
 
         group.MapGet(
             "",
@@ -134,3 +135,71 @@ module VehiclePhotoEndpoints =
             )
         )
         |> ignore
+
+        // Public endpoints (no authentication required)
+        publicGroup.MapGet(
+            "",
+            Func<Guid, IVehiclePhotoRepository, CancellationToken, Task<IResult>>(
+                fun vehicleId photoRepo ct ->
+                    task {
+                        let! photos = photoRepo.ListByVehicleAsync(vehicleId, ct)
+                        let response =
+                            photos
+                            |> List.map (fun p ->
+                                { Id = p.Id
+                                  VehicleId = p.VehicleId
+                                  ContentType = p.ContentType
+                                  OriginalFileName = p.OriginalFileName
+                                  SizeBytes = p.SizeBytes
+                                  IsPrimary = p.IsPrimary
+                                  DisplayOrder = p.DisplayOrder
+                                  CreatedAt = p.CreatedAt
+                                  CreatedBy = p.CreatedBy })
+                        return Results.Ok(response)
+                    }
+            )
+        )
+        |> fun x -> x.AllowAnonymous()
+        |> ignore
+
+        publicGroup.MapGet(
+            "/primary",
+            Func<Guid, IVehiclePhotoRepository, CancellationToken, Task<IResult>>(
+                fun vehicleId photoRepo ct ->
+                    task {
+                        let! photo = photoRepo.GetPrimaryAsync(vehicleId, ct)
+                        match photo with
+                        | Some p ->
+                            let response =
+                                { Id = p.Id
+                                  VehicleId = p.VehicleId
+                                  ContentType = p.ContentType
+                                  OriginalFileName = p.OriginalFileName
+                                  SizeBytes = p.SizeBytes
+                                  IsPrimary = p.IsPrimary
+                                  DisplayOrder = p.DisplayOrder
+                                  CreatedAt = p.CreatedAt
+                                  CreatedBy = p.CreatedBy }
+                            return Results.Ok(response)
+                        | None -> return Results.NotFound()
+                    }
+            )
+        )
+        |> fun x -> x.AllowAnonymous()
+        |> ignore
+
+        publicGroup.MapGet(
+            "/{photoId}/content",
+            Func<Guid, Guid, IVehiclePhotoRepository, CancellationToken, Task<IResult>>(
+                fun vehicleId photoId photoRepo ct ->
+                    task {
+                        let! content = photoRepo.GetPhotoContentAsync(photoId, vehicleId, ct)
+                        match content with
+                        | Some blob ->
+                            return Results.File(blob, "image/avif", $"photo-{photoId}.avif")
+                        | None ->
+                            return Results.NotFound()
+                    }
+            )
+        )
+        |> fun x -> x.AllowAnonymous()

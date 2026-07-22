@@ -110,6 +110,34 @@ type PostgresVehiclePhotoRepository(dataSource: NpgsqlDataSource) =
                          CreatedBy = photo.CreatedBy }
             }
 
+        member _.GetPhotoContentAsync(photoId: Guid, vehicleId: Guid, cancellationToken: CancellationToken) : Task<byte array option> =
+            task {
+                use! connection = dataSource.OpenConnectionAsync(cancellationToken)
+                use command =
+                    new NpgsqlCommand(
+                        """
+                        select photo_blob
+                        from kwestkarzbusinessdata.vehicle_photos
+                        where id = @id and vehicle_id = @vehicle_id
+                        limit 1
+                        """,
+                        connection
+                    )
+
+                command.Parameters.AddWithValue("id", NpgsqlDbType.Uuid, photoId) |> ignore
+                command.Parameters.AddWithValue("vehicle_id", NpgsqlDbType.Uuid, vehicleId) |> ignore
+                use! reader = command.ExecuteReaderAsync(cancellationToken)
+
+                if reader.Read() then
+                    let ordinal = reader.GetOrdinal("photo_blob")
+                    if reader.IsDBNull(ordinal) then
+                        return None
+                    else
+                        return Some(reader.GetFieldValue<byte array>(ordinal))
+                else
+                    return None
+            }
+
         member _.SetPrimaryAsync(photoId: Guid, vehicleId: Guid, cancellationToken: CancellationToken) : Task<unit> =
             task {
                 use! connection = dataSource.OpenConnectionAsync(cancellationToken)

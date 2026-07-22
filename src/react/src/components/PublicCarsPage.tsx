@@ -20,18 +20,17 @@ export function PublicCarsPage() {
       try {
         const rows = await api.get<PublicVehicle[]>('/api/public/vehicles')
 
-        // Fetch documents for all vehicles in parallel
-        const docsResults = await Promise.allSettled(
-          rows.map(v => api.get<DocumentRecord[]>(`/api/vehicles/${v.id}/documents`).catch(() => []))
+        // Fetch photos for all vehicles in parallel
+        const photosResults = await Promise.allSettled(
+          rows.map(v => api.get<any[]>(`/api/public/vehicles/${v.id}/photos/primary`).catch(() => null))
         )
 
         // Map first image for each vehicle
         const vehiclesWithImages: VehicleWithImage[] = rows.map((vehicle, idx) => {
-          const docs = docsResults[idx]?.status === 'fulfilled' ? docsResults[idx].value : []
-          const images = docs.filter(d => d.contentType?.startsWith('image/'))
+          const photo = photosResults[idx]?.status === 'fulfilled' ? photosResults[idx].value : null
           return {
             ...vehicle,
-            firstImageId: images[0]?.id
+            firstImageId: photo?.id
           }
         })
 
@@ -75,7 +74,7 @@ export function PublicCarsPage() {
               {vehicle.firstImageId && (
                 <div className="fleet-card-image">
                   <img
-                    src={`/api/documents/${vehicle.firstImageId}/content`}
+                    src={`/api/public/vehicles/${vehicle.id}/photos/${vehicle.firstImageId}/content`}
                     alt={`${vehicle.year} ${vehicle.make} ${vehicle.model}`}
                   />
                 </div>
