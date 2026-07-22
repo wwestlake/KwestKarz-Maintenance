@@ -195,8 +195,8 @@ module VehiclePhotoEndpoints =
                     task {
                         let! content = photoRepo.GetPhotoContentAsync(photoId, vehicleId, ct)
                         match content with
-                        | Some blob ->
-                            return Results.File(blob, "image/avif", $"photo-{photoId}.avif")
+                        | Some(blob, contentType) ->
+                            return Results.File(blob, contentType)
                         | None ->
                             return Results.NotFound()
                     }
