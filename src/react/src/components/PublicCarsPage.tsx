@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CircleAlert } from 'lucide-react'
 import { api } from '../api'
 import type { PublicVehicle } from '../types'
-import carHeroAsset from '../assets/kwestkarz-hero-car.jpg'
 import { PublicSiteHeader } from './PublicSiteHeader'
+import { PhotoCarousel } from './PhotoCarousel'
+import type { CarouselSlide } from './PhotoCarousel'
 
 type VehiclePhoto = {
   id: string
@@ -11,6 +12,15 @@ type VehiclePhoto = {
 
 type VehicleWithImage = PublicVehicle & {
   firstImageId?: string
+}
+
+function shuffled<T>(items: T[]): T[] {
+  const result = [...items]
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[result[i], result[j]] = [result[j], result[i]]
+  }
+  return result
 }
 
 export function PublicCarsPage() {
@@ -47,13 +57,34 @@ export function PublicCarsPage() {
     })()
   }, [])
 
+  const carouselSlides = useMemo<CarouselSlide[]>(
+    () =>
+      shuffled(
+        vehicles
+          .filter((vehicle) => vehicle.firstImageId)
+          .map((vehicle) => ({
+            key: vehicle.id,
+            imageUrl: `/api/public/vehicles/${vehicle.id}/photos/${vehicle.firstImageId}/content`,
+            alt: [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || 'Vehicle',
+            href: `/cars/${vehicle.id}`,
+            caption: [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' '),
+          })),
+      ),
+    [vehicles],
+  )
+
   return (
     <main className="public-page">
       <PublicSiteHeader menuOpen={menuOpen} onToggleMenu={() => setMenuOpen((value) => !value)} />
 
       <section className="public-feature public-page-hero">
-        <div className="public-hero-image-wrap public-hero-image-wrap--tall">
-          <img className="public-hero-image" src={carHeroAsset} alt="KwestKarz vehicle" />
+        <div className="fleet-carousel-wrap">
+          <PhotoCarousel
+            slides={carouselSlides}
+            autoPlayMs={4500}
+            ariaLabel="Fleet photo carousel"
+            emptyLabel={loading ? 'Loading fleet photos…' : 'Fleet photos coming soon'}
+          />
         </div>
 
         <div className="public-copy">

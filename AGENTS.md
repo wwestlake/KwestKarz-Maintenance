@@ -107,6 +107,23 @@ All colours and spacing are CSS custom properties. Never add hardcoded hex value
 - **CRITICAL: Merging to `main` triggers automatic deployment to production. Do NOT merge to `main` unless the code is ready for immediate production release.**
 - The user still owns the final go/no-go for production timing.
 
+## Production Database Ownership — Critical Rule
+The app connects to Postgres as the `kwestkarz` role (see `ConnectionStrings__KwestKarz` in `/opt/kwestkarz/env` on the EC2 host), **not** as the `postgres` superuser.
+
+`DatabaseInitializer.EnsureCreatedAsync` runs idempotent DDL (`create table if not exists`, `alter table add column if not exists`, `create index if not exists`, etc.) against every table in `kwestkarzbusinessdata` **on every app startup**. If a table is owned by a role other than `kwestkarz`, that DDL fails with a Postgres permission error (`must be owner of table ...`), the app throws on startup, and systemd crash-loops the service — this takes down the entire API, not just the feature tied to that table.
+
+**Never run manual/ad-hoc SQL against production as `sudo -u postgres psql`** (e.g. to backfill data, create a table by hand, fix a one-off issue) without either:
+1. Running it as the `kwestkarz` role instead of `postgres`, or
+2. Immediately following it with `ALTER TABLE ... OWNER TO kwestkarz;` (and the same for any sequences/indexes created) before the next deploy/restart.
+
+If you ever need to audit ownership, run on the EC2 host:
+```sql
+SELECT tablename, tableowner FROM pg_tables WHERE schemaname = 'kwestkarzbusinessdata' AND tableowner != 'kwestkarz';
+```
+Any row returned there is a ticking time bomb for the next restart. Fix it before moving on.
+
+**Incident:** on 2026-07-22, the `vehicle_photos` table was created manually via `sudo -u postgres psql` during a data-upload task, leaving it owned by `postgres`. The next `develop`→`main` deploy restarted the service, `DatabaseInitializer` tried to `alter table`/`create index if not exists` on it, hit a permission error, and the service crash-looped (core-dump, `ABRT`) until the ownership was manually corrected.
+
 ## Workflow Rules
 - Build before merging to `develop`. TypeScript check before committing frontend.
 - Never commit .env.local or secrets.
@@ -120,3 +137,4 @@ All colours and spacing are CSS custom properties. Never add hardcoded hex value
 - Do not use `sleep` to poll — use background task notifications.
 - Do not hardcode hex colors — use CSS variables.
 - Do not add a new F# file without checking its compile order position in the `.fsproj`.
+- Do not run manual SQL against production as `sudo -u postgres psql` without transferring ownership of anything you create to the `kwestkarz` role — see "Production Database Ownership" above.

@@ -39,6 +39,7 @@
     <Compile Include="NotificationService.fs" />
     <Compile Include="UserEndpoints.fs" />
     <Compile Include="LedgerEndpoints.fs" />
+    <Compile Include="ReportsEndpoints.fs" />
     <Compile Include="JobEndpoints.fs" />
     <Compile Include="NotificationEndpoints.fs" />
     <Compile Include="Program.fs" />

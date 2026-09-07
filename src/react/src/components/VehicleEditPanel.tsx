@@ -6,24 +6,34 @@ import { US_STATE_CODES } from '../utils'
 type Props = {
   form: EditVehicleForm
   loading: boolean
+  generatingDescription?: boolean
   onChange: (form: EditVehicleForm) => void
   onSubmit: (event: FormEvent) => void
   onCancel: () => void
+  onGenerateDescription?: () => void
 }
 
-export function VehicleEditPanel({ form, loading, onChange, onSubmit, onCancel }: Props) {
+export function VehicleEditPanel({
+  form,
+  loading,
+  generatingDescription,
+  onChange,
+  onSubmit,
+  onCancel,
+  onGenerateDescription,
+}: Props) {
   return (
     <div className="panel">
       <div className="section-heading">
         <h2>Edit Vehicle</h2>
-        <button className="secondary-button" type="button" onClick={onCancel}>
+        <button className="secondary-button" type="button" onClick={onCancel} disabled={generatingDescription}>
           Cancel
         </button>
       </div>
       <form className="vehicle-edit-form" onSubmit={onSubmit}>
         <div className="form-actions sticky-form-actions">
-          <button type="submit" disabled={loading}>Save Changes</button>
-          <button className="secondary-button" type="button" onClick={onCancel}>
+          <button type="submit" disabled={loading || generatingDescription}>Save Changes</button>
+          <button className="secondary-button" type="button" onClick={onCancel} disabled={generatingDescription}>
             Cancel
           </button>
         </div>
@@ -96,6 +106,31 @@ export function VehicleEditPanel({ form, loading, onChange, onSubmit, onCancel }
             rows={3}
             onChange={(e) => onChange({ ...form, notes: e.target.value })}
           />
+        </label>
+        <label>
+          <div className="section-heading">
+            <span>Description (shown on public car detail page)</span>
+            {onGenerateDescription && (
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={generatingDescription || loading}
+                onClick={onGenerateDescription}
+              >
+                {generatingDescription ? 'Generating…' : 'Generate from VIN'}
+              </button>
+            )}
+          </div>
+          <textarea
+            value={form.description}
+            disabled={generatingDescription}
+            rows={5}
+            placeholder="A marketing-friendly description for renters browsing the fleet."
+            onChange={(e) => onChange({ ...form, description: e.target.value })}
+          />
+          <p className="hint-text">
+            Generate a starting point from VIN-decoded specs, then edit freely — this is what renters see.
+          </p>
         </label>
       </form>
     </div>

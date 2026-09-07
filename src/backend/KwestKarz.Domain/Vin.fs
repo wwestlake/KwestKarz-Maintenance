@@ -11,6 +11,14 @@ type VinDecodeResult =
       Trim: string option
       VehicleType: string option
       BodyClass: string option
+      TransmissionStyle: string option
+      EngineCylinders: string option
+      DisplacementL: string option
+      FuelTypePrimary: string option
+      DriveType: string option
+      Doors: string option
+      Seats: string option
+      EngineHP: string option
       ErrorCode: string option
       ErrorText: string option }
 

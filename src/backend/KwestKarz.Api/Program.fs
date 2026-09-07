@@ -275,6 +275,7 @@ module Program =
         UserEndpoints.mapUserEndpoints adminPhone notifConfig app |> ignore
         JobEndpoints.mapJobEndpoints notifConfig app |> ignore
         LedgerEndpoints.mapLedgerEndpoints app |> ignore
+        ReportsEndpoints.mapReportsEndpoints app |> ignore
         MaintenanceTemplateEndpoints.mapMaintenanceTemplateEndpoints app |> ignore
         VinEndpoints.mapVinEndpoints app |> ignore
         VehicleEndpoints.mapVehicleEndpoints app |> ignore
