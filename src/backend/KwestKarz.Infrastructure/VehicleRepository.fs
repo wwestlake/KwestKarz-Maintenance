@@ -39,6 +39,7 @@ type PostgresVehicleRepository(dataSource: NpgsqlDataSource) =
           CurrentOdometerRecordedAt = getOption reader "current_odometer_recorded_at" reader.GetFieldValue<DateTimeOffset>
           FleetPositionNumber = getOption reader "fleet_position_number" reader.GetString
           Notes = getOption reader "notes" reader.GetString
+          Description = getOption reader "description" reader.GetString
           CreatedAt = reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("created_at"))
           UpdatedAt = reader.GetFieldValue<DateTimeOffset>(reader.GetOrdinal("updated_at")) }
 
@@ -46,7 +47,7 @@ type PostgresVehicleRepository(dataSource: NpgsqlDataSource) =
         """
         id, vin, year, make, model, trim, body_class, transmission, color, license_plate, license_plate_state,
         acquisition_date, purchase_price, status, turo_listing_id, turo_listing_status, turo_listing_url,
-        current_odometer, current_odometer_recorded_at, fleet_position_number, notes,
+        current_odometer, current_odometer_recorded_at, fleet_position_number, notes, description,
         created_at, updated_at
         """
 
@@ -72,6 +73,7 @@ type PostgresVehicleRepository(dataSource: NpgsqlDataSource) =
         command.Parameters.AddWithValue("current_odometer_recorded_at", NpgsqlDbType.TimestampTz, optionOrDbNull vehicle.CurrentOdometerRecordedAt) |> ignore
         command.Parameters.AddWithValue("fleet_position_number", NpgsqlDbType.Text, optionOrDbNull vehicle.FleetPositionNumber) |> ignore
         command.Parameters.AddWithValue("notes", NpgsqlDbType.Text, optionOrDbNull vehicle.Notes) |> ignore
+        command.Parameters.AddWithValue("description", NpgsqlDbType.Text, optionOrDbNull vehicle.Description) |> ignore
         command.Parameters.AddWithValue("created_at", NpgsqlDbType.TimestampTz, now) |> ignore
         command.Parameters.AddWithValue("updated_at", NpgsqlDbType.TimestampTz, now) |> ignore
 
@@ -146,6 +148,7 @@ type PostgresVehicleRepository(dataSource: NpgsqlDataSource) =
                             current_odometer_recorded_at = @current_odometer_recorded_at,
                             fleet_position_number = @fleet_position_number,
                             notes = @notes,
+                            description = @description,
                             updated_at = @updated_at
                         where id = @id
                         returning {selectColumns}
@@ -165,6 +168,7 @@ type PostgresVehicleRepository(dataSource: NpgsqlDataSource) =
                 command.Parameters.AddWithValue("current_odometer_recorded_at", NpgsqlDbType.TimestampTz, optionOrDbNull update.CurrentOdometerRecordedAt) |> ignore
                 command.Parameters.AddWithValue("fleet_position_number", NpgsqlDbType.Text, optionOrDbNull update.FleetPositionNumber) |> ignore
                 command.Parameters.AddWithValue("notes", NpgsqlDbType.Text, optionOrDbNull update.Notes) |> ignore
+                command.Parameters.AddWithValue("description", NpgsqlDbType.Text, optionOrDbNull update.Description) |> ignore
                 command.Parameters.AddWithValue("updated_at", NpgsqlDbType.TimestampTz, now) |> ignore
 
                 use! reader = command.ExecuteReaderAsync(cancellationToken)
@@ -184,13 +188,13 @@ type PostgresVehicleRepository(dataSource: NpgsqlDataSource) =
                         insert into kwestkarzbusinessdata.vehicles (
                             id, vin, year, make, model, trim, body_class, transmission, color, license_plate, license_plate_state,
                             acquisition_date, purchase_price, status, turo_listing_id, turo_listing_status, turo_listing_url,
-                            current_odometer, current_odometer_recorded_at, fleet_position_number, notes,
+                            current_odometer, current_odometer_recorded_at, fleet_position_number, notes, description,
                             created_at, updated_at
                         )
                         values (
                             @id, @vin, @year, @make, @model, @trim, @body_class, @transmission, @color, @license_plate, @license_plate_state,
                             @acquisition_date, @purchase_price, @status, @turo_listing_id, @turo_listing_status, @turo_listing_url,
-                            @current_odometer, @current_odometer_recorded_at, @fleet_position_number, @notes,
+                            @current_odometer, @current_odometer_recorded_at, @fleet_position_number, @notes, @description,
                             @created_at, @updated_at
                         )
                         returning {selectColumns}

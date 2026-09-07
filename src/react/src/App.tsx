@@ -14,6 +14,7 @@ import { BankStatementImportPanel } from './components/BankStatementImportPanel'
 import { PendingApprovalsPanel } from './components/PendingApprovalsPanel'
 import { JobsPanel } from './components/JobsPanel'
 import { LedgerPanel } from './components/LedgerPanel'
+import { ReportsPanel } from './components/ReportsPanel'
 import { MaintenanceTemplateManager } from './components/MaintenanceTemplateManager'
 import { FleetMaintenancePanel } from './components/FleetMaintenancePanel'
 import { DocumentLibraryPanel } from './components/DocumentLibraryPanel'
@@ -53,6 +54,7 @@ const baseAreas: { id: AppArea; label: string }[] = [
   { id: 'orientation', label: 'Orientation' },
   { id: 'jobs', label: 'Jobs' },
   { id: 'ledger', label: 'Ledger' },
+  { id: 'reports', label: 'Reports' },
   { id: 'maintenance', label: 'Maintenance' },
   { id: 'compliance', label: 'Compliance' },
   { id: 'lockboxes', label: 'Lock Boxes' },
@@ -76,6 +78,7 @@ const areaTitles: Record<AppArea, string> = {
   orientation: 'Orientation',
   jobs: 'Jobs',
   ledger: 'Ledger',
+  reports: 'Reports',
   maintenance: 'Maintenance',
   compliance: 'Compliance',
   lockboxes: 'Lock Boxes',
@@ -179,7 +182,9 @@ function App() {
     currentOdometer: '',
     fleetPositionNumber: '',
     notes: '',
+    description: '',
   })
+  const [generatingDescription, setGeneratingDescription] = useState(false)
   const [showTirePressurePanel, setShowTirePressurePanel] = useState(false)
   const [appMenuOpen, setAppMenuOpen] = useState(false)
   const [showLockBoxManager, setShowLockBoxManager] = useState(false)
@@ -273,6 +278,7 @@ function App() {
 
   const normalizedVin = vin.trim().toUpperCase()
   const isAdmin = profile?.role === 'admin'
+  const canViewReports = isAdmin || profile?.role === 'manager'
 
   const vehicleTitle = useMemo(() => {
     const vehicle = dashboard?.vehicle
@@ -1124,6 +1130,7 @@ function App() {
       currentOdometer: v.currentOdometer?.toString() ?? '',
       fleetPositionNumber: v.fleetPositionNumber ?? '',
       notes: v.notes ?? '',
+      description: v.description ?? '',
     })
     setShowEditVehicle(true)
   }
@@ -1146,6 +1153,7 @@ function App() {
         currentOdometerRecordedAt: editVehicleForm.currentOdometer ? new Date().toISOString() : null,
         fleetPositionNumber: editVehicleForm.fleetPositionNumber || null,
         notes: editVehicleForm.notes || null,
+        description: editVehicleForm.description || null,
       })
       setShowEditVehicle(false)
       await loadDashboard(updated.id)
@@ -1155,6 +1163,23 @@ function App() {
       setMessage(error instanceof Error ? error.message : 'Could not save vehicle')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function generateVehicleDescription() {
+    if (!dashboard) return
+
+    setGeneratingDescription(true)
+    setMessage('Generating description from VIN…')
+
+    try {
+      const updated = await api.post<{ description: string }>(`/api/vehicles/${dashboard.vehicle.id}/generate-description`, {})
+      setEditVehicleForm((form) => ({ ...form, description: updated.description ?? '' }))
+      setMessage('Description generated — review and save')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not generate description')
+    } finally {
+      setGeneratingDescription(false)
     }
   }
 
@@ -2592,7 +2617,7 @@ function App() {
             Public Site
           </button>
           {[
-            ...baseAreas.slice(0, -1),
+            ...baseAreas.slice(0, -1).filter(area => area.id !== 'reports' || canViewReports),
             ...(profile?.role === 'admin' ? [{ id: 'users' as AppArea, label: 'Users' }] : []),
             baseAreas[baseAreas.length - 1],
           ].map((area) => (
@@ -2621,7 +2646,7 @@ function App() {
             Public Site
           </button>
           {[
-            ...baseAreas.slice(0, -1),
+            ...baseAreas.slice(0, -1).filter(area => area.id !== 'reports' || canViewReports),
             ...(profile?.role === 'admin' ? [{ id: 'users' as AppArea, label: 'Users' }] : []),
             baseAreas[baseAreas.length - 1],
           ].map((area) => (
@@ -3007,6 +3032,9 @@ function App() {
       {activeArea === 'jobs' && <JobsPanel />}
 
       {activeArea === 'ledger' && <LedgerPanel />}
+      {activeArea === 'reports' && (canViewReports
+        ? <ReportsPanel onOpenVehicle={id => { setActiveArea('vehicle'); void loadDashboard(id).catch(() => setMessage('Could not load vehicle details')) }} />
+        : <p className="panel">Reports are available to admins and managers.</p>)}
 
       {activeArea === 'users' && profile?.role === 'admin' && (
         <section className="area-grid">
@@ -3522,9 +3550,11 @@ function App() {
             <VehicleEditPanel
               form={editVehicleForm}
               loading={loading}
+              generatingDescription={generatingDescription}
               onChange={setEditVehicleForm}
               onSubmit={saveVehicle}
               onCancel={() => setShowEditVehicle(false)}
+              onGenerateDescription={generateVehicleDescription}
             />
           )}
 

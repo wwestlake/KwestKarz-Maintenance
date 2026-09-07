@@ -66,7 +66,7 @@ export type Job = {
   createdAt: string
 }
 
-export type AppArea = 'home' | 'inventory' | 'vehicle' | 'workflows' | 'orientation' | 'maintenance' | 'compliance' | 'lockboxes' | 'jobs' | 'ledger' | 'users' | 'settings'
+export type AppArea = 'home' | 'inventory' | 'vehicle' | 'workflows' | 'orientation' | 'maintenance' | 'compliance' | 'lockboxes' | 'jobs' | 'ledger' | 'reports' | 'users' | 'settings'
 
 export type GuidedCaptureConfig = {
   title: string
@@ -95,6 +95,7 @@ export type Vehicle = {
   currentOdometer?: number
   fleetPositionNumber?: string
   notes?: string
+  description?: string
 }
 
 export type PublicVehicle = {
@@ -111,6 +112,7 @@ export type PublicVehicle = {
   fleetPositionNumber?: string
   bodyClass?: string
   transmission?: string
+  description?: string
 }
 
 export type MaintenanceRecord = {
@@ -469,4 +471,5 @@ export type EditVehicleForm = {
   currentOdometer: string
   fleetPositionNumber: string
   notes: string
+  description: string
 }

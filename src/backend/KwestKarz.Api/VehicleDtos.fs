@@ -23,7 +23,8 @@ type CreateVehicleRequest =
       CurrentOdometer: int option
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
-      Notes: string option }
+      Notes: string option
+      Description: string option }
 
 module CreateVehicleRequest =
     let toDomain (request: CreateVehicleRequest) : NewVehicle =
@@ -46,7 +47,8 @@ module CreateVehicleRequest =
           CurrentOdometer = request.CurrentOdometer
           CurrentOdometerRecordedAt = request.CurrentOdometerRecordedAt
           FleetPositionNumber = request.FleetPositionNumber
-          Notes = request.Notes }
+          Notes = request.Notes
+          Description = request.Description }
 
 type UpdateVehicleRequest =
     { BodyClass: string option
@@ -59,7 +61,8 @@ type UpdateVehicleRequest =
       CurrentOdometer: int option
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
-      Notes: string option }
+      Notes: string option
+      Description: string option }
 
 module UpdateVehicleRequest =
     let toDomain (request: UpdateVehicleRequest) : UpdateVehicle =
@@ -73,7 +76,8 @@ module UpdateVehicleRequest =
           CurrentOdometer = request.CurrentOdometer
           CurrentOdometerRecordedAt = request.CurrentOdometerRecordedAt
           FleetPositionNumber = request.FleetPositionNumber
-          Notes = request.Notes }
+          Notes = request.Notes
+          Description = request.Description }
 
 type VehicleResponse =
     { Id: Guid
@@ -97,6 +101,7 @@ type VehicleResponse =
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
       Notes: string option
+      Description: string option
       CreatedAt: DateTimeOffset
       UpdatedAt: DateTimeOffset }
 
@@ -123,6 +128,7 @@ module VehicleResponse =
           CurrentOdometerRecordedAt = vehicle.CurrentOdometerRecordedAt
           FleetPositionNumber = vehicle.FleetPositionNumber
           Notes = vehicle.Notes
+          Description = vehicle.Description
           CreatedAt = vehicle.CreatedAt
           UpdatedAt = vehicle.UpdatedAt }
 
@@ -139,7 +145,8 @@ type PublicVehicleResponse =
       Status: string
       TuroListingStatus: string option
       TuroListingUrl: string option
-      FleetPositionNumber: string option }
+      FleetPositionNumber: string option
+      Description: string option }
 
 module PublicVehicleResponse =
     let fromDomain (vehicle: Vehicle) : PublicVehicleResponse =
@@ -155,4 +162,5 @@ module PublicVehicleResponse =
           Status = VehicleStatus.toStorageValue vehicle.Status
           TuroListingStatus = vehicle.TuroListingStatus
           TuroListingUrl = vehicle.TuroListingUrl
-          FleetPositionNumber = vehicle.FleetPositionNumber }
+          FleetPositionNumber = vehicle.FleetPositionNumber
+          Description = vehicle.Description }

@@ -51,6 +51,7 @@ type Vehicle =
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
       Notes: string option
+      Description: string option
       CreatedAt: DateTimeOffset
       UpdatedAt: DateTimeOffset }
 
@@ -74,7 +75,8 @@ type NewVehicle =
       CurrentOdometer: int option
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
-      Notes: string option }
+      Notes: string option
+      Description: string option }
 
 type UpdateVehicle =
     { BodyClass: string option
@@ -87,7 +89,8 @@ type UpdateVehicle =
       CurrentOdometer: int option
       CurrentOdometerRecordedAt: DateTimeOffset option
       FleetPositionNumber: string option
-      Notes: string option }
+      Notes: string option
+      Description: string option }
 
 type VehiclePhoto =
     { Id: Guid
