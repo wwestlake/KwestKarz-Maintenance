@@ -139,6 +139,18 @@ export type DocumentRecord = {
   createdAt: string
 }
 
+export type VehiclePhotoRecord = {
+  id: string
+  vehicleId: string
+  contentType: string
+  originalFileName: string
+  sizeBytes: number
+  isPrimary: boolean
+  displayOrder: number
+  createdAt: string
+  createdBy?: string
+}
+
 export type LockBox = {
   id: string
   boxNumber: number

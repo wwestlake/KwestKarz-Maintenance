@@ -3528,14 +3528,7 @@ function App() {
             />
           )}
 
-          <VehiclePublicMediaPanel
-            vehicleId={dashboard.vehicle.id}
-            documents={dashboard.documents}
-            loading={loading}
-            onRefresh={async () => {
-              await loadDashboard(dashboard.vehicle.id)
-            }}
-          />
+          <VehiclePublicMediaPanel vehicleId={dashboard.vehicle.id} loading={loading} />
 
           {selectedWorkflow?.workflowType === 'RentalInspection' && (
             <div className="panel rental-inspection-panel">
