@@ -221,7 +221,15 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
 
                 alter table kwestkarzbusinessdata.documents
                     add constraint documents_kind_check check (
-                        kind in ('CarPhoto', 'Receipt', 'Obd2Report', 'Inspection', 'Registration', 'Insurance', 'LicensePlate', 'Other')
+                        kind in ('CarPhoto', 'Receipt', 'Obd2Report', 'Inspection', 'Registration', 'Insurance', 'LicensePlate', 'Other', 'JobPhoto')
+                    );
+
+                alter table kwestkarzbusinessdata.documents
+                    drop constraint if exists documents_owner_type_check;
+
+                alter table kwestkarzbusinessdata.documents
+                    add constraint documents_owner_type_check check (
+                        owner_type in ('Vehicle', 'MaintenanceRecord', 'DiagnosticReport', 'IncidentRecord', 'Job')
                     );
 
                 create index if not exists ix_documents_owner
@@ -552,6 +560,33 @@ type DatabaseInitializer(dataSource: NpgsqlDataSource) =
 
                 create index if not exists ix_jobs_status
                     on kwestkarzbusinessdata.jobs(status);
+
+                alter table if exists kwestkarzbusinessdata.jobs
+                    add column if not exists vehicle_id uuid null references kwestkarzbusinessdata.vehicles(id),
+                    add column if not exists location text null,
+                    add column if not exists due_at timestamptz null,
+                    add column if not exists checked_in_at timestamptz null,
+                    add column if not exists steps jsonb not null default '[]'::jsonb;
+
+                alter table if exists kwestkarzbusinessdata.jobs
+                    drop constraint if exists jobs_status_check;
+
+                alter table if exists kwestkarzbusinessdata.jobs
+                    add constraint jobs_status_check check (status in ('open', 'claimed', 'in_progress', 'complete', 'canceled'));
+
+                create table if not exists kwestkarzbusinessdata.job_offers (
+                    id uuid primary key default gen_random_uuid(),
+                    job_id uuid not null references kwestkarzbusinessdata.jobs(id) on delete cascade,
+                    worker_id uuid not null references kwestkarzbusinessdata.users(id),
+                    amount numeric(10,2) not null,
+                    due_at timestamptz null,
+                    status text not null default 'pending' check (status in ('pending', 'accepted', 'rejected')),
+                    created_at timestamptz not null default now(),
+                    updated_at timestamptz not null default now()
+                );
+
+                create index if not exists ix_job_offers_job
+                    on kwestkarzbusinessdata.job_offers(job_id, status);
 
                 create table if not exists kwestkarzbusinessdata.accounts (
                     id uuid primary key default gen_random_uuid(),

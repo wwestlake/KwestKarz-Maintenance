@@ -58,11 +58,27 @@ export type Job = {
   title: string
   description?: string
   amount: number
-  status: 'open' | 'claimed' | 'complete' | 'canceled'
+  status: 'open' | 'claimed' | 'in_progress' | 'complete' | 'canceled'
   createdBy: string
   claimedByName?: string
   claimedAt?: string
   completedAt?: string
+  createdAt: string
+  vehicleId?: string
+  location?: string
+  dueAt?: string
+  checkedInAt?: string
+  steps: string[]
+}
+
+export type JobOffer = {
+  id: string
+  jobId: string
+  workerId: string
+  workerName?: string
+  amount: number
+  dueAt?: string
+  status: 'pending' | 'accepted' | 'rejected'
   createdAt: string
 }
 
