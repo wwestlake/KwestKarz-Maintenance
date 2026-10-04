@@ -122,7 +122,7 @@ function getStoredActiveArea(): AppArea {
 }
 
 function App() {
-  const { profile, signOut } = useAuth()
+  const { profile, signOut, viewAsUser, setViewAsUser, realProfile } = useAuth()
   const [activeArea, setActiveArea] = useState<AppArea>(getStoredActiveArea)
   const [workflows, setWorkflows] = useState<WorkflowInstance[]>([])
   const [selectedWorkflowId, setSelectedWorkflowId] = useState('')
@@ -2595,6 +2595,12 @@ function App() {
           <h1>{activeArea === 'vehicle' ? areaTitles['inventory'] : areaTitles[activeArea]}</h1>
         </div>
         <div className="topbar-actions">
+          {realProfile?.role === 'admin' && setViewAsUser && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85em', background: 'var(--surface-hover)', padding: '4px 8px', borderRadius: 4, cursor: 'pointer' }}>
+              <input type="checkbox" checked={!!viewAsUser} onChange={e => setViewAsUser(e.target.checked)} />
+              View as User
+            </label>
+          )}
           <ThemeToggle />
           <span className={loading ? 'status busy' : 'status'}>{message}</span>
         </div>
