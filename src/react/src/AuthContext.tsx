@@ -28,6 +28,9 @@ type AuthContextValue = {
   getToken: () => Promise<string | null>
   refreshProfile: () => Promise<void>
   signOut: () => Promise<void>
+  viewAsUser?: boolean
+  setViewAsUser?: (v: boolean) => void
+  realProfile?: UserProfile | null
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -88,13 +91,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setFirebaseUser(null)
   }
 
+  const [viewAsUser, setViewAsUser] = useState(false)
+
   const profile =
     state.kind === 'active' || state.kind === 'pending' || state.kind === 'suspended'
       ? state.profile
       : null
 
+  const effectiveProfile = profile && viewAsUser && profile.role === 'admin' 
+      ? { ...profile, role: 'user' } 
+      : profile
+
   return (
-    <AuthContext.Provider value={{ state, firebaseUser, profile, getToken, refreshProfile, signOut }}>
+    <AuthContext.Provider value={{ state, firebaseUser, profile: effectiveProfile, getToken, refreshProfile, signOut, viewAsUser, setViewAsUser, realProfile: profile }}>
       {children}
     </AuthContext.Provider>
   )
