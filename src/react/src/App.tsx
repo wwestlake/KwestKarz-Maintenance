@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Home, Menu, X } from 'lucide-react'
+import { Home, Menu, X, Car, LayoutDashboard, Wrench, ClipboardList, Settings, Lock, BookOpen, Banknote, Shield, MoreHorizontal, FileBarChart, Users } from 'lucide-react'
 import './App.css'
 import { WorkflowDashboard } from './components/WorkflowDashboard'
 import { GuidedCameraModal } from './components/GuidedCameraModal'
@@ -47,18 +47,18 @@ import { lockBoxStyles, lockBoxStatuses, complianceTypes, rentalInspectionPhotoS
 
 // ─── local constants kept in App for nav/catalog references ──────────────────
 
-const baseAreas: { id: AppArea; label: string }[] = [
-  { id: 'home', label: 'Home' },
-  { id: 'inventory', label: 'Inventory' },
-  { id: 'workflows', label: 'Workflows' },
-  { id: 'orientation', label: 'Orientation' },
-  { id: 'jobs', label: 'Jobs' },
-  { id: 'ledger', label: 'Ledger' },
-  { id: 'reports', label: 'Reports' },
-  { id: 'maintenance', label: 'Maintenance' },
-  { id: 'compliance', label: 'Compliance' },
-  { id: 'lockboxes', label: 'Lock Boxes' },
-  { id: 'settings', label: 'Settings' },
+const baseAreas: { id: AppArea; label: string; icon: any }[] = [
+  { id: 'home', label: 'Home', icon: LayoutDashboard },
+  { id: 'inventory', label: 'Inventory', icon: Car },
+  { id: 'workflows', label: 'Workflows', icon: ClipboardList },
+  { id: 'orientation', label: 'Orientation', icon: BookOpen },
+  { id: 'jobs', label: 'Jobs', icon: Wrench },
+  { id: 'ledger', label: 'Ledger', icon: Banknote },
+  { id: 'reports', label: 'Reports', icon: FileBarChart },
+  { id: 'maintenance', label: 'Maintenance', icon: Settings },
+  { id: 'compliance', label: 'Compliance', icon: Shield },
+  { id: 'lockboxes', label: 'Lock Boxes', icon: Lock },
+  { id: 'settings', label: 'Settings', icon: Settings },
 ]
 
 const workflowCatalog = [
@@ -2600,17 +2600,6 @@ function App() {
         </div>
       </header>
       <div className="app-nav-shell">
-        <button
-          className="app-nav-toggle"
-          type="button"
-          aria-label={appMenuOpen ? 'Close menu' : 'Open menu'}
-          aria-expanded={appMenuOpen}
-          aria-controls="employee-main-menu"
-          onClick={() => setAppMenuOpen((value) => !value)}
-        >
-          {appMenuOpen ? <X size={18} strokeWidth={2.2} /> : <Menu size={18} strokeWidth={2.2} />}
-        </button>
-
         <nav className="app-nav" aria-label="Main areas">
           <button className="nav-button" type="button" onClick={() => window.location.assign('/')}>
             <Home size={16} strokeWidth={2.2} />
@@ -2618,7 +2607,7 @@ function App() {
           </button>
           {[
             ...baseAreas.slice(0, -1).filter(area => area.id !== 'reports' || canViewReports),
-            ...(profile?.role === 'admin' ? [{ id: 'users' as AppArea, label: 'Users' }] : []),
+            ...(profile?.role === 'admin' ? [{ id: 'users' as AppArea, label: 'Users', icon: Users }] : []),
             baseAreas[baseAreas.length - 1],
           ].map((area) => (
             <button
@@ -2635,38 +2624,48 @@ function App() {
             </button>
           ))}
         </nav>
+      </div>
 
-        <nav
-          id="employee-main-menu"
-          className={`app-nav-mobile${appMenuOpen ? ' is-open' : ''}`}
-          aria-label="Mobile main areas"
-        >
-          <button className="nav-button" type="button" onClick={() => { window.location.assign('/'); setAppMenuOpen(false) }}>
-            <Home size={16} strokeWidth={2.2} />
-            Public Site
-          </button>
-          {[
-            ...baseAreas.slice(0, -1).filter(area => area.id !== 'reports' || canViewReports),
-            ...(profile?.role === 'admin' ? [{ id: 'users' as AppArea, label: 'Users' }] : []),
-            baseAreas[baseAreas.length - 1],
-          ].map((area) => (
+      <nav className="app-bottom-bar" aria-label="Mobile Bottom Navigation">
+        <div className="app-bottom-bar-inner">
+          {baseAreas.filter(a => ['home', 'inventory', 'workflows', 'jobs'].includes(a.id)).map((area) => (
             <button
               key={area.id}
-              className={
-                activeArea === area.id || (area.id === 'inventory' && activeArea === 'vehicle')
-                  ? 'nav-button selected'
-                  : 'nav-button'
-              }
-              type="button"
-              onClick={() => {
-                setActiveArea(area.id)
-                setAppMenuOpen(false)
-              }}
+              className={`bottom-tab ${activeArea === area.id || (area.id === 'inventory' && activeArea === 'vehicle') ? 'selected' : ''}`}
+              onClick={() => { setActiveArea(area.id); setAppMenuOpen(false); }}
             >
-              {area.label}
+              <area.icon size={22} strokeWidth={1.8} />
+              <span>{area.label}</span>
             </button>
           ))}
-        </nav>
+          <button className={`bottom-tab ${appMenuOpen ? 'selected' : ''}`} onClick={() => setAppMenuOpen(!appMenuOpen)}>
+            <MoreHorizontal size={22} strokeWidth={1.8} />
+            <span>More</span>
+          </button>
+        </div>
+      </nav>
+
+      <div className={`more-drawer-overlay ${appMenuOpen ? 'open' : ''}`} onClick={() => setAppMenuOpen(false)} />
+      <div className={`more-drawer ${appMenuOpen ? 'open' : ''}`}>
+        <div className="more-drawer-grid">
+           {[
+             ...baseAreas.filter(a => !['home', 'inventory', 'workflows', 'jobs'].includes(a.id) && (a.id !== 'reports' || canViewReports)),
+             ...(profile?.role === 'admin' ? [{ id: 'users' as AppArea, label: 'Users', icon: Users }] : []),
+           ].map((area) => (
+             <button
+                key={area.id}
+                className="more-drawer-item"
+                onClick={() => { setActiveArea(area.id); setAppMenuOpen(false); }}
+             >
+                <area.icon size={26} strokeWidth={1.5} />
+                <span>{area.label}</span>
+             </button>
+           ))}
+           <button className="more-drawer-item" onClick={() => window.location.assign('/')}>
+             <Home size={26} strokeWidth={1.5} />
+             <span>Public Site</span>
+           </button>
+        </div>
       </div>
       {activeArea !== 'workflows' && selectedWorkflow && selectedWorkflowStep && (
         <section className="workflow-context-banner" aria-label="Active workflow context">
