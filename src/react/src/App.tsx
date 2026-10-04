@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Home, Menu, X, Car, LayoutDashboard, Wrench, ClipboardList, Settings, Lock, BookOpen, Banknote, Shield, MoreHorizontal, FileBarChart, Users } from 'lucide-react'
+import { Home, Car, LayoutDashboard, Wrench, ClipboardList, Settings, Lock, BookOpen, Banknote, Shield, MoreHorizontal, FileBarChart, Users } from 'lucide-react'
 import './App.css'
 import { WorkflowDashboard } from './components/WorkflowDashboard'
 import { GuidedCameraModal } from './components/GuidedCameraModal'
